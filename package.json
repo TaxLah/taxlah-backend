@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "cross-env NODE_ENV=production node server.js",
-    "dev": "cross-env NODE_ENV=development nodemon server.js"
+    "dev": "cross-env NODE_ENV=development nodemon server.js",
+    "dev:stg": "cross-env NODE_ENV=staging nodemon server.js",
+    "dev:prod": "cross-env NODE_ENV=production nodemon server.js"
   },
   "keywords": [],
   "author": "",
@@ -15,8 +17,12 @@
     "cross-env": "^7.0.2",
     "express": "^4.17.1",
     "express-session": "^1.17.1",
+    "fs": "^0.0.1-security",
+    "js-sha256": "^0.11.1",
     "jsonwebtoken": "^8.5.1",
+    "moment": "^2.30.1",
     "morgan": "^1.10.0",
+    "mysql2": "^3.15.0",
     "yenv": "^2.1.1"
   },
   "devDependencies": {

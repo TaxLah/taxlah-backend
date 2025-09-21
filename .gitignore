@@ -3,3 +3,7 @@ env.yaml
 .env
 development.yaml
 production.yaml
+
+assets
+asset
+file
