@@ -1,14 +1,39 @@
 const jwt = require("jsonwebtoken");
-
-//This function receives your token payload and contains the logic to verify if the user is genuine.
+const { UNAUTHORIZED_API_RESPONSE, ERROR_MISSING_TOKEN, ERROR_UNAUTHENTICATED } = require("./helper");
 
 const verifyUser = (payload) => {
-  //logic to verify user, return true if the user exists, return false otherwise
-  return true;
+  	return true;
 };
 
-//this function is passed in your JWT secret returns the auth middleware so to use it would be app.use(auth(SECRET)) or app.get('/', auth(), (req, res) => {})
-const auth = (secret) => {
+const auth = (secret = process.env.APP_SECRET) => {
+	return (req, res, next) => {
+		try {
+			if (req.headers.authorization) {
+				const token 	= req.headers.authorization.split(" ")[1];
+				const payload 	= jwt.verify(token, secret);
+				if (verifyUser(payload)) {
+					req.payload = payload;
+					req.user 	= payload;
+					next();
+				} else {
+					let response 		= UNAUTHORIZED_API_RESPONSE
+					response.message 	= ERROR_UNAUTHENTICATED
+					return res.status(response.status_code).json(response)
+				}
+			} else {
+				let response 		= UNAUTHORIZED_API_RESPONSE
+				response.message 	= ERROR_MISSING_TOKEN
+				return res.status(response.status_code).json(response)
+			}
+		} catch (err) {
+			console.log("err auth : ", err)
+			let response = UNAUTHORIZED_API_RESPONSE
+			return res.status(response.status_code).json(response)
+		}
+	};
+};
+
+const superauth = (secret = process.env.ADMIN_SECRET) => {
 	return (req, res, next) => {
 		try {
 			if (req.headers.authorization) {
@@ -29,4 +54,5 @@ const auth = (secret) => {
 
 module.exports = {
   auth,
+  superauth
 };

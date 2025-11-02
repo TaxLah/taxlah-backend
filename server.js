@@ -25,6 +25,12 @@ const fs 			= require("fs")
 const { decryptMiddleware, encryptData } = require("./utils/crypto.js");
 const { Logger } = require("./utils/logger.js");
 
+const winkNLP 	= require('wink-nlp');
+const model		= require('wink-eng-lite-web-model');
+const nlp 		= winkNLP(model);
+const its 		= nlp.its;
+const as 		= nlp.as;
+
 ////////////
 //MIDDLEWARE
 ////////////
@@ -54,6 +60,22 @@ app.post("/protected", decryptMiddleware, (req, res) => {
   	console.log("Decrypted Data:", req.decryptedBody);
   	return res.json({ message: "Protected route works", data: req.decryptedBody });
 });
+
+app.all("/nlp", async(req , res) => {
+
+	const doc 		= nlp.readDoc(req.query.text || "Hello World!");
+	const tokens 	= doc.tokens().out(its.normal, as.freqTable);
+	console.log(tokens);
+
+	return res.status(200).json({
+		status: 200,
+		message: 'success',
+		data: req.query,
+		nlp: tokens
+	})
+})
+
+app.use("/api", require("./routers/AppRouter"))
 
 // 404 handler (path not found)
 app.use((req, res, next) => {
