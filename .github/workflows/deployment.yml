@@ -65,6 +65,13 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Setup SSH with password
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
       - name: Deploy to all environments
         if: steps.env.outputs.deploy_mode == 'all'
         env:
@@ -74,10 +81,10 @@ jobs:
           # Deploy to all three environments
           for ENV in development staging production; do
             echo "Deploying to $ENV environment..."
-            DEPLOY_PATH="/home/fotopass/api/$ENV"
+            DEPLOY_PATH="/home/taxlah/api/$ENV"
             
             # Create deployment directory if it doesn't exist
-            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
+            sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
             
             # Sync files to server
             rsync -avz --delete \
@@ -98,7 +105,7 @@ jobs:
           DEPLOY_PATH: ${{ steps.env.outputs.deploy_path }}
         run: |
           # Create deployment directory if it doesn't exist
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
+          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
           
           # Sync files to server
           rsync -avz --delete \
@@ -116,7 +123,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
+          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
             # Deploy to all environments
             for ENV in development staging production; do
               echo "Setting up $ENV environment..."
@@ -161,7 +168,7 @@ jobs:
           DEPLOY_PATH: ${{ steps.env.outputs.deploy_path }}
           PM2_APP: ${{ steps.env.outputs.pm2_app }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
+          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
             cd ${{ env.DEPLOY_PATH }}
             
             # Install production dependencies
@@ -189,7 +196,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
+          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
             export PATH=$PATH:/usr/local/bin:/usr/bin
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -203,7 +210,7 @@ jobs:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           PM2_APP: ${{ steps.env.outputs.pm2_app }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
+          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
             export PATH=$PATH:/usr/local/bin:/usr/bin
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
