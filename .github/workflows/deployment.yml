@@ -87,7 +87,7 @@ jobs:
             sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
             
             # Sync files to server
-            rsync -avz --delete \
+            sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" rsync -avz --delete \
               --exclude 'node_modules' \
               --exclude '.git' \
               --exclude '.env' \
@@ -108,7 +108,7 @@ jobs:
           sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
           
           # Sync files to server
-          rsync -avz --delete \
+          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" rsync -avz --delete \
             --exclude 'node_modules' \
             --exclude '.git' \
             --exclude '.env' \
