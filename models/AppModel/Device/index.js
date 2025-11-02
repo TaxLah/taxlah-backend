@@ -1,0 +1,38 @@
+const db = require("../../../utils/sqlbuilder")
+
+async function DeviceCreate(params = { account_id: '', device_uuid: '', device_name: '', device_os: '', device_enable_fcm: 'Yes', device_fcm_token: ''}) {
+    let result = null
+    try {
+        let query = await db.insert("account_device", params)
+        if(query.insertId) {
+            result = { status: true, data: query.insertId }
+        } else {
+            result = { status: false, data: null }
+        }
+    } catch (e) {
+        result = { status: false, data: null }
+    } finally {
+        return result
+    }
+}
+
+async function DeviceUpdate(params = { account_id: '', device_id: '',  device_uuid: '', device_name: '', device_os: '', device_enable_fcm: 'Yes', device_fcm_token: ''}) {
+    let result = null
+    try {
+        let query = await db.update("account_device", params, { account_id: params.account_id, device_id: params.device_id })
+        if(query) {
+            result = { status: true, data: query }
+        } else {
+            result = { status: false, data: null }
+        }
+    } catch (e) {
+        result = { status: false, data: null }
+    } finally {
+        return result
+    }
+}
+
+module.exports = {
+    DeviceCreate,
+    DeviceUpdate
+}
