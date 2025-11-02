@@ -1,0 +1,216 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22' # Adjust to your Node.js version
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Set deployment environment
+        id: env
+        run: |
+          # Use manual input if triggered manually, otherwise default to all environments
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+            echo "deploy_mode=single" >> $GITHUB_OUTPUT
+          else
+            ENV="all"
+            echo "deploy_mode=all" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          
+          # Set paths for single environment deployment
+          if [ "$ENV" = "production" ]; then
+            echo "pm2_app=taxlah-production-api" >> $GITHUB_OUTPUT
+            echo "deploy_path=/home/hazman/api/production" >> $GITHUB_OUTPUT
+          elif [ "$ENV" = "staging" ]; then
+            echo "pm2_app=taxlah-staging-api" >> $GITHUB_OUTPUT
+            echo "deploy_path=/home/hazman/api/staging" >> $GITHUB_OUTPUT
+          elif [ "$ENV" = "development" ]; then
+            echo "pm2_app=taxlah-development-api" >> $GITHUB_OUTPUT
+            echo "deploy_path=/home/hazman/api/development" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to all environments
+        if: steps.env.outputs.deploy_mode == 'all'
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          # Deploy to all three environments
+          for ENV in development staging production; do
+            echo "Deploying to $ENV environment..."
+            DEPLOY_PATH="/home/fotopass/api/$ENV"
+            
+            # Create deployment directory if it doesn't exist
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
+            
+            # Sync files to server
+            rsync -avz --delete \
+              --exclude 'node_modules' \
+              --exclude '.git' \
+              --exclude '.env' \
+              --exclude 'logs' \
+              --exclude 'file' \
+              -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+              ./ $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/
+          done
+
+      - name: Deploy to single environment
+        if: steps.env.outputs.deploy_mode == 'single'
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          DEPLOY_PATH: ${{ steps.env.outputs.deploy_path }}
+        run: |
+          # Create deployment directory if it doesn't exist
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
+          
+          # Sync files to server
+          rsync -avz --delete \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude 'logs' \
+            --exclude 'file' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            ./ $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/
+
+      - name: Install dependencies and restart PM2 (all environments)
+        if: steps.env.outputs.deploy_mode == 'all'
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
+            # Deploy to all environments
+            for ENV in development staging production; do
+              echo "Setting up $ENV environment..."
+              DEPLOY_PATH="/home/hazman/api/$ENV"
+
+              if [ "$ENV" = "production" ]; then
+                PM2_APP="taxlah-production-api"
+              elif [ "$ENV" = "staging" ]; then
+                PM2_APP="taxlah-staging-api"
+              elif [ "$ENV" = "development" ]; then
+                PM2_APP="taxlah-development-api"
+              fi
+              
+              cd $DEPLOY_PATH
+              
+              # Install production dependencies
+              npm install
+              
+              # Create logs directory if it doesn't exist
+              mkdir -p logs
+              mkdir -p file
+              
+              # Reload or start PM2 app
+              if pm2 describe $PM2_APP > /dev/null 2>&1; then
+                echo "Reloading existing PM2 app: $PM2_APP"
+                pm2 restart ecosystem.config.js --only $PM2_APP --update-env
+              else
+                echo "Starting new PM2 app: $PM2_APP"
+                pm2 restart ecosystem.config.js --only $PM2_APP
+              fi
+            done
+            
+            # Save PM2 configuration
+            pm2 save
+          EOF
+
+      - name: Install dependencies and restart PM2 (single environment)
+        if: steps.env.outputs.deploy_mode == 'single'
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          DEPLOY_PATH: ${{ steps.env.outputs.deploy_path }}
+          PM2_APP: ${{ steps.env.outputs.pm2_app }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
+            cd ${{ env.DEPLOY_PATH }}
+            
+            # Install production dependencies
+            npm install --production
+            
+            # Create logs directory if it doesn't exist
+            mkdir -p logs
+            
+            # Reload or start PM2 app
+            if pm2 describe ${{ env.PM2_APP }} > /dev/null 2>&1; then
+              echo "Reloading existing PM2 app: ${{ env.PM2_APP }}"
+              pm2 reload ecosystem.config.js --only ${{ env.PM2_APP }} --update-env
+            else
+              echo "Starting new PM2 app: ${{ env.PM2_APP }}"
+              pm2 start ecosystem.config.js --only ${{ env.PM2_APP }}
+            fi
+            
+            # Save PM2 configuration
+            pm2 save
+          EOF
+
+      - name: Verify deployment (all environments)
+        if: steps.env.outputs.deploy_mode == 'all'
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
+            export PATH=$PATH:/usr/local/bin:/usr/bin
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            pm2 status
+          EOF
+
+      - name: Verify deployment (single environment)
+        if: steps.env.outputs.deploy_mode == 'single'
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          PM2_APP: ${{ steps.env.outputs.pm2_app }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
+            export PATH=$PATH:/usr/local/bin:/usr/bin
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            pm2 status ${{ env.PM2_APP }}
+          EOF
+
+      - name: Cleanup SSH key
+        if: always()
+        run: |
+          rm -f ~/.ssh/deploy_key
