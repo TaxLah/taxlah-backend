@@ -3,7 +3,6 @@ module.exports = {
         {
             name: 'taxlah-development-api',
             script: './server.js',
-            instances: 1,
             exec_mode: 'cluster',
             env: {
                 NODE_ENV: 'development',
@@ -25,7 +24,6 @@ module.exports = {
         {
             name: 'taxlah-staging-api',
             script: './server.js',
-            instances: 2,
             exec_mode: 'cluster',
             env: {
                 NODE_ENV: 'staging',
@@ -47,7 +45,6 @@ module.exports = {
         {
             name: 'taxlah-production-api',
             script: './server.js',
-            instances: 'max', // Use all available CPU cores
             exec_mode: 'cluster',
             env: {
                 NODE_ENV: 'production',
