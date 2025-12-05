@@ -3,7 +3,7 @@ module.exports = {
         {
             name: 'taxlah-development-api',
             script: './server.js',
-            exec_mode: 'cluster',
+            // exec_mode: 'cluster',
             env: {
                 NODE_ENV: 'development',
                 PORT: 3000,
@@ -24,14 +24,14 @@ module.exports = {
         {
             name: 'taxlah-staging-api',
             script: './server.js',
-            exec_mode: 'cluster',
+            // exec_mode: 'cluster',
             env: {
                 NODE_ENV: 'staging',
                 PORT: 3100,
                 DB_HOST: "localhost",
                 DB_USERNAME: "taxlah",
                 DB_PASSWORD: "R@iden28",
-                DB_DATABASE: "taxlah_staging",
+                DB_DATABASE: "taxlah_development",
                 APP_SECRET: "$2a$10$Q1vSFQxL5o7LiDLat.G/Su6OF6APjOiap2mOQFuU/KZnV6N7c.QQ2",
                 ADMIN_SECRET: "$2a$10$BnFzilwX14i585PJz0WUcewvNEeIxVH.2yZK2UbtDoPZt7fsuQv4u"
             },
