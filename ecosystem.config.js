@@ -28,7 +28,7 @@ module.exports = {
             env: {
                 NODE_ENV: 'staging',
                 PORT: 3100,
-                DB_HOST: "localhost",
+                DB_HOST: "206.189.36.90",
                 DB_USERNAME: "taxlah",
                 DB_PASSWORD: "R@iden28",
                 DB_DATABASE: "taxlah_development",
@@ -49,7 +49,7 @@ module.exports = {
             env: {
                 NODE_ENV: 'production',
                 PORT: 4000,
-                DB_HOST: "localhost",
+                DB_HOST: "206.189.36.90",
                 DB_USERNAME: "taxlah",
                 DB_PASSWORD: "R@iden28",
                 DB_DATABASE: "taxlah_production",
