@@ -60,6 +60,9 @@ router.post("/", async(req , res) => {
             let check_existing_username = await AuthCheckExistingUsername(auth_username)
             let check_existing_email    = await AuthCheckExistingEmail(account_email)
 
+            console.log("Log check_existing_username : ", check_existing_username)
+            console.log("Log check_existing_email : ", check_existing_email)
+
             if(check_existing_username.status) {
                 response = FORBIDDEN_API_RESPONSE
                 response.message = "Error. Account with current username has already exist."
