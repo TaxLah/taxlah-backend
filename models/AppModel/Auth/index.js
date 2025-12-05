@@ -64,7 +64,7 @@ async function AuthCreateAccessAccount(account) {
             result = { status: false, data: null }
         }
     } catch (e) {
-        console.log("")
+        console.log("error create access : ", e)
         result = { status: false, data: null }
     }    finally {
         return result

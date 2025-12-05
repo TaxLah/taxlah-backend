@@ -29,6 +29,7 @@ async function AccountCreate(data) {
             result = { status: false, account_id: null }
         }
     } catch (e) {
+        console.log("Error Create Account Profile : ", e)
         result = { status: false, account_id: null }
     } finally {
         return result
