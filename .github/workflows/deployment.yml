@@ -49,13 +49,13 @@ jobs:
           # Set paths for single environment deployment
           if [ "$ENV" = "production" ]; then
             echo "pm2_app=taxlah-production-api" >> $GITHUB_OUTPUT
-            echo "deploy_path=/home/hazman/api/production" >> $GITHUB_OUTPUT
+            echo "deploy_path=/home/taxlah/api/production" >> $GITHUB_OUTPUT
           elif [ "$ENV" = "staging" ]; then
             echo "pm2_app=taxlah-staging-api" >> $GITHUB_OUTPUT
-            echo "deploy_path=/home/hazman/api/staging" >> $GITHUB_OUTPUT
+            echo "deploy_path=/home/taxlah/api/staging" >> $GITHUB_OUTPUT
           elif [ "$ENV" = "development" ]; then
             echo "pm2_app=taxlah-development-api" >> $GITHUB_OUTPUT
-            echo "deploy_path=/home/hazman/api/development" >> $GITHUB_OUTPUT
+            echo "deploy_path=/home/taxlah/api/development" >> $GITHUB_OUTPUT
           fi
 
       - name: Setup SSH key
@@ -81,7 +81,7 @@ jobs:
           # Deploy to all three environments
           for ENV in development staging production; do
             echo "Deploying to $ENV environment..."
-            DEPLOY_PATH="/home/hazman/api/$ENV"
+            DEPLOY_PATH="/home/taxlah/api/$ENV"
             
             # Create deployment directory if it doesn't exist
             sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
@@ -127,7 +127,7 @@ jobs:
             # Deploy to all environments
             for ENV in development staging production; do
               echo "Setting up $ENV environment..."
-              DEPLOY_PATH="/home/hazman/api/$ENV"
+              DEPLOY_PATH="/home/taxlah/api/$ENV"
 
               if [ "$ENV" = "production" ]; then
                 PM2_APP="taxlah-production-api"
