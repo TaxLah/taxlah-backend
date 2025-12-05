@@ -424,5 +424,31 @@ CREATE TABLE `tax_subcategory` (
   CONSTRAINT `tax_subcategory_ibfk_1` FOREIGN KEY (`tax_id`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET DEFAULT
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
+CREATE TABLE `receipt` (
+  `receipt_id` int NOT NULL AUTO_INCREMENT,
+  `receipt_name` varchar(256) DEFAULT NULL,
+  `receipt_description` text,
+  `receipt_amount` decimal(15,2) NOT NULL DEFAULT '0.00',
+  `receipt_image_url` text NOT NULL,
+  `status` enum('Active','Inactive','Deleted','Others') NOT NULL DEFAULT 'Active',
+  `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `rc_id` int NOT NULL,
+  PRIMARY KEY (`receipt_id`),
+  KEY `rc_id` (`rc_id`),
+  CONSTRAINT `receipt_ibfk_1` FOREIGN KEY (`rc_id`) REFERENCES `receipt_category` (`rc_id`) ON DELETE SET DEFAULT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+CREATE TABLE `receipt_category` (
+  `rc_id` int NOT NULL AUTO_INCREMENT,
+  `rc_name` varchar(256) NOT NULL,
+  `rc_description` text,
+  `status` enum('Active','Inactive') NOT NULL DEFAULT 'Active',
+  `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`rc_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 
 -- 2025-12-05 01:17:54 UTC
