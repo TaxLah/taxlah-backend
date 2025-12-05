@@ -433,10 +433,13 @@ CREATE TABLE `receipt` (
   `status` enum('Active','Inactive','Deleted','Others') NOT NULL DEFAULT 'Active',
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `account_id` int NOT NULL,
   `rc_id` int NOT NULL,
   PRIMARY KEY (`receipt_id`),
   KEY `rc_id` (`rc_id`),
-  CONSTRAINT `receipt_ibfk_1` FOREIGN KEY (`rc_id`) REFERENCES `receipt_category` (`rc_id`) ON DELETE SET DEFAULT
+  KEY `account_id` (`account_id`),
+  CONSTRAINT `receipt_ibfk_1` FOREIGN KEY (`rc_id`) REFERENCES `receipt_category` (`rc_id`) ON DELETE SET DEFAULT,
+  CONSTRAINT `receipt_ibfk_2` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE SET DEFAULT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
