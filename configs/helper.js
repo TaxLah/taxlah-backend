@@ -117,6 +117,13 @@ const BAD_REQUEST_API_RESPONSE = {
     data: []
 }
 
+const NOT_FOUND_API_RESPONSE = {
+    status_code: 404,
+    status: 'Not Found',
+    message: `The requested resource was not found.`,
+    data: []
+}
+
 const ERROR_MISSING_TOKEN   = "The requested operation could not be completed because a valid session token was not provided. In order to access this API endpoint, you must include a valid session token in the request headers."
 const ERROR_UNAUTHENTICATED = "Unauthenticated. Please login." 
 const ERROR_TECHNICAL_ERROR = "Internal Server Error. Please contact our system administrator for more information."
@@ -862,6 +869,7 @@ module.exports = {
     BAD_REQUEST_API_RESPONSE,
     FORBIDDEN_API_RESPONSE,
     UNAUTHORIZED_API_RESPONSE,
+    NOT_FOUND_API_RESPONSE,
     SUCCESS_API_RESPONSE,
     ERROR_MISSING_TOKEN,
     ERROR_PERMISSION,
