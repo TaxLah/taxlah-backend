@@ -84,10 +84,10 @@ jobs:
             DEPLOY_PATH="/home/taxlah/api/$ENV"
             
             # Create deployment directory if it doesn't exist
-            sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
             
             # Sync files to server
-            sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" rsync -avz --delete \
+            rsync -avz --delete \
               --exclude 'node_modules' \
               --exclude '.git' \
               --exclude '.env' \
@@ -105,10 +105,10 @@ jobs:
           DEPLOY_PATH: ${{ steps.env.outputs.deploy_path }}
         run: |
           # Create deployment directory if it doesn't exist
-          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
           
           # Sync files to server
-          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" rsync -avz --delete \
+          rsync -avz --delete \
             --exclude 'node_modules' \
             --exclude '.git' \
             --exclude '.env' \
