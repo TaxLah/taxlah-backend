@@ -13,7 +13,7 @@ const { AdminUpdateTaxSubcategory } = require('../../../../models/AdminModel/Tax
 /**
  * PUT /admin/tax/subcategory/update/:taxsub_id
  * Update tax subcategory information
- * Body: { taxsub_title, taxsub_description, taxsub_max_claim, taxsub_tags, taxsub_content }
+ * Body: { tax_id, taxsub_title, taxsub_description, taxsub_max_claim, taxsub_tags, taxsub_content }
  */
 router.put("/:taxsub_id", async(req, res) => {
     let response = DEFAULT_API_RESPONSE
@@ -32,6 +32,10 @@ router.put("/:taxsub_id", async(req, res) => {
 
         // Build update object with only provided fields
         let updateData = {}
+
+        if(params.tax_id && !CHECK_EMPTY(params.tax_id)) {
+            updateData.tax_id = parseInt(params.tax_id)
+        }
 
         if(params.taxsub_title && !CHECK_EMPTY(params.taxsub_title)) {
             updateData.taxsub_title = sanitize(params.taxsub_title)

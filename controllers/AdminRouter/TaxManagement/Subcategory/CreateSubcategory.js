@@ -13,7 +13,7 @@ const { AdminCreateTaxSubcategory } = require('../../../../models/AdminModel/Tax
 /**
  * POST /admin/tax/subcategory/create
  * Create new tax subcategory
- * Body: { taxsub_title, taxsub_description, taxsub_max_claim, taxsub_tags, taxsub_content }
+ * Body: { tax_id, taxsub_title, taxsub_description, taxsub_max_claim, taxsub_tags, taxsub_content }
  */
 router.post("/", async(req, res) => {
     let response = DEFAULT_API_RESPONSE
@@ -22,6 +22,7 @@ router.post("/", async(req, res) => {
         const params = req.body
         console.log("Admin Create Tax Subcategory Request: ", params)
 
+        const tax_id = params.tax_id || null
         const taxsub_title = params.taxsub_title || null
         const taxsub_description = params.taxsub_description || null
         const taxsub_max_claim = params.taxsub_max_claim || 0
@@ -29,6 +30,12 @@ router.post("/", async(req, res) => {
         const taxsub_content = params.taxsub_content || null
 
         // Validation
+        if(CHECK_EMPTY(tax_id)) {
+            response = BAD_REQUEST_API_RESPONSE
+            response.message = "Error. Tax category ID is required."
+            return res.status(response.status_code).json(response)
+        }
+
         if(CHECK_EMPTY(taxsub_title)) {
             response = BAD_REQUEST_API_RESPONSE
             response.message = "Error. Tax subcategory title is required."
@@ -69,6 +76,7 @@ router.post("/", async(req, res) => {
 
         // Create subcategory data
         const subcategoryData = {
+            tax_id: parseInt(tax_id),
             taxsub_title: sanitize(taxsub_title),
             taxsub_description: taxsub_description ? sanitize(taxsub_description) : null,
             taxsub_max_claim: parseFloat(taxsub_max_claim),

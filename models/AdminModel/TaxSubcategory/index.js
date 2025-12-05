@@ -44,7 +44,25 @@ async function AdminGetTaxSubcategoriesList(params = {}) {
         const validSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_date'
         const validSortOrder = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC'
 
-        const sql = `SELECT taxsub_id, taxsub_tags, taxsub_title, taxsub_description, taxsub_content, taxsub_max_claim, status, created_date, last_modified FROM tax_subcategory ${whereClause} ORDER BY ${validSortBy} ${validSortOrder} LIMIT ${limit} OFFSET ${offset}`
+        const sql = `
+            SELECT 
+                ts.taxsub_id, 
+                ts.taxsub_tags, 
+                ts.taxsub_title, 
+                ts.taxsub_description, 
+                ts.taxsub_content, 
+                ts.taxsub_max_claim, 
+                ts.tax_id,
+                tc.tax_title as tax_category_name,
+                ts.status, 
+                ts.created_date, 
+                ts.last_modified 
+            FROM tax_subcategory ts
+            LEFT JOIN tax_category tc ON ts.tax_id = tc.tax_id
+            ${whereClause} 
+            ORDER BY ${validSortBy} ${validSortOrder} 
+            LIMIT ${limit} OFFSET ${offset}
+        `
         const subcategories = await db.raw(sql, queryParams)
 
         const totalPages = Math.ceil(total / limit)
@@ -75,7 +93,24 @@ async function AdminGetTaxSubcategoriesList(params = {}) {
 async function AdminGetTaxSubcategoryDetails(taxsub_id) {
     let result = null
     try {
-        const sql = `SELECT taxsub_id, taxsub_tags, taxsub_title, taxsub_description, taxsub_content, taxsub_max_claim, status, created_date, last_modified FROM tax_subcategory WHERE taxsub_id = ? LIMIT 1`
+        const sql = `
+            SELECT 
+                ts.taxsub_id, 
+                ts.taxsub_tags, 
+                ts.taxsub_title, 
+                ts.taxsub_description, 
+                ts.taxsub_content, 
+                ts.taxsub_max_claim, 
+                ts.tax_id,
+                tc.tax_title as tax_category_name,
+                ts.status, 
+                ts.created_date, 
+                ts.last_modified 
+            FROM tax_subcategory ts
+            LEFT JOIN tax_category tc ON ts.tax_id = tc.tax_id
+            WHERE ts.taxsub_id = ? 
+            LIMIT 1
+        `
         const data = await db.raw(sql, [taxsub_id])
         
         if(data.length) {

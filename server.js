@@ -77,6 +77,7 @@ app.all("/nlp", async(req , res) => {
 
 app.use("/api", require("./routers/AppRouter"))
 app.use("/admin", require("./routers/AdminRouter"))
+app.use("/file-uploader", require("./routers/FileUploader"))
 
 // 404 handler (path not found)
 app.use((req, res, next) => {

@@ -418,7 +418,10 @@ CREATE TABLE `tax_subcategory` (
   `status` enum('Active','Inactive','Deleted','Others') NOT NULL DEFAULT 'Active',
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`taxsub_id`)
+  `tax_id` int NOT NULL,
+  PRIMARY KEY (`taxsub_id`),
+  KEY `tax_id` (`tax_id`),
+  CONSTRAINT `tax_subcategory_ibfk_1` FOREIGN KEY (`tax_id`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET DEFAULT
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
