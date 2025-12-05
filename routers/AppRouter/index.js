@@ -8,6 +8,7 @@ const NotificationRouter    = require("../../controllers/AppController/Notificat
 const PackageRouter         = require("../../controllers/AppController/Package")
 const TaxCategory           = require("../../controllers/AppController/TaxCategory")
 const ReceiptCategoryRouter = require("../../controllers/AppController/ReceiptCategory")
+const ReceiptRouter         = require("../../controllers/AppController/Receipt")
 
 router.use("/auth", AuthRouter)
 router.use("/profile", AccountRouter)
@@ -16,5 +17,6 @@ router.use("/notification", NotificationRouter)
 router.use("/package", PackageRouter)
 router.use("/tax-category", TaxCategory)
 router.use("/receipt-category", ReceiptCategoryRouter)
+router.use("/receipt", ReceiptRouter)
 
 module.exports = router

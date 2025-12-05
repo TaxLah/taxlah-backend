@@ -429,6 +429,7 @@ CREATE TABLE `receipt` (
   `receipt_name` varchar(256) DEFAULT NULL,
   `receipt_description` text,
   `receipt_amount` decimal(15,2) NOT NULL DEFAULT '0.00',
+  `receipt_items` json DEFAULT (_utf8mb4'[]'),
   `receipt_image_url` text NOT NULL,
   `status` enum('Active','Inactive','Deleted','Others') NOT NULL DEFAULT 'Active',
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
