@@ -7,6 +7,8 @@ const TaxManagementRouter   = require("../../controllers/AdminRouter/TaxManageme
 const MerchantRouter        = require("../../controllers/AdminRouter/Merchant")
 const ReceiptRouter         = require("../../controllers/AdminRouter/Receipt")
 const ReceiptCategoryRouter = require("../../controllers/AdminRouter/ReceiptCategory")
+const ExpenseRouter         = require("../../controllers/AdminRouter/Expense")
+const ExpenseItemRouter     = require("../../controllers/AdminRouter/ExpenseItem")
 
 router.use("/auth", AuthRouter)
 router.use("/users", UserManagementRouter)
@@ -14,5 +16,7 @@ router.use("/tax", TaxManagementRouter)
 router.use("/merchant", MerchantRouter)
 router.use("/receipt", ReceiptRouter)
 router.use("/receipt-category", ReceiptCategoryRouter)
+router.use("/expense", ExpenseRouter)
+router.use("/expense-item", ExpenseItemRouter)
 
 module.exports = router

@@ -1,5 +1,10 @@
 const db = require("../../../utils/sqlbuilder")
-const { v4: uuidv4 } = require('uuid')
+const crypto = require('crypto')
+
+// Helper function to generate UUID v4
+function generateUUID() {
+    return crypto.randomUUID()
+}
 
 /**
  * Get paginated list of merchants with filters
@@ -162,16 +167,16 @@ async function AdminCreateMerchant(merchantData) {
             return result
         }
 
-        const merchant_uniq_no = uuidv4()
+        const merchant_uniq_no = generateUUID()
         const status = 'Active'
 
         const sql = `
             INSERT INTO merchant 
-            (merchant_uniq_no, merchant_name, merchant_category, merchant_image) 
-            VALUES (UUID(), ?, ?, ?)
+            (merchant_uniq_no, merchant_name, merchant_category, merchant_image, status, created_date, last_modified) 
+            VALUES (?, ?, ?, ?, ?, NOW(), NOW())
         `
 
-        const insertResult = await db.raw(sql, [merchant_name, merchant_category, merchant_image])
+        const insertResult = await db.raw(sql, [merchant_uniq_no, merchant_name, merchant_category, merchant_image, status])
 
         result = {
             status: true,

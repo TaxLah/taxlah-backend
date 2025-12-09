@@ -29,7 +29,6 @@
     "mysql2": "^3.15.0",
     "nodemailer": "^7.0.10",
     "postmark": "^4.0.5",
-    "uuid": "^13.0.0",
     "wink-eng-lite-web-model": "^1.8.1",
     "wink-nlp": "^2.4.0",
     "yenv": "^2.1.1"
