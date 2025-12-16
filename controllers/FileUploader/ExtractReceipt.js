@@ -1,3 +1,6 @@
+const crypto = require("crypto");
+global.crypto = crypto;
+
 const DocumentIntelligence =
 		require("@azure-rest/ai-document-intelligence").default,
 	{
