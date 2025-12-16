@@ -83,7 +83,7 @@ router.post("/", async(req, res) => {
             receipt_amount: parseFloat(receipt_amount),
             receipt_items: receipt_items ? (typeof receipt_items === 'string' ? receipt_items : JSON.stringify(receipt_items)) : null,
             receipt_image_url: receipt_image_url,
-            receipt_metadata,
+            receipt_metadata: receipt_metadata ? (typeof receipt_metadata === 'string' ? receipt_metadata : JSON.stringify(receipt_metadata)) : null,
             status: 'Active'
         }
 
