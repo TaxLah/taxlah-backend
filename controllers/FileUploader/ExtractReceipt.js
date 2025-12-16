@@ -50,15 +50,15 @@ async function ExtractReceipt(imageUrl) {
 		document.docType,
 		`(confidence: ${document.confidence || "<undefined>"})`
 	);
-	console.log("Fields:", document.fields);
-    console.log("Items : ", document.fields.Items)
-    console.table(document.fields.Items.valueArray)
+	// console.log("Fields:", document.fields);
+    // console.log("Items : ", document.fields.Items)
+    // console.table(document.fields.Items.valueArray)
 
-    for (let i = 0; i < document.fields.Items.valueArray.length; i++) {
-        console.log(`Log Item ${i + 1} : `, document.fields.Items.valueArray[i])        
-        console.log("Item Name : ", document.fields.Items.valueArray[i].valueObject.Description.valueString)
-        console.log("Item Price : ", document.fields.Items.valueArray[i].valueObject.TotalPrice.valueCurrency.amount)
-    }
+    // for (let i = 0; i < document.fields.Items.valueArray.length; i++) {
+    //     console.log(`Log Item ${i + 1} : `, document.fields.Items.valueArray[i])        
+    //     console.log("Item Name : ", document.fields.Items.valueArray[i].valueObject.Description.valueString)
+    //     console.log("Item Price : ", document.fields.Items.valueArray[i].valueObject.TotalPrice.valueCurrency.amount)
+    // }
 
     return document
 }
