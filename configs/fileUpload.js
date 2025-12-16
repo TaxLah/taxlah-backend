@@ -59,6 +59,9 @@ const fileFilter = function (req, file, cb) {
         // Default: allow images, PDFs, and common documents
         const allowedMimeTypes = [
             'image/heic',
+            'image/heif',           // Alternative HEIC format
+            'image/heic-sequence',  // For HEIC image sequences
+            'image/heif-sequence',  // For HEIF image sequences
             'image/jpeg',
             'image/jpg',
             'image/png',
