@@ -7,6 +7,7 @@ const {
     BAD_REQUEST_API_RESPONSE,
     SUCCESS_API_RESPONSE
 } = require('../../configs/helper')
+const ExtractReceipt = require('./ExtractReceipt')
 
 /**
  * POST /file-uploader
@@ -96,7 +97,12 @@ router.post("/single", upload.single('file'), async(req, res) => {
             url: fileUrl
         }
 
-        res.status(response.status_code).json(response)
+        let extract = await ExtractReceipt(fileUrl)
+
+        res.status(response.status_code).json({
+            file_image: response.data,
+            receipt: extract
+        })
 
     } catch (error) {
         console.log("Error Single File Upload: ", error)
