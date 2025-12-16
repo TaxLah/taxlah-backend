@@ -43,7 +43,7 @@ async function ExtractReceipt(imageUrl) {
 		throw new Error("Expected at least one document in the result.");
 	}
 
-    console.log("Log Tax : ", documents[1].fields.TotalTax)
+    // console.log("Log Tax : ", documents[1].fields.TotalTax)
 
 	console.log(
 		"Extracted document:",
