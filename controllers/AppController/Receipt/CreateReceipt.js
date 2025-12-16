@@ -33,12 +33,13 @@ router.post("/", async(req, res) => {
 
         console.log("Create Receipt Request: ", params)
 
-        const rc_id = params.rc_id || null
-        const receipt_name = params.receipt_name || null
-        const receipt_description = params.receipt_description || null
-        const receipt_amount = params.receipt_amount || 0
-        const receipt_items = params.receipt_items || null
-        const receipt_image_url = params.receipt_image_url || null
+        const rc_id                 = params.rc_id || null
+        const receipt_name          = params.receipt_name || null
+        const receipt_description   = params.receipt_description || null
+        const receipt_amount        = params.receipt_amount || 0
+        const receipt_items         = params.receipt_items || null
+        const receipt_image_url     = params.receipt_image_url || null
+        const receipt_metadata      = params.receipt_metadata || null
 
         // Validation
         if(CHECK_EMPTY(rc_id)) {
@@ -82,6 +83,7 @@ router.post("/", async(req, res) => {
             receipt_amount: parseFloat(receipt_amount),
             receipt_items: receipt_items ? (typeof receipt_items === 'string' ? receipt_items : JSON.stringify(receipt_items)) : null,
             receipt_image_url: receipt_image_url,
+            receipt_metadata,
             status: 'Active'
         }
 
