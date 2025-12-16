@@ -45,11 +45,11 @@ async function ExtractReceipt(imageUrl) {
 
     // console.log("Log Tax : ", documents[1].fields.TotalTax)
 
-	console.log(
-		"Extracted document:",
-		document.docType,
-		`(confidence: ${document.confidence || "<undefined>"})`
-	);
+	// console.log(
+	// 	"Extracted document:",
+	// 	document.docType,
+	// 	`(confidence: ${document.confidence || "<undefined>"})`
+	// );
 	// console.log("Fields:", document.fields);
     // console.log("Items : ", document.fields.Items)
     // console.table(document.fields.Items.valueArray)
@@ -60,7 +60,17 @@ async function ExtractReceipt(imageUrl) {
     //     console.log("Item Price : ", document.fields.Items.valueArray[i].valueObject.TotalPrice.valueCurrency.amount)
     // }
 
-    return document
+    return {
+        CountryRegion: document.fields.CountryRegion || null,
+        Items: document.fields.Items || null,
+        MerchantAddress: document.fields.MerchantAddress || null,
+        MerchantName: document.fields.MerchantName || null,
+        MerchantPhoneNumber: document.fields.MerchantPhoneNumber || null,
+        ReceiptType: document.fields.ReceiptType || null,
+        Total: document.fields.Total || null,
+        TransactionDate: document.fields.TransactionDate || null,
+        TransactionTime: document.fields.TransactionTime || null,
+    }
 }
 
 module.exports = ExtractReceipt;
