@@ -58,6 +58,7 @@ const fileFilter = function (req, file, cb) {
     } else {
         // Default: allow images, PDFs, and common documents
         const allowedMimeTypes = [
+            'image/heic',
             'image/jpeg',
             'image/jpg',
             'image/png',
