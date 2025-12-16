@@ -11,6 +11,7 @@ const {
     sanitize
 } = require('../../../configs/helper')
 const { CreateReceipt } = require('../../../models/AppModel/Receipt')
+const { UserNotificationCreate } = require('../../../models/AppModel/Notification')
 
 /**
  * POST /api/receipt/create
@@ -94,6 +95,16 @@ router.post("/", async(req, res) => {
             response.message = "Error. Failed to create receipt."
             return res.status(response.status_code).json(response)
         }
+
+        // Create notification for successful receipt creation
+        await UserNotificationCreate({
+            account_id: parseInt(account_id),
+            notification_title: "Receipt Created Successfully",
+            notification_description: `Your receipt "${receipt_name || 'Unnamed'}" has been created successfully with amount RM ${receipt_amount.toFixed(2)}.`,
+            read_status: 'No',
+            archive_status: 'No',
+            status: 'Active'
+        })
 
         response = SUCCESS_API_RESPONSE
         response.message = "Receipt created successfully."
