@@ -106,11 +106,24 @@ async function AuthLogin(account_id) {
     }
 }
 
+async function AuthDeleteAccount(account_id) {
+    let result = null
+    try {
+        let sql = await db.update("auth_access", { auth_status: 'Suspended' }, { account_id })
+    } catch (e) {
+        console.log("Syntax error at delete auth account : ", e)
+        result = { status: false }
+    } finally {
+        return result
+    }
+}
+
 module.exports = {
     AuthCheckExistingUsername,
     AuthCheckExistingEmail,
     AuthGetAccessAccount,
     AuthCreateAccessAccount,
     AuthUpdateAccessAccount,
-    AuthLogin
+    AuthLogin,
+    AuthDeleteAccount
 }

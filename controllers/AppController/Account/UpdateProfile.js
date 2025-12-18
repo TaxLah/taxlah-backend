@@ -20,6 +20,13 @@ router.patch("/", async(req , res) => {
     let account_address_city        = null
     let account_address_state       = null
 
+    let account_ic                  = null
+    let account_gender              = null
+    let account_dob                 = null
+    let account_age                 = null
+    let account_nationality         = null
+    let account_salary_range        = null
+
     if(CHECK_EMPTY(user)) {
         response = UNAUTHORIZED_API_RESPONSE
         response.message = ERROR_UNAUTHENTICATED
@@ -40,6 +47,13 @@ router.patch("/", async(req , res) => {
         account_address_postcode    = params.account_postcode || null
         account_address_city        = params.account_city || null
         account_address_state       = params.account_state || null
+
+        account_ic                  = params.account_ic || null
+        account_gender              = params.account_gender || null                 
+        account_dob                 = params.account_dob                 
+        account_age                 = params.account_age || null
+        account_nationality         = params.account_nationality || null                 
+        account_salary_range        = params.account_salary_range || null                   
 
         if(CHECK_EMPTY(account_name)) {
             response = BAD_REQUEST_API_RESPONSE
@@ -72,9 +86,24 @@ router.patch("/", async(req , res) => {
         } else {
 
             let account_id      = user.account_id
-            console.log("Log Account : ", user)
-
-            let json            = { account_id, account_name, account_fullname, account_contact, account_address_1, account_address_2, account_address_3, account_address_postcode, account_address_city, account_address_state }
+            let json            = { 
+                account_id, 
+                account_name, 
+                account_fullname, 
+                account_contact,
+                account_ic,
+                account_gender,
+                account_dob,
+                account_age,
+                account_nationality,
+                account_salary_range,
+                account_address_1, 
+                account_address_2, 
+                account_address_3, 
+                account_address_postcode, 
+                account_address_city, 
+                account_address_state 
+            }
             let updateProfile   = await AccountUpdate(json)
             console.log("Log Function Update Profile : ", updateProfile)
 

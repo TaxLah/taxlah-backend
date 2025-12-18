@@ -1,7 +1,8 @@
 const db = require("../../../utils/sqlbuilder")
+const { AuthDeleteAccount } = require("../Auth")
 
 const sql_basic_account = `SELECT account_id, account_secret_key, account_name, account_fullname, account_email, account_contact, account_profile_image, account_status FROM account`
-const sql_full_account  = `SELECT account_id, account_secret_key, account_name, account_fullname, account_email, account_contact, account_address_1, account_address_2, account_address_3, account_address_postcode, account_address_city, account_address_state, account_profile_image, account_status, created_date FROM account`
+const sql_full_account  = `SELECT * FROM account`
 
 async function AccountGetInfo(account_id) {
     let result = null
@@ -56,8 +57,11 @@ async function AccountUpdate(data) {
 async function AccountDelete(account_id) {
     let result = null
     try {
-        let deleteData = await db.delete('account', { account_id })
+        let deleteData = await db.update('account', { account_status: 'Suspended' },  { account_id })
         if(deleteData.affectedRows) {
+            let update_access = await AuthDeleteAccount(account_id)
+            console.log("Log Function Delete Access : ", update_access)
+            
             result = { status: true, data: deleteData }
         } else {
             result = { status: false, data: null }
