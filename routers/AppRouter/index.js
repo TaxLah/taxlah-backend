@@ -10,6 +10,11 @@ const TaxCategory           = require("../../controllers/AppController/TaxCatego
 const ReceiptCategoryRouter = require("../../controllers/AppController/ReceiptCategory")
 const ReceiptRouter         = require("../../controllers/AppController/Receipt")
 
+// NEW Controllers
+const DependantRouter       = require("../../controllers/AppController/Dependant");
+const TaxClaimRouter        = require("../../controllers/AppController/TaxClaim");
+const { auth } = require('../../configs/auth')
+
 router.use("/auth", AuthRouter)
 router.use("/profile", AccountRouter)
 router.use("/device", DeviceRouter)
@@ -18,5 +23,9 @@ router.use("/package", PackageRouter)
 router.use("/tax-category", TaxCategory)
 router.use("/receipt-category", ReceiptCategoryRouter)
 router.use("/receipt", ReceiptRouter)
+
+// NEW routes
+router.use("/dependant", auth(), DependantRouter);      // /api/dependant/*
+router.use("/tax", auth(), TaxClaimRouter);             // /api/tax/*
 
 module.exports = router
