@@ -410,8 +410,8 @@ async function categorizeReceipt(receiptData, taxYear = new Date().getFullYear()
 
     try {
         // Extract text from receipt data
-        const merchantName = receiptData.MerchantName?.content || receiptData.MerchantName || '';
-        const items = receiptData.Items?.values || receiptData.Items || [];
+        const merchantName  = receiptData.MerchantName?.content || receiptData.MerchantName || '';
+        const items         = receiptData.Items?.values || receiptData.Items || [];
         
         // Build searchable text
         let searchText = merchantName;

@@ -12,6 +12,7 @@ const {
 } = require('../../../configs/helper')
 const { CreateReceipt } = require('../../../models/AppModel/Receipt')
 const { UserNotificationCreate } = require('../../../models/AppModel/Notification')
+const { processReceiptForTaxClaim } = require('../../../models/AppModel/TaxClaimServices')
 
 /**
  * POST /api/receipt/create
@@ -41,6 +42,11 @@ router.post("/", async(req, res) => {
         const receipt_items         = params.receipt_items || null
         const receipt_image_url     = params.receipt_image_url || null
         const receipt_metadata      = params.receipt_metadata || null
+
+        // Tax claim fields (NEW)
+        const tax_id                = params.tax_id ? parseInt(params.tax_id) : null;
+        const taxsub_id             = params.taxsub_id ? parseInt(params.taxsub_id) : null;
+        const tax_year              = parseInt(params.tax_year) || new Date().getFullYear();
 
         // Validation
         if(CHECK_EMPTY(rc_id)) {
@@ -96,11 +102,38 @@ router.post("/", async(req, res) => {
             return res.status(response.status_code).json(response)
         }
 
+        const receipt_id = result.data;
+        let taxClaimResult = null;
+        let limitReached = false;
+        let limitMessage = null;
+
+        // Step 2: Create tax claim if tax_id is provided
+        if(tax_id && receipt_amount > 0) {
+            try {
+                taxClaimResult = await processReceiptForTaxClaim(account_id, receipt_id, tax_id, taxsub_id, receipt_amount, tax_year);
+
+                if(taxClaimResult.status) {
+                    limitReached = taxClaimResult.data.limit_reached || false;
+                    limitMessage = taxClaimResult.data.limit_message || null;
+                }
+            } catch(taxError) {
+                console.log("Tax claim creation error (non-fatal):", taxError);
+                // Continue - receipt was created successfully
+            }
+        }
+
+        // Step 3: Create notification
+        let notificationMessage = `Your receipt "${receipt_name || ''}" has been created successfully with amount RM ${receipt_amount.toFixed(2)}.`;
+        
+        if(taxClaimResult && taxClaimResult.status) {
+            notificationMessage += ` Tax relief claim has been updated.`;
+        }
+
         // Create notification for successful receipt creation
         await UserNotificationCreate({
             account_id: parseInt(account_id),
             notification_title: "Receipt Created Successfully",
-            notification_description: `Your receipt "${receipt_name || 'Unnamed'}" has been created successfully with amount RM ${receipt_amount.toFixed(2)}.`,
+            notification_description: notificationMessage,
             read_status: 'No',
             archive_status: 'No',
             status: 'Active'
@@ -110,16 +143,28 @@ router.post("/", async(req, res) => {
         response.message = "Receipt created successfully."
         response.data = {
             receipt_id: result.data,
-            ...receiptData
+            ...receiptData,
+            tax_claim: taxClaimResult ? {
+                success: taxClaimResult.status,
+                claim_id: taxClaimResult.data?.claim?.claim_id || null,
+                claimed_amount: taxClaimResult.data?.claim?.claimed_amount || 0,
+                limit_reached: limitReached,
+                limit_message: limitMessage
+            } : null
         }
 
-        res.status(response.status_code).json(response)
+        // Add warning if limit was reached
+        if(limitReached) {
+            response.message = "Receipt created. Warning: Tax relief limit reached.";
+        }
+
+        return res.status(response.status_code).json(response)
 
     } catch (error) {
         console.log("Error Create Receipt: ", error)
         response = INTERNAL_SERVER_ERROR_API_RESPONSE
         response.message = "Error. An error occurred while creating receipt."
-        res.status(response.status_code).json(response)
+        return res.status(response.status_code).json(response)
     }
 })
 
