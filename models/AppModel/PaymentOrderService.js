@@ -4,9 +4,14 @@
  */
 
 const db = require('../../utils/sqlbuilder');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const ChipPaymentService = require('../../services/ChipPaymentService');
 const CreditService = require('./CreditService');
+
+// Generate UUID v4 using built-in crypto
+function generateUUID() {
+    return crypto.randomUUID();
+}
 
 /**
  * Create a new payment order
@@ -33,7 +38,7 @@ async function createOrder(params) {
         }
 
         const pkg = packageResult.data;
-        const orderUuid = uuidv4();
+        const orderUuid = generateUUID();
 
         // Create order record
         const insertSql = `
