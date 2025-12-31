@@ -41,6 +41,21 @@ async function ExtractReceipt(imageUrl) {
 	console.log("Log Items Type : ", document.fields?.Items?.type)
 	console.log("Log Items Value : ", document.fields?.Items?.valueArray)
 
+	let receipt_items 	= []
+	let actual_items 	= document.fields?.Items?.type == "array" ? document.fields?.Items?.valueArray : []
+	for (let i = 0; i < actual_items.length; i++) {
+		if(actual_items[i].valueObject) {
+			receipt_items.push({
+				description: actual_items[i]?.Description?.content || "",
+				quantity: actual_items[i]?.Quantity?.content || 1,
+				price: actual_items[i]?.Price?.content || 0.00,
+				total_price: actual_items[i]?.TotalPrice?.content || 0.00,
+			})
+		}
+	}
+
+	console.log("Log Items : ", receipt_items)
+
 	return {
 		CountryRegion: document.fields.CountryRegion || null,
 		Items: document.fields.Items || [],
