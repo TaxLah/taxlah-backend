@@ -36,9 +36,11 @@ async function ExtractReceipt(imageUrl) {
 		throw new Error("Expected at least one document in the result.");
 	}
 
+	console.log("Log Document : ", document)
+
 	return {
 		CountryRegion: document.fields.CountryRegion || null,
-		Items: document.fields.Items.type === "array" ? document.fields.Items.valueArray : [],
+		Items: document.fields?.Items?.type === "array" ? document.fields.Items.valueArray : [],
 		MerchantAddress: document.fields.MerchantAddress || null,
 		MerchantName: document.fields.MerchantName || null,
 		MerchantPhoneNumber: document.fields.MerchantPhoneNumber || null,
