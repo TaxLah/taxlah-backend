@@ -38,7 +38,7 @@ async function ExtractReceipt(imageUrl) {
 
 	return {
 		CountryRegion: document.fields.CountryRegion || null,
-		Items: document.fields.Items || null,
+		Items: document.fields.Items.type === "array" ? document.fields.Items.valueArray : [],
 		MerchantAddress: document.fields.MerchantAddress || null,
 		MerchantName: document.fields.MerchantName || null,
 		MerchantPhoneNumber: document.fields.MerchantPhoneNumber || null,
