@@ -186,10 +186,10 @@ router.post("/receipt", upload.single('file'), async (req, res) => {
                 transaction_time: extractedReceipt.TransactionTime?.content || null,
                 receipt_type: extractedReceipt.ReceiptType?.content || null,
                 items: extractedReceipt.Items?.values?.map(item => ({
-                    description: item.properties?.Description?.content || null,
-                    quantity: item.properties?.Quantity?.content || null,
-                    price: item.properties?.Price?.content || null,
-                    total_price: item.properties?.TotalPrice?.content || null
+                    description: item.description || "",
+                    quantity: item.quantity || 1,
+                    price: item.price || 0.00,
+                    total_price: item.total_price || 0.00
                 })) || [],
                 raw_data: extractedReceipt
             } : null,
