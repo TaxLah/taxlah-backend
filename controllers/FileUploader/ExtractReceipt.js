@@ -41,13 +41,14 @@ async function ExtractReceipt(imageUrl) {
 	console.log("Log Items Type : ", document.fields?.Items?.type)
 	console.log("Log Items Value : ", document.fields?.Items?.valueArray)
 
-	let receipt_items 	= []
+	let receipt_items 	= { label: '', values: []}
 	let actual_items 	= document.fields?.Items?.type == "array" ? document.fields?.Items?.valueArray : []
+
 	for (let i = 0; i < actual_items.length; i++) {
 		console.log(`Log Items ${i + 1} : `, actual_items[i])
 
 		if(actual_items[i].valueObject) {
-			receipt_items.push({
+			receipt_items.values.push({
 				description: actual_items[i]?.valueObject?.Description?.content || "",
 				quantity: actual_items[i]?.valueObject?.Quantity?.content || 1,
 				price: actual_items[i]?.valueObject?.Price?.content || 0.00,
