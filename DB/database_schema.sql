@@ -608,4 +608,790 @@ CREATE TABLE
 		PRIMARY KEY (`rc_id`)
 	) ENGINE = InnoDB AUTO_INCREMENT = 6 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
+-- ============================================================================
+-- TAXLAH CREDIT SYSTEM DATABASE SCHEMA
+-- Version: 1.0
+-- Description: Complete schema for credit-based monetization system
+-- ============================================================================
+
+-- ============================================================================
+-- 1. CREDIT PACKAGES - Available packages users can purchase
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS credit_package (
+    package_id INT AUTO_INCREMENT PRIMARY KEY,
+    package_code VARCHAR(50) NOT NULL UNIQUE,
+    package_name VARCHAR(100) NOT NULL,
+    package_description TEXT,
+    
+    -- Pricing
+    credit_amount INT NOT NULL COMMENT 'Number of credits in package',
+    price_amount DECIMAL(10,2) NOT NULL COMMENT 'Price in MYR',
+    price_per_credit DECIMAL(10,4) GENERATED ALWAYS AS (price_amount / credit_amount) STORED,
+    
+    -- Display
+    package_badge VARCHAR(50) DEFAULT NULL COMMENT 'e.g., BEST VALUE, POPULAR',
+    package_color VARCHAR(20) DEFAULT '#1a5f7a' COMMENT 'Hex color for UI',
+    package_icon VARCHAR(50) DEFAULT NULL,
+    sort_order INT DEFAULT 0,
+    
+    -- Validity
+    validity_days INT DEFAULT 548 COMMENT 'Credits expire after X days (default 18 months)',
+    
+    -- Bonus
+    bonus_credits INT DEFAULT 0 COMMENT 'Extra bonus credits',
+    bonus_description VARCHAR(100) DEFAULT NULL,
+    
+    -- Limits
+    is_featured ENUM('Yes', 'No') DEFAULT 'No',
+    is_recurring ENUM('Yes', 'No') DEFAULT 'No' COMMENT 'Auto-renew subscription',
+    max_purchase_per_user INT DEFAULT NULL COMMENT 'NULL = unlimited',
+    
+    -- Status
+    status ENUM('Active', 'Inactive', 'Hidden') DEFAULT 'Active',
+    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    modified_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_status (status),
+    INDEX idx_sort (sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 2. ACCOUNT CREDIT - User's current credit balance
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS account_credit (
+    credit_id INT AUTO_INCREMENT PRIMARY KEY,
+    account_id INT NOT NULL,
+    
+    -- Balance
+    credit_balance INT NOT NULL DEFAULT 0 COMMENT 'Current available credits',
+    lifetime_credits INT NOT NULL DEFAULT 0 COMMENT 'Total credits ever purchased',
+    lifetime_spent INT NOT NULL DEFAULT 0 COMMENT 'Total credits ever used',
+    
+    -- Free tier tracking
+    free_receipts_used INT DEFAULT 0 COMMENT 'Free receipts used this year',
+    free_receipts_limit INT DEFAULT 50 COMMENT 'Free receipts per year',
+    free_tier_reset_date DATE DEFAULT NULL COMMENT 'When free tier resets',
+    
+    -- Status
+    status ENUM('Active', 'Suspended', 'Inactive') DEFAULT 'Active',
+    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    modified_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    UNIQUE KEY unique_account (account_id),
+    INDEX idx_balance (credit_balance),
+    INDEX idx_status (status),
+    
+    CONSTRAINT fk_account_credit_account 
+        FOREIGN KEY (account_id) REFERENCES account(account_id) 
+        ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 3. CREDIT BATCH - Track credit purchases with expiry
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS credit_batch (
+    batch_id INT AUTO_INCREMENT PRIMARY KEY,
+    account_id INT NOT NULL,
+    package_id INT DEFAULT NULL,
+    
+    -- Credit details
+    credits_purchased INT NOT NULL COMMENT 'Original credits in this batch',
+    credits_remaining INT NOT NULL COMMENT 'Remaining credits in this batch',
+    bonus_credits INT DEFAULT 0,
+    
+    -- Source
+    source_type ENUM('Purchase', 'Bonus', 'Referral', 'Promotion', 'Refund', 'Admin') DEFAULT 'Purchase',
+    source_reference VARCHAR(100) DEFAULT NULL COMMENT 'Order ID, promo code, etc.',
+    
+    -- Validity
+    purchase_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expiry_date DATETIME NOT NULL,
+    
+    -- Status
+    status ENUM('Active', 'Depleted', 'Expired', 'Cancelled') DEFAULT 'Active',
+    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    modified_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_account (account_id),
+    INDEX idx_status (status),
+    INDEX idx_expiry (expiry_date),
+    INDEX idx_account_active (account_id, status, expiry_date),
+    
+    CONSTRAINT fk_credit_batch_account 
+        FOREIGN KEY (account_id) REFERENCES account(account_id) 
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_credit_batch_package 
+        FOREIGN KEY (package_id) REFERENCES credit_package(package_id) 
+        ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 4. CREDIT TRANSACTION - All credit movements (purchases, usage, refunds)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS credit_transaction (
+    transaction_id INT AUTO_INCREMENT PRIMARY KEY,
+    account_id INT NOT NULL,
+    batch_id INT DEFAULT NULL,
+    
+    -- Transaction type
+    transaction_type ENUM(
+        'Purchase',           -- Bought credits
+        'Usage',              -- Used credits
+        'Bonus',              -- Received bonus
+        'Referral',           -- Referral reward
+        'Promotion',          -- Promotional credits
+        'Refund',             -- Refund
+        'Expiry',             -- Credits expired
+        'Adjustment'          -- Admin adjustment
+    ) NOT NULL,
+    
+    -- Amount
+    credit_amount INT NOT NULL COMMENT 'Positive = credit in, Negative = credit out',
+    balance_before INT NOT NULL,
+    balance_after INT NOT NULL,
+    
+    -- Details
+    description VARCHAR(255) NOT NULL,
+    reference_type VARCHAR(50) DEFAULT NULL COMMENT 'e.g., Report, Receipt, Package',
+    reference_id INT DEFAULT NULL COMMENT 'ID of related record',
+    
+    -- Payment (for purchases)
+    payment_amount DECIMAL(10,2) DEFAULT NULL,
+    payment_method VARCHAR(50) DEFAULT NULL COMMENT 'e.g., FPX, Card, E-Wallet',
+    payment_reference VARCHAR(100) DEFAULT NULL COMMENT 'Payment gateway reference',
+    
+    -- Status
+    status ENUM('Pending', 'Completed', 'Failed', 'Cancelled', 'Refunded') DEFAULT 'Completed',
+    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_account (account_id),
+    INDEX idx_type (transaction_type),
+    INDEX idx_status (status),
+    INDEX idx_created (created_date),
+    INDEX idx_reference (reference_type, reference_id),
+    INDEX idx_account_date (account_id, created_date),
+    
+    CONSTRAINT fk_credit_trans_account 
+        FOREIGN KEY (account_id) REFERENCES account(account_id) 
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_credit_trans_batch 
+        FOREIGN KEY (batch_id) REFERENCES credit_batch(batch_id) 
+        ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 5. CREDIT USAGE RATE - Define credit costs for different features
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS credit_usage_rate (
+    rate_id INT AUTO_INCREMENT PRIMARY KEY,
+    rate_code VARCHAR(50) NOT NULL UNIQUE,
+    rate_name VARCHAR(100) NOT NULL,
+    rate_description TEXT,
+    
+    -- Cost
+    credit_cost INT NOT NULL COMMENT 'Credits required',
+    
+    -- Category
+    feature_category ENUM('Receipt', 'Report', 'Feature', 'Subscription') NOT NULL,
+    
+    -- Status
+    is_active ENUM('Yes', 'No') DEFAULT 'Yes',
+    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    modified_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_code (rate_code),
+    INDEX idx_category (feature_category),
+    INDEX idx_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 6. PAYMENT ORDER - Track payment orders before confirmation
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS payment_order (
+    order_id INT AUTO_INCREMENT PRIMARY KEY,
+    order_uuid VARCHAR(36) NOT NULL UNIQUE COMMENT 'Public order reference',
+    account_id INT NOT NULL,
+    package_id INT NOT NULL,
+    
+    -- Order details
+    credit_amount INT NOT NULL,
+    bonus_credits INT DEFAULT 0,
+    order_amount DECIMAL(10,2) NOT NULL,
+    
+    -- Payment gateway
+    payment_gateway ENUM('ToyyibPay', 'Stripe', 'Manual') DEFAULT 'ToyyibPay',
+    gateway_bill_code VARCHAR(100) DEFAULT NULL,
+    gateway_reference VARCHAR(100) DEFAULT NULL,
+    gateway_response TEXT DEFAULT NULL,
+    
+    -- URLs
+    payment_url VARCHAR(500) DEFAULT NULL,
+    callback_url VARCHAR(500) DEFAULT NULL,
+    
+    -- Status
+    order_status ENUM('Pending', 'Processing', 'Completed', 'Failed', 'Cancelled', 'Expired') DEFAULT 'Pending',
+    payment_status ENUM('Unpaid', 'Paid', 'Failed', 'Refunded') DEFAULT 'Unpaid',
+    
+    -- Timestamps
+    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    paid_date DATETIME DEFAULT NULL,
+    expired_date DATETIME DEFAULT NULL,
+    modified_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_uuid (order_uuid),
+    INDEX idx_account (account_id),
+    INDEX idx_status (order_status, payment_status),
+    INDEX idx_gateway (payment_gateway, gateway_bill_code),
+    INDEX idx_created (created_date),
+    
+    CONSTRAINT fk_payment_order_account 
+        FOREIGN KEY (account_id) REFERENCES account(account_id) 
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_payment_order_package 
+        FOREIGN KEY (package_id) REFERENCES credit_package(package_id) 
+        ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 7. PROMO CODE - Promotional codes for discounts or bonus credits
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS promo_code (
+    promo_id INT AUTO_INCREMENT PRIMARY KEY,
+    promo_code VARCHAR(50) NOT NULL UNIQUE,
+    promo_name VARCHAR(100) NOT NULL,
+    promo_description TEXT,
+    
+    -- Type
+    promo_type ENUM('Discount', 'Bonus', 'FreeCredits') NOT NULL,
+    
+    -- Value
+    discount_type ENUM('Percentage', 'Fixed') DEFAULT NULL,
+    discount_value DECIMAL(10,2) DEFAULT NULL COMMENT 'Percentage or fixed amount',
+    bonus_credits INT DEFAULT NULL COMMENT 'Extra credits to add',
+    free_credits INT DEFAULT NULL COMMENT 'Free credits (no purchase needed)',
+    
+    -- Restrictions
+    min_purchase_amount DECIMAL(10,2) DEFAULT NULL,
+    applicable_packages TEXT DEFAULT NULL COMMENT 'JSON array of package_ids, NULL = all',
+    
+    -- Limits
+    max_uses_total INT DEFAULT NULL COMMENT 'NULL = unlimited',
+    max_uses_per_user INT DEFAULT 1,
+    current_uses INT DEFAULT 0,
+    
+    -- Validity
+    start_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    end_date DATETIME DEFAULT NULL,
+    
+    -- Status
+    status ENUM('Active', 'Inactive', 'Expired') DEFAULT 'Active',
+    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    modified_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_code (promo_code),
+    INDEX idx_status (status),
+    INDEX idx_dates (start_date, end_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 8. PROMO CODE USAGE - Track who used which promo codes
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS promo_code_usage (
+    usage_id INT AUTO_INCREMENT PRIMARY KEY,
+    promo_id INT NOT NULL,
+    account_id INT NOT NULL,
+    order_id INT DEFAULT NULL,
+    
+    -- Applied value
+    discount_applied DECIMAL(10,2) DEFAULT NULL,
+    bonus_applied INT DEFAULT NULL,
+    
+    -- Timestamps
+    used_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_promo (promo_id),
+    INDEX idx_account (account_id),
+    INDEX idx_promo_account (promo_id, account_id),
+    
+    CONSTRAINT fk_promo_usage_promo 
+        FOREIGN KEY (promo_id) REFERENCES promo_code(promo_id) 
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_promo_usage_account 
+        FOREIGN KEY (account_id) REFERENCES account(account_id) 
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_promo_usage_order 
+        FOREIGN KEY (order_id) REFERENCES payment_order(order_id) 
+        ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- SEED DATA: Credit Packages
+-- ============================================================================
+INSERT INTO credit_package (
+    package_code, package_name, package_description, 
+    credit_amount, price_amount, validity_days,
+    bonus_credits, bonus_description,
+    package_badge, package_color, is_featured, sort_order
+) VALUES 
+-- Starter Package
+(
+    'STARTER',
+    'Starter Pack',
+    'Perfect for trying out TaxLah. Includes basic report generation and AI categorization.',
+    50,
+    19.90,
+    548,
+    0,
+    NULL,
+    NULL,
+    '#6c757d',
+    'No',
+    1
+),
+-- Standard Package
+(
+    'STANDARD',
+    'Standard Pack',
+    'Great value for regular users. Ideal for complete tax filing season.',
+    150,
+    49.90,
+    548,
+    10,
+    '+10 bonus credits',
+    'POPULAR',
+    '#17a2b8',
+    'No',
+    2
+),
+-- Premium Package
+(
+    'PREMIUM',
+    'Premium Pack',
+    'Best value! Perfect for power users who want unlimited access throughout the year.',
+    400,
+    99.90,
+    548,
+    50,
+    '+50 bonus credits',
+    'BEST VALUE',
+    '#28a745',
+    'Yes',
+    3
+),
+-- Business Package
+(
+    'BUSINESS',
+    'Business Pack',
+    'For professionals and small businesses managing multiple tax profiles.',
+    1000,
+    199.90,
+    548,
+    150,
+    '+150 bonus credits',
+    'PRO',
+    '#6f42c1',
+    'No',
+    4
+);
+
+-- ============================================================================
+-- SEED DATA: Credit Usage Rates
+-- ============================================================================
+INSERT INTO credit_usage_rate (rate_code, rate_name, rate_description, credit_cost, feature_category) VALUES
+-- Receipt features
+('RECEIPT_AI_CATEGORIZE', 'AI Auto-Categorization', 'Automatic categorization of receipt using AI', 2, 'Receipt'),
+('RECEIPT_OCR_EXTRACT', 'OCR Text Extraction', 'Extract text and data from receipt image', 1, 'Receipt'),
+
+-- Report features
+('REPORT_BASIC', 'Basic Tax Report', 'Simple summary with category totals', 30, 'Report'),
+('REPORT_DETAILED', 'Detailed Tax Report', 'Comprehensive report with breakdown and receipts', 50, 'Report'),
+('REPORT_PREMIUM', 'Premium LHDN-Ready Report', 'Full report with LHDN format and all details', 80, 'Report'),
+('REPORT_ACCOUNTANT', 'Accountant Export', 'Professional export format for accountants', 100, 'Report'),
+
+-- Subscription features
+('UNLIMITED_RECEIPTS_MONTH', 'Unlimited Receipts (Monthly)', 'Unlimited receipt uploads for one month', 20, 'Subscription'),
+('UNLIMITED_AI_MONTH', 'Unlimited AI Categorization (Monthly)', 'Unlimited AI categorization for one month', 35, 'Subscription'),
+
+-- Premium features
+('FEATURE_MULTI_YEAR', 'Multi-Year Comparison', 'Compare tax reliefs across multiple years', 25, 'Feature'),
+('FEATURE_TAX_FORECAST', 'Tax Forecast', 'AI-powered tax savings forecast', 15, 'Feature'),
+('FEATURE_FAMILY_PLAN', 'Family Member Addition', 'Add one family member to your account', 50, 'Feature');
+
+-- ============================================================================
+-- SEED DATA: Sample Promo Codes
+-- ============================================================================
+INSERT INTO promo_code (
+    promo_code, promo_name, promo_description,
+    promo_type, discount_type, discount_value, bonus_credits,
+    max_uses_total, max_uses_per_user,
+    start_date, end_date, status
+) VALUES
+-- Welcome discount
+(
+    'WELCOME2025',
+    'Welcome 2025',
+    'Welcome discount for new users',
+    'Discount',
+    'Percentage',
+    20.00,
+    NULL,
+    1000,
+    1,
+    '2025-01-01 00:00:00',
+    '2025-03-31 23:59:59',
+    'Active'
+),
+-- Tax season bonus
+(
+    'TAXSEASON25',
+    'Tax Season 2025',
+    'Bonus credits during tax filing season',
+    'Bonus',
+    NULL,
+    NULL,
+    30,
+    NULL,
+    1,
+    '2025-02-01 00:00:00',
+    '2025-04-30 23:59:59',
+    'Active'
+),
+-- Free trial credits
+(
+    'FREETRIAL',
+    'Free Trial',
+    '20 free credits to try TaxLah',
+    'FreeCredits',
+    NULL,
+    NULL,
+    NULL,
+    5000,
+    1,
+    '2025-01-01 00:00:00',
+    '2025-12-31 23:59:59',
+    'Active'
+);
+
+-- ============================================================================
+-- VIEWS: Useful queries
+-- ============================================================================
+
+-- View: User credit summary
+CREATE OR REPLACE VIEW v_account_credit_summary AS
+SELECT 
+    ac.account_id,
+    a.account_name,
+    a.account_email,
+    ac.credit_balance,
+    ac.lifetime_credits,
+    ac.lifetime_spent,
+    ac.free_receipts_used,
+    ac.free_receipts_limit,
+    (ac.free_receipts_limit - ac.free_receipts_used) as free_receipts_remaining,
+    (
+        SELECT COUNT(*) FROM credit_batch cb 
+        WHERE cb.account_id = ac.account_id 
+        AND cb.status = 'Active' 
+        AND cb.expiry_date > NOW()
+    ) as active_batches,
+    (
+        SELECT MIN(cb.expiry_date) FROM credit_batch cb 
+        WHERE cb.account_id = ac.account_id 
+        AND cb.status = 'Active' 
+        AND cb.credits_remaining > 0
+        AND cb.expiry_date > NOW()
+    ) as nearest_expiry,
+    ac.status,
+    ac.created_date
+FROM account_credit ac
+JOIN account a ON ac.account_id = a.account_id;
+
+-- View: Package performance
+CREATE OR REPLACE VIEW v_package_performance AS
+SELECT 
+    cp.package_id,
+    cp.package_code,
+    cp.package_name,
+    cp.price_amount,
+    cp.credit_amount,
+    COUNT(DISTINCT po.order_id) as total_orders,
+    COUNT(DISTINCT CASE WHEN po.payment_status = 'Paid' THEN po.order_id END) as paid_orders,
+    COALESCE(SUM(CASE WHEN po.payment_status = 'Paid' THEN po.order_amount END), 0) as total_revenue,
+    COALESCE(SUM(CASE WHEN po.payment_status = 'Paid' THEN po.credit_amount END), 0) as total_credits_sold
+FROM credit_package cp
+LEFT JOIN payment_order po ON cp.package_id = po.package_id
+GROUP BY cp.package_id;
+
+-- View: Monthly revenue
+CREATE OR REPLACE VIEW v_monthly_revenue AS
+SELECT 
+    DATE_FORMAT(po.paid_date, '%Y-%m') as month,
+    COUNT(DISTINCT po.order_id) as total_orders,
+    COUNT(DISTINCT po.account_id) as unique_buyers,
+    SUM(po.order_amount) as total_revenue,
+    SUM(po.credit_amount + po.bonus_credits) as total_credits_issued,
+    AVG(po.order_amount) as avg_order_value
+FROM payment_order po
+WHERE po.payment_status = 'Paid'
+GROUP BY DATE_FORMAT(po.paid_date, '%Y-%m')
+ORDER BY month DESC;
+
+-- ============================================================================
+-- STORED PROCEDURES
+-- ============================================================================
+
+DELIMITER //
+
+-- Procedure: Initialize credit account for new user
+CREATE PROCEDURE sp_init_account_credit(IN p_account_id INT)
+BEGIN
+    INSERT IGNORE INTO account_credit (account_id, credit_balance, free_tier_reset_date)
+    VALUES (p_account_id, 0, DATE_ADD(CURDATE(), INTERVAL 1 YEAR));
+END //
+
+-- Procedure: Use credits (FIFO - oldest expiring first)
+CREATE PROCEDURE sp_use_credits(
+    IN p_account_id INT,
+    IN p_amount INT,
+    IN p_description VARCHAR(255),
+    IN p_reference_type VARCHAR(50),
+    IN p_reference_id INT,
+    OUT p_success BOOLEAN,
+    OUT p_message VARCHAR(255)
+)
+BEGIN
+    DECLARE v_balance INT;
+    DECLARE v_remaining INT;
+    DECLARE v_batch_id INT;
+    DECLARE v_batch_remaining INT;
+    DECLARE v_deduct INT;
+    DECLARE done INT DEFAULT FALSE;
+    
+    -- Cursor for active batches (FIFO by expiry)
+    DECLARE batch_cursor CURSOR FOR
+        SELECT batch_id, credits_remaining
+        FROM credit_batch
+        WHERE account_id = p_account_id
+        AND status = 'Active'
+        AND credits_remaining > 0
+        AND expiry_date > NOW()
+        ORDER BY expiry_date ASC, batch_id ASC;
+    
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+    
+    -- Start transaction
+    START TRANSACTION;
+    
+    -- Get current balance
+    SELECT credit_balance INTO v_balance
+    FROM account_credit
+    WHERE account_id = p_account_id
+    FOR UPDATE;
+    
+    -- Check sufficient balance
+    IF v_balance IS NULL THEN
+        SET p_success = FALSE;
+        SET p_message = 'Credit account not found';
+        ROLLBACK;
+    ELSEIF v_balance < p_amount THEN
+        SET p_success = FALSE;
+        SET p_message = CONCAT('Insufficient credits. Required: ', p_amount, ', Available: ', v_balance);
+        ROLLBACK;
+    ELSE
+        SET v_remaining = p_amount;
+        
+        -- Deduct from batches (FIFO)
+        OPEN batch_cursor;
+        
+        deduct_loop: LOOP
+            FETCH batch_cursor INTO v_batch_id, v_batch_remaining;
+            
+            IF done OR v_remaining <= 0 THEN
+                LEAVE deduct_loop;
+            END IF;
+            
+            -- Calculate deduction for this batch
+            SET v_deduct = LEAST(v_remaining, v_batch_remaining);
+            
+            -- Update batch
+            UPDATE credit_batch
+            SET credits_remaining = credits_remaining - v_deduct,
+                status = CASE WHEN credits_remaining - v_deduct <= 0 THEN 'Depleted' ELSE status END
+            WHERE batch_id = v_batch_id;
+            
+            SET v_remaining = v_remaining - v_deduct;
+        END LOOP;
+        
+        CLOSE batch_cursor;
+        
+        -- Update account balance
+        UPDATE account_credit
+        SET credit_balance = credit_balance - p_amount,
+            lifetime_spent = lifetime_spent + p_amount
+        WHERE account_id = p_account_id;
+        
+        -- Record transaction
+        INSERT INTO credit_transaction (
+            account_id, transaction_type, credit_amount,
+            balance_before, balance_after, description,
+            reference_type, reference_id, status
+        ) VALUES (
+            p_account_id, 'Usage', -p_amount,
+            v_balance, v_balance - p_amount, p_description,
+            p_reference_type, p_reference_id, 'Completed'
+        );
+        
+        SET p_success = TRUE;
+        SET p_message = 'Credits deducted successfully';
+        COMMIT;
+    END IF;
+END //
+
+-- Procedure: Add credits from purchase
+CREATE PROCEDURE sp_add_credits(
+    IN p_account_id INT,
+    IN p_package_id INT,
+    IN p_credits INT,
+    IN p_bonus INT,
+    IN p_validity_days INT,
+    IN p_source_type VARCHAR(20),
+    IN p_source_reference VARCHAR(100),
+    IN p_payment_amount DECIMAL(10,2),
+    IN p_payment_method VARCHAR(50),
+    IN p_payment_reference VARCHAR(100),
+    OUT p_batch_id INT,
+    OUT p_transaction_id INT
+)
+BEGIN
+    DECLARE v_balance INT;
+    DECLARE v_total_credits INT;
+    DECLARE v_expiry_date DATETIME;
+    
+    SET v_total_credits = p_credits + COALESCE(p_bonus, 0);
+    SET v_expiry_date = DATE_ADD(NOW(), INTERVAL p_validity_days DAY);
+    
+    START TRANSACTION;
+    
+    -- Ensure credit account exists
+    INSERT IGNORE INTO account_credit (account_id, credit_balance, free_tier_reset_date)
+    VALUES (p_account_id, 0, DATE_ADD(CURDATE(), INTERVAL 1 YEAR));
+    
+    -- Get current balance
+    SELECT credit_balance INTO v_balance
+    FROM account_credit
+    WHERE account_id = p_account_id
+    FOR UPDATE;
+    
+    -- Create credit batch
+    INSERT INTO credit_batch (
+        account_id, package_id, credits_purchased, credits_remaining,
+        bonus_credits, source_type, source_reference, expiry_date
+    ) VALUES (
+        p_account_id, p_package_id, p_credits, v_total_credits,
+        p_bonus, p_source_type, p_source_reference, v_expiry_date
+    );
+    
+    SET p_batch_id = LAST_INSERT_ID();
+    
+    -- Update account balance
+    UPDATE account_credit
+    SET credit_balance = credit_balance + v_total_credits,
+        lifetime_credits = lifetime_credits + v_total_credits
+    WHERE account_id = p_account_id;
+    
+    -- Record transaction
+    INSERT INTO credit_transaction (
+        account_id, batch_id, transaction_type, credit_amount,
+        balance_before, balance_after, description,
+        reference_type, reference_id,
+        payment_amount, payment_method, payment_reference, status
+    ) VALUES (
+        p_account_id, p_batch_id, 'Purchase', v_total_credits,
+        v_balance, v_balance + v_total_credits,
+        CONCAT('Purchased ', p_credits, ' credits', IF(p_bonus > 0, CONCAT(' + ', p_bonus, ' bonus'), '')),
+        'Package', p_package_id,
+        p_payment_amount, p_payment_method, p_payment_reference, 'Completed'
+    );
+    
+    SET p_transaction_id = LAST_INSERT_ID();
+    
+    COMMIT;
+END //
+
+-- Procedure: Expire old credits (run daily via cron)
+CREATE PROCEDURE sp_expire_credits()
+BEGIN
+    DECLARE v_account_id INT;
+    DECLARE v_batch_id INT;
+    DECLARE v_expired_amount INT;
+    DECLARE v_balance INT;
+    DECLARE done INT DEFAULT FALSE;
+    
+    DECLARE expired_cursor CURSOR FOR
+        SELECT account_id, batch_id, credits_remaining
+        FROM credit_batch
+        WHERE status = 'Active'
+        AND credits_remaining > 0
+        AND expiry_date <= NOW();
+    
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+    
+    OPEN expired_cursor;
+    
+    expire_loop: LOOP
+        FETCH expired_cursor INTO v_account_id, v_batch_id, v_expired_amount;
+        
+        IF done THEN
+            LEAVE expire_loop;
+        END IF;
+        
+        -- Get current balance
+        SELECT credit_balance INTO v_balance
+        FROM account_credit
+        WHERE account_id = v_account_id;
+        
+        -- Mark batch as expired
+        UPDATE credit_batch
+        SET status = 'Expired', credits_remaining = 0
+        WHERE batch_id = v_batch_id;
+        
+        -- Update account balance
+        UPDATE account_credit
+        SET credit_balance = credit_balance - v_expired_amount
+        WHERE account_id = v_account_id;
+        
+        -- Record transaction
+        INSERT INTO credit_transaction (
+            account_id, batch_id, transaction_type, credit_amount,
+            balance_before, balance_after, description, status
+        ) VALUES (
+            v_account_id, v_batch_id, 'Expiry', -v_expired_amount,
+            v_balance, v_balance - v_expired_amount,
+            CONCAT(v_expired_amount, ' credits expired'),
+            'Completed'
+        );
+    END LOOP;
+    
+    CLOSE expired_cursor;
+END //
+
+DELIMITER ;
+
+-- ============================================================================
+-- EVENTS: Scheduled tasks
+-- ============================================================================
+
+-- Enable event scheduler (run once on server)
+-- SET GLOBAL event_scheduler = ON;
+
+-- Event: Daily credit expiry check
+CREATE EVENT IF NOT EXISTS evt_daily_credit_expiry
+ON SCHEDULE EVERY 1 DAY
+STARTS (TIMESTAMP(CURRENT_DATE) + INTERVAL 1 DAY + INTERVAL 1 HOUR)
+DO CALL sp_expire_credits();
+
+-- ============================================================================
+-- END OF SCHEMA
+-- ============================================================================
+
 -- 2025-12-05 01:17:54 UTC

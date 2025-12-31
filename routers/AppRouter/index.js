@@ -14,6 +14,7 @@ const ReceiptRouter         = require("../../controllers/AppController/Receipt")
 const DependantRouter       = require("../../controllers/AppController/Dependant");
 const TaxClaimRouter        = require("../../controllers/AppController/TaxClaim");
 const ReportRouter          = require("../../controllers/AppController/Report")
+const CreditRouter          = require("../../controllers/AppController/Credit")
 const { auth } = require('../../configs/auth')
 
 router.use("/auth", AuthRouter)
@@ -29,5 +30,6 @@ router.use("/receipt", ReceiptRouter)
 router.use("/dependant", auth(), DependantRouter);      // /api/dependant/*
 router.use("/tax", auth(), TaxClaimRouter);             // /api/tax/*
 router.use("/report", auth(), ReportRouter);  
+router.use("/credit", auth(), CreditRouter);  
 
 module.exports = router

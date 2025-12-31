@@ -1,0 +1,339 @@
+/**
+ * CHIP Payment Gateway Service
+ * Integration with CHIP (chip-in.asia) for payment processing
+ * 
+ * API Reference: https://developer.chip-in.asia/api.html
+ * Base URL: https://gate.chip-in.asia/api/v1/
+ */
+
+const axios = require('axios');
+const crypto = require('crypto');
+
+// CHIP API Configuration
+const CHIP_CONFIG = {
+    baseUrl: process.env.CHIP_API_URL || 'https://gate.chip-in.asia/api/v1',
+    brandId: process.env.CHIP_BRAND_ID,
+    apiKey: process.env.CHIP_API_KEY,
+    webhookPublicKey: process.env.CHIP_WEBHOOK_PUBLIC_KEY,
+    currency: 'MYR',
+    testMode: process.env.NODE_ENV !== 'production'
+};
+
+// Create axios instance for CHIP API
+const chipApi = axios.create({
+    baseURL: CHIP_CONFIG.baseUrl,
+    headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${CHIP_CONFIG.apiKey}`
+    },
+    timeout: 30000
+});
+
+/**
+ * Create a purchase (payment) in CHIP
+ * @param {Object} params - Purchase parameters
+ * @returns {Object} - Purchase response with checkout_url
+ */
+async function createPurchase(params) {
+    const {
+        orderId,
+        amount,
+        customerEmail,
+        customerName,
+        customerPhone,
+        productName,
+        productDescription,
+        successUrl,
+        failureUrl,
+        callbackUrl,
+        metadata = {}
+    } = params;
+
+    try {
+        // Amount must be in smallest currency unit (sen for MYR)
+        const amountInSen = Math.round(amount * 100);
+
+        const purchaseData = {
+            brand_id: CHIP_CONFIG.brandId,
+            client: {
+                email: customerEmail,
+                full_name: customerName,
+                phone: customerPhone || undefined
+            },
+            purchase: {
+                currency: CHIP_CONFIG.currency,
+                products: [
+                    {
+                        name: productName,
+                        price: amountInSen,
+                        quantity: 1
+                    }
+                ],
+                notes: productDescription || undefined,
+                metadata: {
+                    order_id: orderId,
+                    ...metadata
+                }
+            },
+            success_redirect: successUrl,
+            failure_redirect: failureUrl,
+            success_callback: callbackUrl,
+            send_receipt: true,
+            skip_capture: false
+        };
+
+        console.log('[CHIP] Creating purchase:', { orderId, amount, customerEmail });
+
+        const response = await chipApi.post('/purchases/', purchaseData);
+
+        console.log('[CHIP] Purchase created:', response.data.id);
+
+        return {
+            success: true,
+            data: {
+                purchaseId: response.data.id,
+                checkoutUrl: response.data.checkout_url,
+                status: response.data.status,
+                amount: response.data.purchase.total / 100, // Convert back to MYR
+                currency: response.data.purchase.currency,
+                createdAt: response.data.created_on
+            }
+        };
+    } catch (error) {
+        console.error('[CHIP] Create purchase error:', error.response?.data || error.message);
+        return {
+            success: false,
+            error: error.response?.data?.message || error.message
+        };
+    }
+}
+
+/**
+ * Get purchase details by ID
+ * @param {string} purchaseId - CHIP purchase ID
+ * @returns {Object} - Purchase details
+ */
+async function getPurchase(purchaseId) {
+    try {
+        const response = await chipApi.get(`/purchases/${purchaseId}/`);
+
+        return {
+            success: true,
+            data: {
+                purchaseId: response.data.id,
+                status: response.data.status,
+                isPaid: response.data.status === 'paid',
+                amount: response.data.purchase.total / 100,
+                currency: response.data.purchase.currency,
+                paidAt: response.data.payment?.date_s,
+                paymentMethod: response.data.payment?.payment_type,
+                metadata: response.data.purchase.metadata,
+                clientEmail: response.data.client?.email,
+                clientName: response.data.client?.full_name
+            }
+        };
+    } catch (error) {
+        console.error('[CHIP] Get purchase error:', error.response?.data || error.message);
+        return {
+            success: false,
+            error: error.response?.data?.message || error.message
+        };
+    }
+}
+
+/**
+ * Verify webhook signature
+ * @param {string} payload - Raw request body
+ * @param {string} signature - X-Signature header value
+ * @returns {boolean} - Whether signature is valid
+ */
+function verifyWebhookSignature(payload, signature) {
+    if (!CHIP_CONFIG.webhookPublicKey) {
+        console.warn('[CHIP] Webhook public key not configured');
+        return false;
+    }
+
+    try {
+        const publicKey = crypto.createPublicKey({
+            key: CHIP_CONFIG.webhookPublicKey,
+            format: 'pem'
+        });
+
+        const signatureBuffer = Buffer.from(signature, 'base64');
+        const payloadBuffer = Buffer.from(payload, 'utf8');
+
+        const isValid = crypto.verify(
+            'sha256',
+            payloadBuffer,
+            publicKey,
+            signatureBuffer
+        );
+
+        return isValid;
+    } catch (error) {
+        console.error('[CHIP] Signature verification error:', error.message);
+        return false;
+    }
+}
+
+/**
+ * Process webhook callback from CHIP
+ * @param {Object} body - Webhook payload
+ * @param {string} signature - X-Signature header
+ * @param {string} rawBody - Raw request body for signature verification
+ * @returns {Object} - Processed webhook data
+ */
+function processWebhook(body, signature, rawBody) {
+    // Verify signature in production
+    if (!CHIP_CONFIG.testMode && signature) {
+        const isValid = verifyWebhookSignature(rawBody, signature);
+        if (!isValid) {
+            console.error('[CHIP] Invalid webhook signature');
+            return { success: false, error: 'Invalid signature' };
+        }
+    }
+
+    const eventType = body.event_type;
+    const isTest = body.is_test;
+
+    console.log('[CHIP] Webhook received:', { eventType, isTest, purchaseId: body.id });
+
+    // Handle different event types
+    switch (eventType) {
+        case 'purchase.paid':
+            return {
+                success: true,
+                eventType: 'paid',
+                data: {
+                    purchaseId: body.id,
+                    status: 'paid',
+                    amount: body.purchase?.total / 100,
+                    currency: body.purchase?.currency,
+                    metadata: body.purchase?.metadata,
+                    orderId: body.purchase?.metadata?.order_id,
+                    paidAt: body.payment?.date_s,
+                    paymentMethod: body.payment?.payment_type,
+                    isTest
+                }
+            };
+
+        case 'purchase.payment_failure':
+            return {
+                success: true,
+                eventType: 'failed',
+                data: {
+                    purchaseId: body.id,
+                    status: 'failed',
+                    metadata: body.purchase?.metadata,
+                    orderId: body.purchase?.metadata?.order_id,
+                    isTest
+                }
+            };
+
+        case 'purchase.cancelled':
+            return {
+                success: true,
+                eventType: 'cancelled',
+                data: {
+                    purchaseId: body.id,
+                    status: 'cancelled',
+                    metadata: body.purchase?.metadata,
+                    orderId: body.purchase?.metadata?.order_id,
+                    isTest
+                }
+            };
+
+        case 'payment.refunded':
+            return {
+                success: true,
+                eventType: 'refunded',
+                data: {
+                    purchaseId: body.id,
+                    status: 'refunded',
+                    metadata: body.purchase?.metadata,
+                    orderId: body.purchase?.metadata?.order_id,
+                    isTest
+                }
+            };
+
+        default:
+            console.log('[CHIP] Unhandled event type:', eventType);
+            return {
+                success: true,
+                eventType: 'unknown',
+                data: { purchaseId: body.id, rawEventType: eventType }
+            };
+    }
+}
+
+/**
+ * Get available payment methods
+ * @returns {Object} - Available payment methods
+ */
+async function getPaymentMethods() {
+    try {
+        const response = await chipApi.get('/payment_methods/', {
+            params: {
+                brand_id: CHIP_CONFIG.brandId,
+                currency: CHIP_CONFIG.currency
+            }
+        });
+
+        return {
+            success: true,
+            data: {
+                methods: response.data.available_payment_methods,
+                names: response.data.names,
+                logos: response.data.logos
+            }
+        };
+    } catch (error) {
+        console.error('[CHIP] Get payment methods error:', error.response?.data || error.message);
+        return {
+            success: false,
+            error: error.response?.data?.message || error.message
+        };
+    }
+}
+
+/**
+ * Refund a purchase (if supported)
+ * @param {string} purchaseId - CHIP purchase ID
+ * @param {number} amount - Amount to refund (optional, full refund if not specified)
+ * @returns {Object} - Refund result
+ */
+async function refundPurchase(purchaseId, amount = null) {
+    try {
+        const refundData = {};
+        if (amount) {
+            refundData.amount = Math.round(amount * 100);
+        }
+
+        const response = await chipApi.post(`/purchases/${purchaseId}/refund/`, refundData);
+
+        return {
+            success: true,
+            data: {
+                purchaseId: response.data.id,
+                status: response.data.status,
+                refundedAmount: amount
+            }
+        };
+    } catch (error) {
+        console.error('[CHIP] Refund error:', error.response?.data || error.message);
+        return {
+            success: false,
+            error: error.response?.data?.message || error.message
+        };
+    }
+}
+
+module.exports = {
+    createPurchase,
+    getPurchase,
+    verifyWebhookSignature,
+    processWebhook,
+    getPaymentMethods,
+    refundPurchase,
+    CHIP_CONFIG
+};
