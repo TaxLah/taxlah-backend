@@ -69,7 +69,7 @@ router.post("/credit/webhook", express.raw({ type: 'application/json' }), async 
 
         // Step 1: Verify signature (optional but recommended for production)
         const verifyResult = ChipPaymentService.verifyWebhookSignature(rawBody, signature)
-        if (!verifyResult.status || !verifyResult.data.is_valid) {
+        if (!verifyResult) {
             console.error('Invalid webhook signature')
             return res.status(200).json({ success: true }) // Always return 200 to CHIP
         }
@@ -82,11 +82,22 @@ router.post("/credit/webhook", express.raw({ type: 'application/json' }), async 
             return res.status(200).json({ success: true })
         }
 
+        const webhookData = result.data
+
+        console.log('=== CHIP WEBHOOK RECEIVED ===')
+        console.log('Event Type:', webhookData.event_type)
+        console.log('Purchase ID:', webhookData.purchase_id)
+        console.log('Status:', webhookData.payment_status)
+        console.log('Reference:', webhookData.reference)
+        console.log('Is Paid:', webhookData.is_paid)
+        console.log('Is Test:', webhookData.is_test)
+        console.log('=============================')
+
         // Get order UUID from metadata
-        const orderUuid = result.data?.orderId;
+        const orderUuid = result?.data.purchase_id;
 
         if (orderUuid) {
-            switch (result.eventType) {
+            switch (result.data) {
                 case 'paid':
                     await PaymentOrderService.processPaymentSuccess(orderUuid, result.data);
                     break;

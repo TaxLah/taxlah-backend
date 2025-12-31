@@ -182,6 +182,8 @@ function verifyWebhookSignature(payload, signature) {
             signatureBuffer
         );
 
+        console.log("Is Valid : ", isValid)
+
         return isValid;
     } catch (error) {
         console.error('[CHIP] Signature verification error:', error.message);
