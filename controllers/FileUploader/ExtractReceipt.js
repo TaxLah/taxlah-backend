@@ -45,13 +45,13 @@ async function ExtractReceipt(imageUrl) {
 	let actual_items 	= document.fields?.Items?.type == "array" ? document.fields?.Items?.valueArray : []
 	for (let i = 0; i < actual_items.length; i++) {
 		console.log(`Log Items ${i + 1} : `, actual_items[i])
-		
+
 		if(actual_items[i].valueObject) {
 			receipt_items.push({
-				description: actual_items[i]?.Description?.content || "",
-				quantity: actual_items[i]?.Quantity?.content || 1,
-				price: actual_items[i]?.Price?.content || 0.00,
-				total_price: actual_items[i]?.TotalPrice?.content || 0.00,
+				description: actual_items[i]?.valueObject?.Description?.content || "",
+				quantity: actual_items[i]?.valueObject?.Quantity?.content || 1,
+				price: actual_items[i]?.valueObject?.Price?.content || 0.00,
+				total_price: actual_items[i]?.valueObject?.TotalPrice?.content || 0.00,
 			})
 		}
 	}
@@ -60,7 +60,7 @@ async function ExtractReceipt(imageUrl) {
 
 	return {
 		CountryRegion: document.fields.CountryRegion || null,
-		Items: document.fields.Items || [],
+		Items: receipt_items || document.fields.Items || [],
 		MerchantAddress: document.fields.MerchantAddress || null,
 		MerchantName: document.fields.MerchantName || null,
 		MerchantPhoneNumber: document.fields.MerchantPhoneNumber || null,
