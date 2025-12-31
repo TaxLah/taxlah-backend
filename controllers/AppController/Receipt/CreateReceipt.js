@@ -49,11 +49,11 @@ router.post("/", async(req, res) => {
         const tax_year              = parseInt(params.tax_year) || new Date().getFullYear();
 
         // Validation
-        if(CHECK_EMPTY(rc_id)) {
-            response = BAD_REQUEST_API_RESPONSE
-            response.message = "Error. Receipt category is required."
-            return res.status(response.status_code).json(response)
-        }
+        // if(CHECK_EMPTY(rc_id)) {
+        //     response = BAD_REQUEST_API_RESPONSE
+        //     response.message = "Error. Receipt category is required."
+        //     return res.status(response.status_code).json(response)
+        // }
 
         if(CHECK_EMPTY(receipt_image_url)) {
             response = BAD_REQUEST_API_RESPONSE
