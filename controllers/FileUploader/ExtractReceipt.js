@@ -38,9 +38,12 @@ async function ExtractReceipt(imageUrl) {
 
 	console.log("Log Document : ", document)
 
+	console.log("Log Items Type : ", document.fields?.Items?.type)
+	console.log("Log Items Value : ", document.fields?.Items?.valueArray)
+
 	return {
 		CountryRegion: document.fields.CountryRegion || null,
-		Items: document.fields?.Items?.type === "array" ? document.fields.Items.valueArray : [],
+		Items: document.fields.Items || [],
 		MerchantAddress: document.fields.MerchantAddress || null,
 		MerchantName: document.fields.MerchantName || null,
 		MerchantPhoneNumber: document.fields.MerchantPhoneNumber || null,
