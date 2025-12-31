@@ -27,7 +27,7 @@ const CHIP_CONFIG = {
     baseUrl: process.env.CHIP_API_URL || 'https://gate.chip-in.asia/api/v1',
     brandId: process.env.CHIP_BRAND_ID,
     apiKey: process.env.CHIP_API_KEY,
-    webhookPublicKey: process.env.CHIP_WEBHOOK_PUBLIC_KEY || pubkey,
+    webhookPublicKey: pubkey,
     currency: 'MYR',
     testMode: process.env.NODE_ENV !== 'production'
 };
