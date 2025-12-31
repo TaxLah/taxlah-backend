@@ -218,8 +218,8 @@ async function getUserOrders(accountId, options = {}) {
             params.push(status);
         }
 
-        sql += ` ORDER BY po.created_date DESC LIMIT ? OFFSET ?`;
-        params.push(limit, offset);
+        sql += ` ORDER BY po.created_date DESC LIMIT ${limit} OFFSET ${offset}`;
+        // params.push(limit, offset);
 
         const orders = await db.raw(sql, params);
 

@@ -513,8 +513,8 @@ router.post("/orders/:uuid/cancel", async (req, res) => {
 router.post("/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
     try {
         const signature = req.headers['x-signature'];
-        const rawBody = req.body.toString();
-        const body = JSON.parse(rawBody);
+        const rawBody   = req.body.toString();
+        const body      = JSON.parse(rawBody);
 
         console.log('[CreditController] Webhook received:', body.event_type);
 

@@ -9,12 +9,25 @@
 const axios = require('axios');
 const crypto = require('crypto');
 
+let pubkey = `-----BEGIN PUBLIC KEY-----
+MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAlnGubCR80vQO3yVv3hOZ
+ZMDSeZ/sKom1sc6uspBSGUjOtIg8QArNQxwPwkOQMx0uL1YCzRyMki7oc09T7D8P
+/k3Y1mB9H2KcrPUuBUIKteBRnx3trjc54vavVaI+JE7NfYF0RBftfjGGzQ7/o4jx
+6aqwZxThFkAe6DSZ+5fXxUhJy9KuvFUub3MPWty4UlCJJRwVYSaZVPesXZS3CUDJ
+YYZYJswrLb8NshyxXsG83A14uifzmb/3mkirbC+RMr6APL1/iMmR9g/wEDGmKsNE
+EfblqWBjh/BKesq2crY3Y/K4IaKKWtNY40ftbCimgO+j1dIoHCmwg0qTcG4kq8jN
+DawLiTO3VdNKEqBRnc/TlsHfU0qgOQfJYxVpvX6BsfRs4O0D0N3LIk6l9aOQcorB
+Wqey+6UvcHpEmCbYat15TfIFKtOWW1wXTwtQWaWOy6+V8/e8toXztCOP4ZAO9rqP
+RMi5e+EW/Q4Vv6iiOHqBODSNKEvqIajQ4l6SwpIFmEidAgMBAAE=
+-----END PUBLIC KEY-----
+`
+
 // CHIP API Configuration
 const CHIP_CONFIG = {
     baseUrl: process.env.CHIP_API_URL || 'https://gate.chip-in.asia/api/v1',
     brandId: process.env.CHIP_BRAND_ID,
     apiKey: process.env.CHIP_API_KEY,
-    webhookPublicKey: process.env.CHIP_WEBHOOK_PUBLIC_KEY,
+    webhookPublicKey: process.env.CHIP_WEBHOOK_PUBLIC_KEY || pubkey,
     currency: 'MYR',
     testMode: process.env.NODE_ENV !== 'production'
 };
