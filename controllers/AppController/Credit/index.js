@@ -503,56 +503,6 @@ router.post("/orders/:uuid/cancel", async (req, res) => {
 });
 
 // ============================================================================
-// WEBHOOK (CHIP CALLBACK)
-// ============================================================================
-
-/**
- * POST /api/credit/webhook
- * CHIP payment webhook callback
- */
-router.post("/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
-    try {
-        const signature = req.headers['x-signature'];
-        const rawBody   = req.body.toString();
-        const body      = JSON.parse(rawBody);
-
-        console.log("Log Signature : ", signature)
-        console.log("Log Payload : ", rawBody)
-
-        console.log('[CreditController] Webhook received:', body.event_type);
-
-        // Process webhook
-        const result = ChipPaymentService.processWebhook(body, signature, rawBody);
-
-        if (!result.success) {
-            console.error('[CreditController] Webhook processing failed:', result.error);
-            return res.status(200).json({ received: true, error: result.error });
-        }
-
-        // Get order UUID from metadata
-        const orderUuid = result.data?.orderId;
-
-        if (orderUuid) {
-            switch (result.eventType) {
-                case 'paid':
-                    await PaymentOrderService.processPaymentSuccess(orderUuid, result.data);
-                    break;
-                case 'failed':
-                case 'cancelled':
-                    await PaymentOrderService.processPaymentFailure(orderUuid, result.data);
-                    break;
-            }
-        }
-
-        res.status(200).json({ received: true, event: result.eventType });
-    } catch (error) {
-        console.error('[CreditController] Webhook error:', error);
-        // Always return 200 to acknowledge receipt
-        res.status(200).json({ received: true, error: error.message });
-    }
-});
-
-// ============================================================================
 // USE CREDITS (Internal)
 // ============================================================================
 

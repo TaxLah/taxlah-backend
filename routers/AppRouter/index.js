@@ -1,6 +1,9 @@
 const express = require('express')
 const router = express.Router()
 
+const ChipPaymentService = require("../../services/ChipPaymentService")
+const PaymentOrderService = require("../../models/AppModel/PaymentOrderService")
+
 const AuthRouter            = require("../../controllers/AppController/Auth")
 const AccountRouter         = require("../../controllers/AppController/Account")
 const DeviceRouter          = require("../../controllers/AppController/Device")
@@ -30,6 +33,58 @@ router.use("/receipt", ReceiptRouter)
 router.use("/dependant", auth(), DependantRouter);      // /api/dependant/*
 router.use("/tax", auth(), TaxClaimRouter);             // /api/tax/*
 router.use("/report", auth(), ReportRouter);  
-router.use("/credit", auth(), CreditRouter);  
+
+
+// ============================================================================
+// WEBHOOK (CHIP CALLBACK)
+// ============================================================================
+
+/**
+ * POST /api/credit/webhook
+ * CHIP payment webhook callback
+ */
+router.post("/credit/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
+    try {
+        const signature = req.headers['x-signature'];
+        const rawBody   = req.body.toString();
+        const body      = JSON.parse(rawBody);
+
+        console.log("Log Signature : ", signature)
+        console.log("Log Payload : ", rawBody)
+
+        console.log('[CreditController] Webhook received:', body.event_type);
+
+        // Process webhook
+        const result = ChipPaymentService.processWebhook(body, signature, rawBody);
+
+        if (!result.success) {
+            console.error('[CreditController] Webhook processing failed:', result.error);
+            return res.status(200).json({ received: true, error: result.error });
+        }
+
+        // Get order UUID from metadata
+        const orderUuid = result.data?.orderId;
+
+        if (orderUuid) {
+            switch (result.eventType) {
+                case 'paid':
+                    await PaymentOrderService.processPaymentSuccess(orderUuid, result.data);
+                    break;
+                case 'failed':
+                case 'cancelled':
+                    await PaymentOrderService.processPaymentFailure(orderUuid, result.data);
+                    break;
+            }
+        }
+
+        return res.status(200).json({ received: true, event: result.eventType });
+    } catch (error) {
+        console.error('[CreditController] Webhook error:', error);
+        // Always return 200 to acknowledge receipt
+        return res.status(200).json({ received: true, error: error.message });
+    }
+});
+
+router.use("/credit", auth(), CreditRouter); 
 
 module.exports = router
