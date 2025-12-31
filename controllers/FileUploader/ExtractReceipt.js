@@ -44,6 +44,8 @@ async function ExtractReceipt(imageUrl) {
 	let receipt_items 	= []
 	let actual_items 	= document.fields?.Items?.type == "array" ? document.fields?.Items?.valueArray : []
 	for (let i = 0; i < actual_items.length; i++) {
+		console.log(`Log Items ${i + 1} : `, actual_items[i])
+		
 		if(actual_items[i].valueObject) {
 			receipt_items.push({
 				description: actual_items[i]?.Description?.content || "",
