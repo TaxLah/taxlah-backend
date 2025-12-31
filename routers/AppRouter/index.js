@@ -45,21 +45,41 @@ router.use("/report", auth(), ReportRouter);
  */
 router.post("/credit/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
     try {
-        const signature = req.headers['x-signature'];
-        const rawBody   = req.body.toString();
-        const body      = JSON.parse(rawBody);
+        // const signature = req.headers['x-signature'];
+        // const rawBody   = req.body.toString();
+        // const body      = JSON.parse(rawBody)
+
+        // console.log("Log Signature : ", signature)
+        // console.log("Log Payload : ", rawBody)
+
+        // console.log('[CreditController] Webhook received:', body.event_type);
+
+        // // Process webhook
+        // const result = ChipPaymentService.processWebhook(body, signature, rawBody);
+
+        // if (!result.success) {
+        //     console.error('[CreditController] Webhook processing failed:', result.error);
+        //     return res.status(200).json({ received: true, error: result.error });
+        // }
+        const signature = req.headers['x-signature']
+        const rawBody   = req.body.toString('utf8') // Make sure you have raw body parser
 
         console.log("Log Signature : ", signature)
-        console.log("Log Payload : ", rawBody)
+        console.log("Log Raw Body : ", rawBody)
 
-        console.log('[CreditController] Webhook received:', body.event_type);
+        // Step 1: Verify signature (optional but recommended for production)
+        const verifyResult = ChipPaymentService.verifyWebhookSignature(rawBody, signature)
+        if (!verifyResult.status || !verifyResult.data.is_valid) {
+            console.error('Invalid webhook signature')
+            return res.status(200).json({ success: true }) // Always return 200 to CHIP
+        }
 
-        // Process webhook
-        const result = ChipPaymentService.processWebhook(body, signature, rawBody);
+        // Step 2: Parse webhook payload
+        const result = ChipPaymentService.ParseWebhookPayload(JSON.parse(req.body))
 
-        if (!result.success) {
-            console.error('[CreditController] Webhook processing failed:', result.error);
-            return res.status(200).json({ received: true, error: result.error });
+        if (!result.status) {
+            console.error('Failed to parse webhook payload')
+            return res.status(200).json({ success: true })
         }
 
         // Get order UUID from metadata

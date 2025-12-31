@@ -189,6 +189,46 @@ function verifyWebhookSignature(payload, signature) {
     }
 }
 
+function fromCents(cents) {
+    return (parseInt(cents) / 100).toFixed(2)
+}
+
+function ParseWebhookPayload(payload) {
+    let result = { status: false, data: null }
+    try {
+        const data = typeof payload === 'string' ? JSON.parse(payload) : payload
+        if (!data.id) throw new Error('Invalid webhook payload')
+
+        result = {
+            status: true,
+            data: {
+                event_type: data.event_type || null,
+                purchase_id: data.id,
+                payment_status: data.status,
+                is_paid: data.status === 'paid',
+                is_test: data.is_test || false,
+                amount: data.purchase?.total ? fromCents(data.purchase.total) : null,
+                currency: data.purchase?.currency || null,
+                reference: data.reference || null,
+                payment_method: data.transaction_data?.payment_method || null,
+                paid_at: data.paid_on || null,
+                client_email: data.client?.email || null,
+                client_name: data.client?.full_name || null,
+                metadata: data.metadata || {},
+                raw_payload: data
+            }
+        }
+    } catch (e) {
+        console.error('ChipService.ParseWebhookPayload error:', e.message)
+        result = {
+            status: false,
+            message: e.message || errorResponse.message,
+            data: null
+        }
+    }
+    return result
+}
+
 /**
  * Process webhook callback from CHIP
  * @param {Object} body - Webhook payload
@@ -345,6 +385,7 @@ module.exports = {
     createPurchase,
     getPurchase,
     verifyWebhookSignature,
+    ParseWebhookPayload,
     processWebhook,
     getPaymentMethods,
     refundPurchase,
