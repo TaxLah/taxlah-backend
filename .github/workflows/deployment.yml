@@ -211,7 +211,7 @@ jobs:
               cd $DEPLOY_PATH
               
               # Create .env file with secrets
-              cat > .env << ENVEOF
+              cat > .env << 'ENVEOF'
               PORT=$PORT
               DB_HOST=$DB_HOST
               DB_USERNAME=$DB_USERNAME
@@ -338,7 +338,7 @@ jobs:
             fi
             
             # Create .env file with secrets
-            cat > .env << ENVEOF
+            cat > .env << 'ENVEOF'
             PORT=$PORT
             DB_HOST=$DB_HOST
             DB_USERNAME=$DB_USERNAME
