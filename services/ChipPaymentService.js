@@ -370,6 +370,67 @@ async function refundPurchase(purchaseId, amount = null) {
     }
 }
 
+/**
+ * Create subscription payment
+ * Simplified wrapper for subscription-specific payments
+ * @param {Object} params - Subscription payment parameters
+ * @returns {Object} - Payment creation result
+ */
+async function createSubscriptionPayment(params) {
+    const {
+        payment_ref,
+        account_id,
+        amount,
+        description,
+        customer_email,
+        customer_name
+    } = params;
+
+    try {
+        const baseUrl = process.env.BASE_URL || 'https://dev.taxlah.com';
+        
+        const purchaseParams = {
+            orderId: payment_ref,
+            amount: amount,
+            customerEmail: customer_email,
+            customerName: customer_name,
+            productName: 'TaxLah Subscription',
+            productDescription: description,
+            successUrl: `${baseUrl}/subscription/success?ref=${payment_ref}`,
+            failureUrl: `${baseUrl}/subscription/failed?ref=${payment_ref}`,
+            callbackUrl: `${baseUrl}/api/subscription/webhook`,
+            metadata: {
+                payment_ref: payment_ref,
+                account_id: account_id,
+                payment_type: 'subscription'
+            }
+        };
+
+        const result = await createPurchase(purchaseParams);
+
+        if (!result.success) {
+            return result;
+        }
+
+        return {
+            success: true,
+            data: {
+                payment_ref: payment_ref,
+                payment_url: result.data.checkoutUrl,
+                purchase_id: result.data.purchaseId,
+                amount: result.data.amount,
+                currency: result.data.currency
+            }
+        };
+    } catch (error) {
+        console.error('[CHIP] Create subscription payment error:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
 module.exports = {
     createPurchase,
     getPurchase,
@@ -378,5 +439,6 @@ module.exports = {
     processWebhook,
     getPaymentMethods,
     refundPurchase,
+    createSubscriptionPayment,
     CHIP_CONFIG
 };
