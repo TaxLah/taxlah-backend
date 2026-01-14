@@ -37,6 +37,11 @@ const as 		= nlp.as;
 NODE_ENV === "production" ? app.use(cors(corsOptions)) : app.use(cors());
 app.use(express.static("assets"));
 
+// Webhook routes need raw body for signature verification
+// Must be registered BEFORE express.json() middleware
+app.use('/api/subscription/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/credit/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 app.use(morgan("tiny")); //logging
 

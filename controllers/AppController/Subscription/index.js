@@ -560,7 +560,7 @@ router.get("/payment/:paymentRef", auth(), async (req, res) => {
  * POST /api/subscription/webhook
  * Handle payment gateway webhook for subscription payments
  */
-router.post("/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
+router.post("/webhook", async (req, res) => {
     try {
         const signature = req.headers['x-signature'];
         const rawBody = req.body.toString('utf8');
