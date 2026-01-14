@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const { UNAUTHORIZED_API_RESPONSE, ERROR_MISSING_TOKEN, ERROR_UNAUTHENTICATED } = require("./helper");
 
 const verifyUser = (payload) => {
-  	return true;
+	return true;
 };
 
 const auth = (secret = process.env.APP_SECRET) => {

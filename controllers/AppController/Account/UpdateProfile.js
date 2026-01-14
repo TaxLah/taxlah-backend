@@ -67,23 +67,28 @@ router.patch("/", async(req , res) => {
             response = BAD_REQUEST_API_RESPONSE
             response.message = "Error. Parameter account phone undefined or cannot be empty."
             return res.status(response.status_code).json(response)
-        } else if(CHECK_EMPTY(account_address_1)) {
-            response = BAD_REQUEST_API_RESPONSE
-            response.message = "Error. Parameter account address undefined or cannot be empty."
-            return res.status(response.status_code).json(response)
-        } else if(CHECK_EMPTY(account_address_postcode)) {
-            response = BAD_REQUEST_API_RESPONSE
-            response.message = "Error. Parameter account address postcode undefined or cannot be empty."
-            return res.status(response.status_code).json(response)
-        } else if(CHECK_EMPTY(account_address_city)) {
-            response = BAD_REQUEST_API_RESPONSE
-            response.message = "Error. Parameter account address city undefined or cannot be empty."
-            return res.status(response.status_code).json(response)
-        } else if(CHECK_EMPTY(account_address_state)) {
-            response = BAD_REQUEST_API_RESPONSE
-            response.message = "Error. Parameter account address state undefined or cannot be empty."
-            return res.status(response.status_code).json(response)
-        } else {
+        } 
+        // else if(CHECK_EMPTY(account_address_1)) {
+        //     response = BAD_REQUEST_API_RESPONSE
+        //     response.message = "Error. Parameter account address undefined or cannot be empty."
+        //     return res.status(response.status_code).json(response)
+        // } 
+        // else if(CHECK_EMPTY(account_address_postcode)) {
+        //     response = BAD_REQUEST_API_RESPONSE
+        //     response.message = "Error. Parameter account address postcode undefined or cannot be empty."
+        //     return res.status(response.status_code).json(response)
+        // } 
+        // else if(CHECK_EMPTY(account_address_city)) {
+        //     response = BAD_REQUEST_API_RESPONSE
+        //     response.message = "Error. Parameter account address city undefined or cannot be empty."
+        //     return res.status(response.status_code).json(response)
+        // } 
+        // else if(CHECK_EMPTY(account_address_state)) {
+        //     response = BAD_REQUEST_API_RESPONSE
+        //     response.message = "Error. Parameter account address state undefined or cannot be empty."
+        //     return res.status(response.status_code).json(response)
+        // } 
+        else {
 
             let account_id      = user.account_id
             let json            = { 
