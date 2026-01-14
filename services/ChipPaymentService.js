@@ -62,6 +62,7 @@ async function createPurchase(params) {
                 full_name: customerName,
                 phone: customerPhone || undefined
             },
+            reference: orderId,
             purchase: {
                 currency: CHIP_CONFIG.currency,
                 products: [

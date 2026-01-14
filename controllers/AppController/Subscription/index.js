@@ -588,6 +588,7 @@ router.post("/webhook", async (req, res) => {
         }
 
         const data = parseResult.data;
+        console.log("Log Parsed Data : ", data)
 
         console.log('=== SUBSCRIPTION WEBHOOK ===');
         console.log('Event Type:', data.event_type);
@@ -598,7 +599,7 @@ router.post("/webhook", async (req, res) => {
         console.log('============================');
 
         // Get payment reference from purchase_id or reference
-        const paymentRef = data.purchase_id || data.reference;
+        const paymentRef = data.reference || data.purchase_id;
 
         if (!paymentRef) {
             console.error('[Subscription Webhook] No payment reference found');
