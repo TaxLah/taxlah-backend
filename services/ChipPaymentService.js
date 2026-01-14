@@ -6,27 +6,17 @@
  * Base URL: https://gate.chip-in.asia/api/v1/
  */
 
-const axios = require('axios');
-const crypto = require('crypto');
+const axios     = require('axios');
+const crypto    = require('crypto');
+const fs        = require('fs');
+const path      = require('path');
 
 // CHIP API Configuration
 const CHIP_CONFIG = {
     baseUrl: process.env.CHIP_API_URL || 'https://gate.chip-in.asia/api/v1',
     brandId: process.env.CHIP_BRAND_ID,
     apiKey: process.env.CHIP_API_KEY,
-    webhookPublicKey: process.env.CHIP_WEBHOOK_PUBLIC_KEY || `
-    -----BEGIN PUBLIC KEY-----
-    MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA5bqs+PKbkHAh3nddH1TY
-    k3CSp2/TjszxwzPTEquy6n0QjBtjqJjExImRhmaZj4tvLV0YzX12iDlb6ZMOjcrX
-    b7cFOvzNXUcy53GLL8FE56FKGC9ZDA5GSa/4Y+VA/C0U7BhF4rLT+P3q1+WaZr0q
-    O5LC1uAY3VT1J/gbRYpLO+Hy+GLDe2On1+xBsdRlvfCpJEHIj2/sIzEBy1YEKfEa
-    0HQ6LYc1bZ/jZENtmXfyvaUi3CkgMsnJ+HRogNS4Q/amdg8+4HwPBgYuBTZ79mys
-    luYfOMuaLtFlGJLj1+LNbgnrDKSeA/5z+Ty8NmeInohkQ5nbd4eV1ZPwdr6b9tDj
-    MmNgLevYIaLhhfdksW+hDPfElvaSHGhhrbOxC2LHKTHTZ+DjjklSZTkODBSYBAdu
-    AWR5pBC/VdKZMVbopHfBKDBvouCI8hhOre9AgyVjDE1YYVXWHy6EDz1IAcUNYqcU
-    kBbSz8i8/dH2u+2a74fwjkAmy6qLQDRQadzCcxrJ7XHrAgMBAAE=
-    -----END PUBLIC KEY-----
-    `,
+    webhookPublicKey: fs.readFileSync(path.join(__dirname, 'chip.pem'), 'utf8'),
     currency: 'MYR',
     testMode: process.env.NODE_ENV !== 'production'
 };

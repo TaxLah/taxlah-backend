@@ -111,4 +111,7 @@ app.listen(PORT, async () => {
 	if(!fs.existsSync("./assets/logs")) {
 		fs.mkdirSync("./assets/logs")
 	}
+
+	const key = fs.readFileSync('./services/chip.pem', 'utf8');
+	console.log("Log CHIP Key:", key);
 });
