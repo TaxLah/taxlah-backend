@@ -577,7 +577,7 @@ router.post("/webhook", express.raw({ type: 'application/json' }), async (req, r
         // }
 
         // Parse webhook payload
-        const webhookData = JSON.parse(rawBody);
+        const webhookData = rawBody
         const parseResult = ChipPaymentService.ParseWebhookPayload(webhookData);
 
         if (!parseResult.status) {
