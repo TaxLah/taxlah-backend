@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '22' # Adjust to your Node.js version
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -35,7 +35,6 @@ jobs:
       - name: Set deployment environment
         id: env
         run: |
-          # Use manual input if triggered manually, otherwise default to all environments
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             ENV="${{ github.event.inputs.environment }}"
             echo "deploy_mode=single" >> $GITHUB_OUTPUT
@@ -46,7 +45,6 @@ jobs:
           
           echo "environment=$ENV" >> $GITHUB_OUTPUT
           
-          # Set paths for single environment deployment
           if [ "$ENV" = "production" ]; then
             echo "pm2_app=taxlah-production-api" >> $GITHUB_OUTPUT
             echo "deploy_path=/home/taxlah/api/production" >> $GITHUB_OUTPUT
@@ -65,28 +63,18 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Setup SSH with password
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sshpass
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-
       - name: Deploy to all environments
         if: steps.env.outputs.deploy_mode == 'all'
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
-          # Deploy to all three environments
           for ENV in development staging production; do
             echo "Deploying to $ENV environment..."
             DEPLOY_PATH="/home/taxlah/api/$ENV"
             
-            # Create deployment directory if it doesn't exist
             ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
             
-            # Sync files to server
             rsync -avz --delete \
               --exclude 'node_modules' \
               --exclude '.git' \
@@ -105,10 +93,8 @@ jobs:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           DEPLOY_PATH: ${{ steps.env.outputs.deploy_path }}
         run: |
-          # Create deployment directory if it doesn't exist
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
           
-          # Sync files to server
           rsync -avz --delete \
             --exclude 'node_modules' \
             --exclude '.git' \
@@ -158,96 +144,102 @@ jobs:
           PROD_CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.PROD_CHIP_WEBHOOK_PUBLIC_KEY }}
           PROD_CHIP_CALLBACK_URL: ${{ secrets.PROD_CHIP_CALLBACK_URL }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
-            # Deploy to all environments
-            for ENV in development staging production; do
-              echo "Setting up $ENV environment..."
-              DEPLOY_PATH="/home/taxlah/api/$ENV"
-
-              if [ "$ENV" = "production" ]; then
-                PM2_APP="taxlah-production-api"
-                PORT=4000
-                DB_HOST="${PROD_DB_HOST}"
-                DB_USERNAME="${PROD_DB_USERNAME}"
-                DB_PASSWORD="${PROD_DB_PASSWORD}"
-                DB_DATABASE="${PROD_DB_DATABASE}"
-                APP_SECRET="${PROD_APP_SECRET}"
-                ADMIN_SECRET="${PROD_ADMIN_SECRET}"
-                CHIP_BRAND_ID="${PROD_CHIP_BRAND_ID}"
-                CHIP_API_KEY="${PROD_CHIP_API_KEY}"
-                CHIP_WEBHOOK_PUBLIC_KEY="${PROD_CHIP_WEBHOOK_PUBLIC_KEY}"
-                CHIP_CALLBACK_URL="${PROD_CHIP_CALLBACK_URL}"
-                BASE_URL="https://taxlah.com"
-              elif [ "$ENV" = "staging" ]; then
-                PM2_APP="taxlah-staging-api"
-                PORT=3100
-                DB_HOST="${STAGING_DB_HOST}"
-                DB_USERNAME="${STAGING_DB_USERNAME}"
-                DB_PASSWORD="${STAGING_DB_PASSWORD}"
-                DB_DATABASE="${STAGING_DB_DATABASE}"
-                APP_SECRET="${STAGING_APP_SECRET}"
-                ADMIN_SECRET="${STAGING_ADMIN_SECRET}"
-                CHIP_BRAND_ID="${STAGING_CHIP_BRAND_ID}"
-                CHIP_API_KEY="${STAGING_CHIP_API_KEY}"
-                CHIP_WEBHOOK_PUBLIC_KEY="${STAGING_CHIP_WEBHOOK_PUBLIC_KEY}"
-                CHIP_CALLBACK_URL="${STAGING_CHIP_CALLBACK_URL}"
-                BASE_URL="https://staging.taxlah.com"
-              elif [ "$ENV" = "development" ]; then
-                PM2_APP="taxlah-development-api"
-                PORT=3000
-                DB_HOST="${DEV_DB_HOST}"
-                DB_USERNAME="${DEV_DB_USERNAME}"
-                DB_PASSWORD="${DEV_DB_PASSWORD}"
-                DB_DATABASE="${DEV_DB_DATABASE}"
-                APP_SECRET="${DEV_APP_SECRET}"
-                ADMIN_SECRET="${DEV_ADMIN_SECRET}"
-                CHIP_BRAND_ID="${DEV_CHIP_BRAND_ID}"
-                CHIP_API_KEY="${DEV_CHIP_API_KEY}"
-                CHIP_WEBHOOK_PUBLIC_KEY="${DEV_CHIP_WEBHOOK_PUBLIC_KEY}"
-                CHIP_CALLBACK_URL="${DEV_CHIP_CALLBACK_URL}"
-                BASE_URL="https://dev.taxlah.com"
-              fi
-              
-              cd $DEPLOY_PATH
-              
-              # Create .env file with secrets
-              cat > .env << 'ENVEOF'
-              PORT=$PORT
-              DB_HOST=$DB_HOST
-              DB_USERNAME=$DB_USERNAME
-              DB_PASSWORD=$DB_PASSWORD
-              DB_DATABASE=$DB_DATABASE
-              APP_SECRET=$APP_SECRET
-              ADMIN_SECRET=$ADMIN_SECRET
-              CHIP_BRAND_ID=$CHIP_BRAND_ID
-              CHIP_API_KEY=$CHIP_API_KEY
-              CHIP_WEBHOOK_PUBLIC_KEY=$CHIP_WEBHOOK_PUBLIC_KEY
-              CHIP_CALLBACK_URL=$CHIP_CALLBACK_URL
-              BASE_URL=$BASE_URL
-              CHIP_API_URL=https://gate.chip-in.asia/api/v1
-              NODE_ENV=$ENV
-              ENVEOF
-              
-              # Install production dependencies
-              npm install
-              
-              # Create logs directory if it doesn't exist
-              mkdir -p logs
-              mkdir -p file
-              mkdir -p assets
-              
-              # Reload or start PM2 app with environment variables from .env
-              if pm2 describe $PM2_APP > /dev/null 2>&1; then
-                echo "Reloading existing PM2 app: $PM2_APP"
-                pm2 restart ecosystem.config.js --only $PM2_APP --update-env
-              else
-                echo "Starting new PM2 app: $PM2_APP"
-                pm2 start ecosystem.config.js --only $PM2_APP
-              fi
-            done
-            
-            # Save PM2 configuration
-            pm2 save
+          # Deploy to development
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
+          export NVM_DIR="\$HOME/.nvm"
+          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
+          
+          cd /home/taxlah/api/development
+          
+          echo "PORT=3000" > .env
+          echo "DB_HOST=${DEV_DB_HOST}" >> .env
+          echo "DB_USERNAME=${DEV_DB_USERNAME}" >> .env
+          echo "DB_PASSWORD=${DEV_DB_PASSWORD}" >> .env
+          echo "DB_DATABASE=${DEV_DB_DATABASE}" >> .env
+          echo "APP_SECRET=${DEV_APP_SECRET}" >> .env
+          echo "ADMIN_SECRET=${DEV_ADMIN_SECRET}" >> .env
+          echo "CHIP_BRAND_ID=${DEV_CHIP_BRAND_ID}" >> .env
+          echo "CHIP_API_KEY=${DEV_CHIP_API_KEY}" >> .env
+          echo "CHIP_WEBHOOK_PUBLIC_KEY=${DEV_CHIP_WEBHOOK_PUBLIC_KEY}" >> .env
+          echo "CHIP_CALLBACK_URL=${DEV_CHIP_CALLBACK_URL}" >> .env
+          echo "BASE_URL=https://dev.taxlah.com" >> .env
+          echo "CHIP_API_URL=https://gate.chip-in.asia/api/v1" >> .env
+          echo "NODE_ENV=development" >> .env
+          
+          npm install
+          mkdir -p logs file assets
+          
+          if pm2 describe taxlah-development-api > /dev/null 2>&1; then
+            pm2 restart ecosystem.config.js --only taxlah-development-api --update-env
+          else
+            pm2 start ecosystem.config.js --only taxlah-development-api
+          fi
+          EOF
+          
+          # Deploy to staging
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
+          export NVM_DIR="\$HOME/.nvm"
+          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
+          
+          cd /home/taxlah/api/staging
+          
+          echo "PORT=3100" > .env
+          echo "DB_HOST=${STAGING_DB_HOST}" >> .env
+          echo "DB_USERNAME=${STAGING_DB_USERNAME}" >> .env
+          echo "DB_PASSWORD=${STAGING_DB_PASSWORD}" >> .env
+          echo "DB_DATABASE=${STAGING_DB_DATABASE}" >> .env
+          echo "APP_SECRET=${STAGING_APP_SECRET}" >> .env
+          echo "ADMIN_SECRET=${STAGING_ADMIN_SECRET}" >> .env
+          echo "CHIP_BRAND_ID=${STAGING_CHIP_BRAND_ID}" >> .env
+          echo "CHIP_API_KEY=${STAGING_CHIP_API_KEY}" >> .env
+          echo "CHIP_WEBHOOK_PUBLIC_KEY=${STAGING_CHIP_WEBHOOK_PUBLIC_KEY}" >> .env
+          echo "CHIP_CALLBACK_URL=${STAGING_CHIP_CALLBACK_URL}" >> .env
+          echo "BASE_URL=https://staging.taxlah.com" >> .env
+          echo "CHIP_API_URL=https://gate.chip-in.asia/api/v1" >> .env
+          echo "NODE_ENV=staging" >> .env
+          
+          npm install
+          mkdir -p logs file assets
+          
+          if pm2 describe taxlah-staging-api > /dev/null 2>&1; then
+            pm2 restart ecosystem.config.js --only taxlah-staging-api --update-env
+          else
+            pm2 start ecosystem.config.js --only taxlah-staging-api
+          fi
+          EOF
+          
+          # Deploy to production
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
+          export NVM_DIR="\$HOME/.nvm"
+          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
+          
+          cd /home/taxlah/api/production
+          
+          echo "PORT=4000" > .env
+          echo "DB_HOST=${PROD_DB_HOST}" >> .env
+          echo "DB_USERNAME=${PROD_DB_USERNAME}" >> .env
+          echo "DB_PASSWORD=${PROD_DB_PASSWORD}" >> .env
+          echo "DB_DATABASE=${PROD_DB_DATABASE}" >> .env
+          echo "APP_SECRET=${PROD_APP_SECRET}" >> .env
+          echo "ADMIN_SECRET=${PROD_ADMIN_SECRET}" >> .env
+          echo "CHIP_BRAND_ID=${PROD_CHIP_BRAND_ID}" >> .env
+          echo "CHIP_API_KEY=${PROD_CHIP_API_KEY}" >> .env
+          echo "CHIP_WEBHOOK_PUBLIC_KEY=${PROD_CHIP_WEBHOOK_PUBLIC_KEY}" >> .env
+          echo "CHIP_CALLBACK_URL=${PROD_CHIP_CALLBACK_URL}" >> .env
+          echo "BASE_URL=https://taxlah.com" >> .env
+          echo "CHIP_API_URL=https://gate.chip-in.asia/api/v1" >> .env
+          echo "NODE_ENV=production" >> .env
+          
+          npm install
+          mkdir -p logs file assets
+          
+          if pm2 describe taxlah-production-api > /dev/null 2>&1; then
+            pm2 restart ecosystem.config.js --only taxlah-production-api --update-env
+          else
+            pm2 start ecosystem.config.js --only taxlah-production-api
+          fi
+          
+          pm2 save
           EOF
 
       - name: Install dependencies and restart PM2 (single environment)
@@ -292,88 +284,81 @@ jobs:
           PROD_CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.PROD_CHIP_WEBHOOK_PUBLIC_KEY }}
           PROD_CHIP_CALLBACK_URL: ${{ secrets.PROD_CHIP_CALLBACK_URL }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
-            cd ${{ env.DEPLOY_PATH }}
-            
-            # Determine which environment variables to use
-            if [ "${{ env.ENVIRONMENT }}" = "production" ]; then
-              PORT=4000
-              DB_HOST="${PROD_DB_HOST}"
-              DB_USERNAME="${PROD_DB_USERNAME}"
-              DB_PASSWORD="${PROD_DB_PASSWORD}"
-              DB_DATABASE="${PROD_DB_DATABASE}"
-              APP_SECRET="${PROD_APP_SECRET}"
-              ADMIN_SECRET="${PROD_ADMIN_SECRET}"
-              CHIP_BRAND_ID="${PROD_CHIP_BRAND_ID}"
-              CHIP_API_KEY="${PROD_CHIP_API_KEY}"
-              CHIP_WEBHOOK_PUBLIC_KEY="${PROD_CHIP_WEBHOOK_PUBLIC_KEY}"
-              CHIP_CALLBACK_URL="${PROD_CHIP_CALLBACK_URL}"
-              BASE_URL="https://taxlah.com"
-            elif [ "${{ env.ENVIRONMENT }}" = "staging" ]; then
-              PORT=3100
-              DB_HOST="${STAGING_DB_HOST}"
-              DB_USERNAME="${STAGING_DB_USERNAME}"
-              DB_PASSWORD="${STAGING_DB_PASSWORD}"
-              DB_DATABASE="${STAGING_DB_DATABASE}"
-              APP_SECRET="${STAGING_APP_SECRET}"
-              ADMIN_SECRET="${STAGING_ADMIN_SECRET}"
-              CHIP_BRAND_ID="${STAGING_CHIP_BRAND_ID}"
-              CHIP_API_KEY="${STAGING_CHIP_API_KEY}"
-              CHIP_WEBHOOK_PUBLIC_KEY="${STAGING_CHIP_WEBHOOK_PUBLIC_KEY}"
-              CHIP_CALLBACK_URL="${STAGING_CHIP_CALLBACK_URL}"
-              BASE_URL="https://staging.taxlah.com"
-            elif [ "${{ env.ENVIRONMENT }}" = "development" ]; then
-              PORT=3000
-              DB_HOST="${DEV_DB_HOST}"
-              DB_USERNAME="${DEV_DB_USERNAME}"
-              DB_PASSWORD="${DEV_DB_PASSWORD}"
-              DB_DATABASE="${DEV_DB_DATABASE}"
-              APP_SECRET="${DEV_APP_SECRET}"
-              ADMIN_SECRET="${DEV_ADMIN_SECRET}"
-              CHIP_BRAND_ID="${DEV_CHIP_BRAND_ID}"
-              CHIP_API_KEY="${DEV_CHIP_API_KEY}"
-              CHIP_WEBHOOK_PUBLIC_KEY="${DEV_CHIP_WEBHOOK_PUBLIC_KEY}"
-              CHIP_CALLBACK_URL="${DEV_CHIP_CALLBACK_URL}"
-              BASE_URL="https://dev.taxlah.com"
-            fi
-            
-            # Create .env file with secrets
-            cat > .env << 'ENVEOF'
-            PORT=$PORT
-            DB_HOST=$DB_HOST
-            DB_USERNAME=$DB_USERNAME
-            DB_PASSWORD=$DB_PASSWORD
-            DB_DATABASE=$DB_DATABASE
-            APP_SECRET=$APP_SECRET
-            ADMIN_SECRET=$ADMIN_SECRET
-            CHIP_BRAND_ID=$CHIP_BRAND_ID
-            CHIP_API_KEY=$CHIP_API_KEY
-            CHIP_WEBHOOK_PUBLIC_KEY=$CHIP_WEBHOOK_PUBLIC_KEY
-            CHIP_CALLBACK_URL=$CHIP_CALLBACK_URL
-            BASE_URL=$BASE_URL
-            CHIP_API_URL=https://gate.chip-in.asia/api/v1
-            NODE_ENV=${{ env.ENVIRONMENT }}
-            ENVEOF
-            
-            # Install production dependencies
-            npm install --production
-            
-            # Create logs directory if it doesn't exist
-            mkdir -p logs
-            mkdir -p file
-            mkdir -p assets
-            
-            # Reload or start PM2 app
-            if pm2 describe ${{ env.PM2_APP }} > /dev/null 2>&1; then
-              echo "Reloading existing PM2 app: ${{ env.PM2_APP }}"
-              pm2 reload ecosystem.config.js --only ${{ env.PM2_APP }} --update-env
-            else
-              echo "Starting new PM2 app: ${{ env.PM2_APP }}"
-              pm2 start ecosystem.config.js --only ${{ env.PM2_APP }}
-            fi
-            
-            # Save PM2 configuration
-            pm2 save
+          # Determine environment-specific variables
+          if [ "$ENVIRONMENT" = "production" ]; then
+            PORT=4000
+            DB_HOST="$PROD_DB_HOST"
+            DB_USERNAME="$PROD_DB_USERNAME"
+            DB_PASSWORD="$PROD_DB_PASSWORD"
+            DB_DATABASE="$PROD_DB_DATABASE"
+            APP_SECRET="$PROD_APP_SECRET"
+            ADMIN_SECRET="$PROD_ADMIN_SECRET"
+            CHIP_BRAND_ID="$PROD_CHIP_BRAND_ID"
+            CHIP_API_KEY="$PROD_CHIP_API_KEY"
+            CHIP_WEBHOOK_PUBLIC_KEY="$PROD_CHIP_WEBHOOK_PUBLIC_KEY"
+            CHIP_CALLBACK_URL="$PROD_CHIP_CALLBACK_URL"
+            BASE_URL="https://taxlah.com"
+          elif [ "$ENVIRONMENT" = "staging" ]; then
+            PORT=3100
+            DB_HOST="$STAGING_DB_HOST"
+            DB_USERNAME="$STAGING_DB_USERNAME"
+            DB_PASSWORD="$STAGING_DB_PASSWORD"
+            DB_DATABASE="$STAGING_DB_DATABASE"
+            APP_SECRET="$STAGING_APP_SECRET"
+            ADMIN_SECRET="$STAGING_ADMIN_SECRET"
+            CHIP_BRAND_ID="$STAGING_CHIP_BRAND_ID"
+            CHIP_API_KEY="$STAGING_CHIP_API_KEY"
+            CHIP_WEBHOOK_PUBLIC_KEY="$STAGING_CHIP_WEBHOOK_PUBLIC_KEY"
+            CHIP_CALLBACK_URL="$STAGING_CHIP_CALLBACK_URL"
+            BASE_URL="https://staging.taxlah.com"
+          elif [ "$ENVIRONMENT" = "development" ]; then
+            PORT=3000
+            DB_HOST="$DEV_DB_HOST"
+            DB_USERNAME="$DEV_DB_USERNAME"
+            DB_PASSWORD="$DEV_DB_PASSWORD"
+            DB_DATABASE="$DEV_DB_DATABASE"
+            APP_SECRET="$DEV_APP_SECRET"
+            ADMIN_SECRET="$DEV_ADMIN_SECRET"
+            CHIP_BRAND_ID="$DEV_CHIP_BRAND_ID"
+            CHIP_API_KEY="$DEV_CHIP_API_KEY"
+            CHIP_WEBHOOK_PUBLIC_KEY="$DEV_CHIP_WEBHOOK_PUBLIC_KEY"
+            CHIP_CALLBACK_URL="$DEV_CHIP_CALLBACK_URL"
+            BASE_URL="https://dev.taxlah.com"
+          fi
+          
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
+          export NVM_DIR="\$HOME/.nvm"
+          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
+          
+          cd ${DEPLOY_PATH}
+          
+          echo "PORT=${PORT}" > .env
+          echo "DB_HOST=${DB_HOST}" >> .env
+          echo "DB_USERNAME=${DB_USERNAME}" >> .env
+          echo "DB_PASSWORD=${DB_PASSWORD}" >> .env
+          echo "DB_DATABASE=${DB_DATABASE}" >> .env
+          echo "APP_SECRET=${APP_SECRET}" >> .env
+          echo "ADMIN_SECRET=${ADMIN_SECRET}" >> .env
+          echo "CHIP_BRAND_ID=${CHIP_BRAND_ID}" >> .env
+          echo "CHIP_API_KEY=${CHIP_API_KEY}" >> .env
+          echo "CHIP_WEBHOOK_PUBLIC_KEY=${CHIP_WEBHOOK_PUBLIC_KEY}" >> .env
+          echo "CHIP_CALLBACK_URL=${CHIP_CALLBACK_URL}" >> .env
+          echo "BASE_URL=${BASE_URL}" >> .env
+          echo "CHIP_API_URL=https://gate.chip-in.asia/api/v1" >> .env
+          echo "NODE_ENV=${ENVIRONMENT}" >> .env
+          
+          npm install
+          mkdir -p logs file assets
+          
+          if pm2 describe ${PM2_APP} > /dev/null 2>&1; then
+            echo "Reloading existing PM2 app: ${PM2_APP}"
+            pm2 restart ecosystem.config.js --only ${PM2_APP} --update-env
+          else
+            echo "Starting new PM2 app: ${PM2_APP}"
+            pm2 start ecosystem.config.js --only ${PM2_APP}
+          fi
+          
+          pm2 save
           EOF
 
       - name: Verify deployment (all environments)
@@ -382,11 +367,10 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
-            export PATH=$PATH:/usr/local/bin:/usr/bin
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            pm2 status
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
+          export NVM_DIR="\$HOME/.nvm"
+          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
+          pm2 status
           EOF
 
       - name: Verify deployment (single environment)
@@ -396,11 +380,10 @@ jobs:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           PM2_APP: ${{ steps.env.outputs.pm2_app }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
-            export PATH=$PATH:/usr/local/bin:/usr/bin
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            pm2 status ${{ env.PM2_APP }}
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
+          export NVM_DIR="\$HOME/.nvm"
+          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
+          pm2 status ${PM2_APP}
           EOF
 
       - name: Cleanup SSH key
