@@ -184,13 +184,13 @@ async function getSubscriptionHistory(accountId, limit = 10) {
                 p.package_name,
                 p.package_code
             FROM account_subscription s
-            JOIN subscription_package p ON s.sub_package_id = p.sub_package_id
+            LEFT JOIN subscription_package p ON s.sub_package_id = p.sub_package_id
             WHERE s.account_id = ?
             ORDER BY s.created_date DESC
-            LIMIT ?
+            LIMIT ${limit}
         `;
         
-        const history = await db.raw(sql, [accountId, limit]);
+        const history = await db.raw(sql, [accountId]);
 
         return {
             success: true,
@@ -582,10 +582,10 @@ async function getSubscriptionEvents(accountId, limit = 20) {
             FROM subscription_history
             WHERE account_id = ?
             ORDER BY event_date DESC
-            LIMIT ?
+            LIMIT ${limit}
         `;
         
-        const events = await db.raw(sql, [accountId, limit]);
+        const events = await db.raw(sql, [accountId]);
 
         return {
             success: true,

@@ -79,8 +79,8 @@ async function getPaymentByRef(paymentRef) {
                 pkg.package_name,
                 pkg.package_code
             FROM subscription_payment sp
-            JOIN account_subscription s ON sp.subscription_id = s.subscription_id
-            JOIN subscription_package pkg ON s.sub_package_id = pkg.sub_package_id
+            LEFT JOIN account_subscription s ON sp.subscription_id = s.subscription_id
+            LEFT JOIN subscription_package pkg ON s.sub_package_id = pkg.sub_package_id
             WHERE sp.payment_ref = ?
         `;
         
@@ -124,14 +124,14 @@ async function getPaymentHistory(accountId, limit = 10) {
                 s.billing_period,
                 pkg.package_name
             FROM subscription_payment sp
-            JOIN account_subscription s ON sp.subscription_id = s.subscription_id
-            JOIN subscription_package pkg ON s.sub_package_id = pkg.sub_package_id
+            LEFT JOIN account_subscription s ON sp.subscription_id = s.subscription_id
+            LEFT JOIN subscription_package pkg ON s.sub_package_id = pkg.sub_package_id
             WHERE sp.account_id = ?
             ORDER BY sp.created_date DESC
-            LIMIT ?
+            LIMIT ${limit}
         `;
         
-        const payments = await db.raw(sql, [accountId, limit]);
+        const payments = await db.raw(sql, [accountId]);
 
         return {
             success: true,
