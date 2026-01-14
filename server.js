@@ -44,21 +44,21 @@ app.use(morgan("tiny")); //logging
 //Routes and Routers
 //////////////
 app.get("/", (req, res) => {
-  	res.json({ hello: "Hello World!" });
+	res.json({ hello: "Hello World!" });
 });
 
 // Encryoted route
 app.post("/enc", (req, res) => {
   	// Now `req.decryptedBody` contains your clean data
 	Logger("access.log", req.body)
-  	return res.json({ message: "Protected route works", data: encryptData(req.body) });
+	return res.json({ message: "Protected route works", data: encryptData(req.body) });
 });
 
 // Protected route
 app.post("/protected", decryptMiddleware, (req, res) => {
   	// Now `req.decryptedBody` contains your clean data
-  	console.log("Decrypted Data:", req.decryptedBody);
-  	return res.json({ message: "Protected route works", data: req.decryptedBody });
+	console.log("Decrypted Data:", req.decryptedBody);
+	return res.json({ message: "Protected route works", data: req.decryptedBody });
 });
 
 app.all("/nlp", async(req , res) => {
@@ -91,7 +91,7 @@ app.use((req, res, next) => {
 
 // Engine Listener
 app.listen(PORT, async () => {
-  	console.log(`Your are listening on port ${PORT}`);
+	console.log(`Your are listening on port ${PORT}`);
 
 	let check_db = await db.raw(`SHOW DATABASES`)
 	console.log("Log Check DB : ", check_db)
