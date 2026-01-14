@@ -4,7 +4,7 @@
  */
 
 const db = require('../../utils/sqlbuilder');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 /**
  * Get all available subscription packages
@@ -258,7 +258,7 @@ async function createSubscription(accountId, packageId, paymentMethod = null, sk
         }
 
         const nextBillingDate = new Date(periodEnd);
-        const subscriptionRef = `SUB-${Date.now()}-${uuidv4().substring(0, 8).toUpperCase()}`;
+        const subscriptionRef = `SUB-${Date.now()}-${crypto.randomUUID().substring(0, 8).toUpperCase()}`;
 
         // Insert subscription
         const insertSql = `

@@ -4,7 +4,7 @@
  */
 
 const db = require('../../utils/sqlbuilder');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 /**
  * Create subscription payment record
@@ -18,7 +18,7 @@ const { v4: uuidv4 } = require('uuid');
  */
 async function createPaymentRecord(subscriptionId, accountId, amount, periodStart, periodEnd, gateway = 'Chip') {
     try {
-        const paymentRef = `SUBPAY-${Date.now()}-${uuidv4().substring(0, 8).toUpperCase()}`;
+        const paymentRef = `SUBPAY-${Date.now()}-${crypto.randomUUID().substring(0, 8).toUpperCase()}`;
 
         const sql = `
             INSERT INTO subscription_payment (
