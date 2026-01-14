@@ -50,7 +50,7 @@ router.patch("/", async(req , res) => {
 
         account_ic                  = params.account_ic || null
         account_gender              = params.account_gender || null                 
-        account_dob                 = params.account_dob                 
+        account_dob                 = params.account_dob || null                 
         account_age                 = params.account_age || null
         account_nationality         = params.account_nationality || null                 
         account_salary_range        = params.account_salary_range || null                   
