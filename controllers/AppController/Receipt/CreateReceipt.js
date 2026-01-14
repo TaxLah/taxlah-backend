@@ -84,7 +84,7 @@ router.post("/", async(req, res) => {
         // Create receipt data
         const receiptData = {
             account_id: parseInt(account_id),
-            rc_id: parseInt(rc_id),
+            rc_id: rc_id ? parseInt(rc_id) : null,
             receipt_name: receipt_name ? sanitize(receipt_name) : null,
             receipt_description: receipt_description ? sanitize(receipt_description) : null,
             receipt_amount: parseFloat(receipt_amount),
