@@ -156,26 +156,37 @@ function verifyWebhookSignature(payload, signature) {
     }
 
     try {
+        console.log('[CHIP] Verifying signature...');
+        console.log('[CHIP] Payload length:', payload.length);
+        console.log('[CHIP] Signature:', signature.substring(0, 50) + '...');
+        console.log('[CHIP] Public key loaded:', CHIP_CONFIG.webhookPublicKey.substring(0, 50) + '...');
+
         const publicKey = crypto.createPublicKey({
             key: CHIP_CONFIG.webhookPublicKey,
-            format: 'pem'
+            format: 'pem',
+            type: 'spki'
         });
 
-        const signatureBuffer = Buffer.from(signature, 'base64');
-        const payloadBuffer = Buffer.from(payload, 'utf8');
+        const signatureBuffer   = Buffer.from(signature, 'base64');
+        const payloadBuffer     = Buffer.from(payload, 'utf8');
 
+        // Try with RSA-SHA256 (most common for webhook signatures)
         const isValid = crypto.verify(
-            'sha256',
+            'RSA-SHA256',
             payloadBuffer,
-            publicKey,
+            {
+                key: publicKey,
+                padding: crypto.constants.RSA_PKCS1_PADDING
+            },
             signatureBuffer
         );
 
-        console.log("Is Valid : ", isValid)
+        console.log('[CHIP] Signature valid:', isValid);
 
         return isValid;
     } catch (error) {
         console.error('[CHIP] Signature verification error:', error.message);
+        console.error('[CHIP] Full error:', error);
         return false;
     }
 }
