@@ -1,0 +1,17 @@
+{
+	"web": {
+		"client_id": "883174192008-bc1ifscgtqskro7r571b8ju2q3gb6dhn.apps.googleusercontent.com",
+		"project_id": "taxlah",
+		"auth_uri": "https://accounts.google.com/o/oauth2/auth",
+		"token_uri": "https://oauth2.googleapis.com/token",
+		"auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+		"client_secret": "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",
+		"redirect_uris": [
+			"https://developers.google.com/oauthplayground",
+			"http://localhost:3000",
+			"http://localhost:5173",
+			"https://taxlah.com",
+			"http://localhost:4000"
+		]
+	}
+}

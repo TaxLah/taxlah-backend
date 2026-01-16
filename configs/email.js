@@ -273,7 +273,7 @@ const OnboardingEmail = (account_fullname) => {
                 </p>
                 
                 <center>
-                    <a href="https://taxlah.com/login" class="cta-button">Get Started Now</a>
+                    <a href="taxlah://Login" class="cta-button">Get Started Now</a>
                 </center>
                 
                 <!-- Features -->

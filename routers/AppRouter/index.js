@@ -19,7 +19,7 @@ const TaxClaimRouter        = require("../../controllers/AppController/TaxClaim"
 const ReportRouter          = require("../../controllers/AppController/Report")
 const CreditRouter          = require("../../controllers/AppController/Credit")
 const SubscriptionRouter    = require("../../controllers/AppController/Subscription")
-const { auth } = require('../../configs/auth')
+const { auth }              = require('../../configs/auth')
 
 router.use("/auth", AuthRouter)
 router.use("/profile", AccountRouter)

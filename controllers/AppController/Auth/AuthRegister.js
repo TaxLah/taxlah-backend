@@ -4,8 +4,9 @@ const { AuthCheckExistingUsername, AuthCheckExistingEmail, AuthCreateAccessAccou
 const { AccountCreate, AccountDelete } = require('../../../models/AppModel/Account')
 const router = express.Router()
 const bcrypt    = require('bcrypt');
-const { OnboardingEmail } = require('../../../configs/email')
 const { UserNotificationCreate } = require('../../../models/AppModel/Notification')
+const mailService = require('../../../services/MailService')
+const { OnboardingEmail } = require('../../../services/MailTemplate')
 
 router.post("/", async(req , res) => {
     let response            = DEFAULT_API_RESPONSE
@@ -107,7 +108,16 @@ router.post("/", async(req , res) => {
                         response.message    = "Congratulation! Your account has been created successfully."
                         response.data       = null
 
-                        let fcm_title       = "TaxLah Account Successfully Register"
+                        let { subject, text, html } = OnboardingEmail(account_fullname, account_email)
+
+                        await mailService.sendMail({
+                            to: account_email,
+                            subject: subject,
+                            text: text,
+                            html: html
+                        })
+
+                        let fcm_title       = subject
                         let fcm_text        = "Congratulation! Your TaxLah account has been registered successfully. We're thrilled to have you on board. Your account has been successfully created, and you're now ready to simplify your tax filing journey with TaxLah."
                         let create_fcm      = await UserNotificationCreate({ 
                             account_id: profile.account_id, 
