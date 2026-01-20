@@ -1,62 +1,37 @@
-///////////////////////////
-// Environmental Variables
-///////////////////////////
 require("./envfunc")();
 const { PORT = 3000, SECRET = "secret", NODE_ENV = "development" } = process.env;
 console.log(PORT);
 
-//CORS
 const cors 			= require("cors");
 const corsOptions 	= require("./configs/cors.js");
 
-//AUTH
-const jwt 			= require("jsonwebtoken");
-
-//Bringing in Express
 const express 		= require("express");
 const app 			= express();
 
-//OTHER IMPORTS
-const session 		= require("express-session");
 const morgan 		= require("morgan");
-const db 			= require("./utils/sqlbuilder.js");
 
 const fs 			= require("fs")
+
+const winkNLP 		= require('wink-nlp');
+const model			= require('wink-eng-lite-web-model');
+const nlp 			= winkNLP(model);
+const its 			= nlp.its;
+const as 			= nlp.as;
+
 const { decryptMiddleware, encryptData } = require("./utils/crypto.js");
 const { Logger } = require("./utils/logger.js");
 
-const winkNLP 	= require('wink-nlp');
-const model		= require('wink-eng-lite-web-model');
-const nlp 		= winkNLP(model);
-const its 		= nlp.its;
-const as 		= nlp.as;
-
-////////////
-//MIDDLEWARE
-////////////
 NODE_ENV === "production" ? app.use(cors(corsOptions)) : app.use(cors());
 app.use(express.static("assets"));
 
-// Webhook routes need raw body for signature verification
-// Must be registered BEFORE express.json() middleware
 app.use('/api/subscription/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/credit/webhook', express.raw({ type: 'application/json' }));
 
 app.use(express.json());
-app.use(morgan("tiny")); //logging
+app.use(morgan("tiny"));
 
-///////////////
-//Routes and Routers
-//////////////
 app.get("/", (req, res) => {
 	res.json({ hello: "Hello World!" });
-});
-
-// Encryoted route
-app.post("/enc", (req, res) => {
-  	// Now `req.decryptedBody` contains your clean data
-	Logger("access.log", req.body)
-	return res.json({ message: "Protected route works", data: encryptData(req.body) });
 });
 
 // Protected route
@@ -88,7 +63,7 @@ app.use("/file-uploader", require("./routers/FileUploader"))
 
 // 404 handler (path not found)
 app.use((req, res, next) => {
-	res.status(404).json({
+	return res.status(404).json({
 		status_code: 404,
 		status: "error",
 		message: `Route ${req.originalUrl} not found`,
@@ -99,9 +74,7 @@ app.use((req, res, next) => {
 // Engine Listener
 app.listen(PORT, async () => {
 	console.log(`Your are listening on port ${PORT}`);
-
-	let check_db = await db.raw(`SHOW DATABASES`)
-	console.log("Log Check DB : ", check_db)
+	Logger("server.log", `Server started on port ${PORT} in ${NODE_ENV} mode.`);
 
 	if(!fs.existsSync("./assets")) {
 		fs.mkdirSync("./assets")
@@ -118,7 +91,4 @@ app.listen(PORT, async () => {
 	if(!fs.existsSync("./assets/logs")) {
 		fs.mkdirSync("./assets/logs")
 	}
-
-	const key = fs.readFileSync('./services/chip.pem', 'utf8');
-	console.log("Log CHIP Key:", key);
 });

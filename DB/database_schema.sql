@@ -295,7 +295,7 @@ CREATE TABLE `account` (
   `last_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`account_id`),
   KEY `account_search_index` (`account_id`,`account_secret_key`,`account_name`,`account_email`,`account_status`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 DELIMITER ;;
@@ -364,7 +364,7 @@ CREATE TABLE `account_credit` (
   KEY `idx_balance` (`credit_balance`),
   KEY `idx_status` (`status`),
   CONSTRAINT `fk_account_credit_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `account_dependant` (
@@ -391,7 +391,7 @@ CREATE TABLE `account_dependant` (
   PRIMARY KEY (`dependant_id`),
   KEY `account_id` (`account_id`),
   CONSTRAINT `account_dependant_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `account_device` (
@@ -408,7 +408,7 @@ CREATE TABLE `account_device` (
   PRIMARY KEY (`device_id`),
   KEY `account_id` (`account_id`),
   CONSTRAINT `account_device_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `account_expenses` (
@@ -522,7 +522,7 @@ CREATE TABLE `account_notification` (
   PRIMARY KEY (`notification_id`),
   KEY `account_id` (`account_id`),
   CONSTRAINT `account_notification_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=70 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `account_storage` (
@@ -540,7 +540,7 @@ CREATE TABLE `account_storage` (
   KEY `get_account_storage_idx` (`storage_id`,`storage_current_space`,`status`,`account_id`),
   CONSTRAINT `account_storage_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `BALANCE_MOST_NOT_NEGATIVE` CHECK ((`storage_current_space` > 0.00))
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `account_subscription` (
@@ -573,7 +573,7 @@ CREATE TABLE `account_subscription` (
   KEY `idx_active` (`account_id`,`status`),
   CONSTRAINT `fk_account_subscription_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_account_subscription_package` FOREIGN KEY (`sub_package_id`) REFERENCES `subscription_package` (`sub_package_id`) ON DELETE RESTRICT
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `account_tax_claim` (
@@ -604,7 +604,7 @@ CREATE TABLE `account_tax_claim` (
   CONSTRAINT `fk_claim_taxsub` FOREIGN KEY (`taxsub_id`) REFERENCES `tax_subcategory` (`taxsub_id`) ON DELETE SET NULL,
   CONSTRAINT `chk_claimed_amount` CHECK ((`claimed_amount` >= 0)),
   CONSTRAINT `chk_claimed_not_exceed_max` CHECK ((`claimed_amount` <= `max_claimable`))
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `account_tax_summary` (
@@ -639,7 +639,7 @@ CREATE TABLE `admin` (
   PRIMARY KEY (`admin_id`),
   UNIQUE KEY `admin_email` (`admin_email`),
   KEY `admin_id_admin_name_admin_email_admin_role_admin_status` (`admin_id`,`admin_name`,`admin_email`,`admin_role`,`admin_status`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `admin_auth` (
@@ -660,7 +660,7 @@ CREATE TABLE `admin_auth` (
   KEY `admin_id` (`admin_id`),
   KEY `aauth_login_idx` (`aauth_id`,`aauth_username`,`aauth_usermail`,`aauth_password`,`aauth_role`,`aauth_status`,`admin_id`),
   CONSTRAINT `admin_auth_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `admin` (`admin_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `auth_access` (
@@ -681,7 +681,7 @@ CREATE TABLE `auth_access` (
   KEY `account_id` (`account_id`),
   KEY `search_login` (`auth_id`,`auth_reference_key`,`auth_username`,`auth_usermail`,`auth_password`,`auth_is_verified`,`auth_status`),
   CONSTRAINT `auth_access_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 DELIMITER ;;
@@ -792,7 +792,7 @@ CREATE TABLE `credit_package` (
   UNIQUE KEY `package_code` (`package_code`),
   KEY `idx_status` (`status`),
   KEY `idx_sort` (`sort_order`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `credit_transaction` (
@@ -839,7 +839,20 @@ CREATE TABLE `credit_usage_rate` (
   KEY `idx_code` (`rate_code`),
   KEY `idx_category` (`feature_category`),
   KEY `idx_active` (`is_active`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE `inquiry` (
+  `inquiry_id` int NOT NULL AUTO_INCREMENT,
+  `inquiry_name` varchar(256) NOT NULL,
+  `inquiry_email` varchar(100) DEFAULT NULL,
+  `inquiry_subject` varchar(299) DEFAULT NULL,
+  `inquiry_message` text,
+  `inquiry_status` enum('Active','Pending','In-Progress','Completed','Rejected','Deleted','Others') NOT NULL DEFAULT 'Active',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`inquiry_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `merchant` (
@@ -855,7 +868,7 @@ CREATE TABLE `merchant` (
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`merchant_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=63 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `merchant_tax_category` (
@@ -894,7 +907,7 @@ CREATE TABLE `package` (
   CONSTRAINT `package_chk_1` CHECK (json_valid(`package_content`)),
   CONSTRAINT `package_chk_2` CHECK (json_valid(`package_item`)),
   CONSTRAINT `package_content` CHECK (json_valid(`package_content`))
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `payment_gateway_conf` (
@@ -941,7 +954,7 @@ CREATE TABLE `payment_order` (
   KEY `fk_payment_order_package` (`package_id`),
   CONSTRAINT `fk_payment_order_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_payment_order_package` FOREIGN KEY (`package_id`) REFERENCES `credit_package` (`package_id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `payment_transaction` (
@@ -991,7 +1004,7 @@ CREATE TABLE `promo_code` (
   KEY `idx_code` (`promo_code`),
   KEY `idx_status` (`status`),
   KEY `idx_dates` (`start_date`,`end_date`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `promo_code_usage` (
@@ -1031,7 +1044,7 @@ CREATE TABLE `receipt` (
   KEY `account_id` (`account_id`),
   CONSTRAINT `receipt_ibfk_1` FOREIGN KEY (`rc_id`) REFERENCES `receipt_category` (`rc_id`) ON DELETE SET DEFAULT,
   CONSTRAINT `receipt_ibfk_2` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE SET DEFAULT
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `receipt_category` (
@@ -1042,7 +1055,7 @@ CREATE TABLE `receipt_category` (
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`rc_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `receipt_tax_mapping` (
@@ -1063,7 +1076,7 @@ CREATE TABLE `receipt_tax_mapping` (
   CONSTRAINT `fk_mapping_receipt` FOREIGN KEY (`receipt_id`) REFERENCES `receipt` (`receipt_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_mapping_tax` FOREIGN KEY (`tax_id`) REFERENCES `tax_category` (`tax_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_mapping_taxsub` FOREIGN KEY (`taxsub_id`) REFERENCES `tax_subcategory` (`taxsub_id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `subscription_history` (
@@ -1083,7 +1096,7 @@ CREATE TABLE `subscription_history` (
   KEY `idx_date` (`event_date`),
   CONSTRAINT `fk_subscription_history_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_subscription_history_subscription` FOREIGN KEY (`subscription_id`) REFERENCES `account_subscription` (`subscription_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `subscription_package` (
@@ -1110,7 +1123,7 @@ CREATE TABLE `subscription_package` (
   UNIQUE KEY `package_code` (`package_code`),
   KEY `idx_code` (`package_code`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `subscription_payment` (
@@ -1138,7 +1151,7 @@ CREATE TABLE `subscription_payment` (
   KEY `idx_gateway` (`payment_gateway`,`gateway_transaction_id`),
   CONSTRAINT `fk_subscription_payment_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_subscription_payment_subscription` FOREIGN KEY (`subscription_id`) REFERENCES `account_subscription` (`subscription_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `tax_category` (
@@ -1161,7 +1174,7 @@ CREATE TABLE `tax_category` (
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`tax_id`),
   UNIQUE KEY `unique_tax_code_year` (`tax_code`,`tax_year`)
-) ENGINE=InnoDB AUTO_INCREMENT=77 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `tax_subcategory` (
@@ -1182,7 +1195,7 @@ CREATE TABLE `tax_subcategory` (
   PRIMARY KEY (`taxsub_id`),
   KEY `tax_id` (`tax_id`),
   CONSTRAINT `tax_subcategory_ibfk_1` FOREIGN KEY (`tax_id`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET DEFAULT
-) ENGINE=InnoDB AUTO_INCREMENT=74 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `v_account_credit_summary` (`account_id` int, `account_name` varchar(256), `account_email` varchar(100), `credit_balance` int, `lifetime_credits` int, `lifetime_spent` int, `free_receipts_used` int, `free_receipts_limit` int, `free_receipts_remaining` bigint, `active_batches` bigint, `nearest_expiry` datetime, `status` enum('Active','Suspended','Inactive'), `created_date` datetime);
@@ -1233,4 +1246,4 @@ CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_user_claims_summary` AS
 DROP TABLE IF EXISTS `vw_user_expenses_by_category`;
 CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_user_expenses_by_category` AS select `ae`.`account_id` AS `account_id`,year(`ae`.`expenses_date`) AS `expense_year`,`tc`.`tax_code` AS `tax_code`,`tc`.`tax_title` AS `tax_title`,`tc`.`tax_max_claim` AS `tax_max_claim`,sum(`ae`.`expenses_total_amount`) AS `total_expenses` from (`account_expenses` `ae` left join `tax_category` `tc` on((`ae`.`expenses_tax_category` = `tc`.`tax_id`))) where ((`ae`.`status` = 'Active') and (`ae`.`expenses_tax_eligible` = 'Yes')) group by `ae`.`account_id`,year(`ae`.`expenses_date`),`tc`.`tax_id`;
 
--- 2026-01-17 01:45:16 UTC
+-- 2026-01-20 14:57:20 UTC
