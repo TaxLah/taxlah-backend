@@ -101,9 +101,11 @@ function getFileUrl(filePath) {
     if (ENV === 'production') {
         baseUrl = 'https://taxlah.com'
     } else if (ENV === 'staging') {
-        baseUrl = 'https://dev.taxlah.com'
-    } else {
+        baseUrl = 'https://staging.taxlah.com'
+    } else if (ENV === 'development') {
         baseUrl = 'https://dev.taxlah.com' // development
+    } else {
+        baseUrl = 'http://localhost:3000' // local
     }
     
     return `${baseUrl}/assets${relativePath}`
