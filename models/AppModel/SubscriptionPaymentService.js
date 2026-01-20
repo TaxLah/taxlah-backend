@@ -248,6 +248,39 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                 'Active'
             );
 
+            // Initialize/update credit account with free_receipts_limit based on package
+            try {
+                const CreditService = require('./CreditService');
+                const packageResult = await SubscriptionService.getPackageById(existingSub.data.sub_package_id);
+                
+                if (packageResult.success) {
+                    const packageCode = packageResult.data.package_code;
+                    let freeReceiptsLimit = 0;
+                    
+                    if (packageCode === 'PRO') {
+                        freeReceiptsLimit = 20;
+                    } else if (packageCode === 'PREMIUM') {
+                        freeReceiptsLimit = 50;
+                    }
+                    
+                    // Ensure credit account exists
+                    await CreditService.getOrCreateCreditAccount(payment.account_id);
+                    
+                    // Update free_receipts_limit
+                    const updateCreditSql = `
+                        UPDATE account_credit
+                        SET free_receipts_limit = ?,
+                            last_modified = NOW()
+                        WHERE account_id = ?
+                    `;
+                    await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
+                    
+                    console.log(`[SubscriptionPaymentService] Credit account updated for account ${payment.account_id}: free_receipts_limit set to ${freeReceiptsLimit} (${packageCode})`);
+                }
+            } catch (creditError) {
+                console.error('[SubscriptionPaymentService] Failed to update credit account:', creditError);
+            }
+
             // Create notification for successful subscription payment
             try {
                 const { UserNotificationCreate } = require('./Notification');
@@ -312,6 +345,39 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                 WHERE payment_ref = ?
             `;
             await db.raw(updatePaymentSubSql, [createResult.data.subscription_id, paymentRef]);
+
+            // Initialize/update credit account with free_receipts_limit based on package
+            try {
+                const CreditService = require('./CreditService');
+                const packageResult = await SubscriptionService.getPackageById(packageId);
+                
+                if (packageResult.success) {
+                    const packageCode = packageResult.data.package_code;
+                    let freeReceiptsLimit = 0;
+                    
+                    if (packageCode === 'PRO') {
+                        freeReceiptsLimit = 20;
+                    } else if (packageCode === 'PREMIUM') {
+                        freeReceiptsLimit = 50;
+                    }
+                    
+                    // Ensure credit account exists
+                    await CreditService.getOrCreateCreditAccount(payment.account_id);
+                    
+                    // Update free_receipts_limit
+                    const updateCreditSql = `
+                        UPDATE account_credit
+                        SET free_receipts_limit = ?,
+                            last_modified = NOW()
+                        WHERE account_id = ?
+                    `;
+                    await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
+                    
+                    console.log(`[SubscriptionPaymentService] Credit account initialized for account ${payment.account_id}: free_receipts_limit set to ${freeReceiptsLimit} (${packageCode})`);
+                }
+            } catch (creditError) {
+                console.error('[SubscriptionPaymentService] Failed to initialize credit account:', creditError);
+            }
 
             // Create notification for new subscription
             try {

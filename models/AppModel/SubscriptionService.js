@@ -315,6 +315,35 @@ async function createSubscription(accountId, packageId, paymentMethod = null, sk
             status
         );
 
+        // Initialize/update credit account with free_receipts_limit based on package
+        try {
+            const CreditService = require('./CreditService');
+            const packageCode = pkg.package_code;
+            let freeReceiptsLimit = 0;
+            
+            if (packageCode === 'PRO') {
+                freeReceiptsLimit = 20;
+            } else if (packageCode === 'PREMIUM') {
+                freeReceiptsLimit = 50;
+            }
+            
+            // Ensure credit account exists
+            await CreditService.getOrCreateCreditAccount(accountId);
+            
+            // Update free_receipts_limit
+            const updateCreditSql = `
+                UPDATE account_credit
+                SET free_receipts_limit = ?,
+                    last_modified = NOW()
+                WHERE account_id = ?
+            `;
+            await db.raw(updateCreditSql, [freeReceiptsLimit, accountId]);
+            
+            console.log(`[SubscriptionService] Credit account initialized for account ${accountId}: free_receipts_limit set to ${freeReceiptsLimit} (${packageCode})`);
+        } catch (creditError) {
+            console.error('[SubscriptionService] Failed to initialize credit account:', creditError);
+        }
+
         return {
             success: true,
             requires_payment: false,
