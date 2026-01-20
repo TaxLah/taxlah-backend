@@ -380,7 +380,7 @@ CREATE TABLE `account_dependant` (
   `dependant_type` enum('Spouse','Child','Sibling','Parent','Relative','Other') DEFAULT NULL,
   `dependant_is_disabled` enum('No','Yes') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'No',
   `dependant_disability_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
-  `dependant_education_level` enum('No','Yes') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  `dependant_education_level` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `dependant_is_studying` enum('No','Yes') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'No',
   `dependant_institution_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `dependant_institution_country` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'Malaysia',
@@ -391,7 +391,7 @@ CREATE TABLE `account_dependant` (
   PRIMARY KEY (`dependant_id`),
   KEY `account_id` (`account_id`),
   CONSTRAINT `account_dependant_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `account_device` (
@@ -522,7 +522,7 @@ CREATE TABLE `account_notification` (
   PRIMARY KEY (`notification_id`),
   KEY `account_id` (`account_id`),
   CONSTRAINT `account_notification_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=58 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=70 DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `account_storage` (
@@ -573,7 +573,7 @@ CREATE TABLE `account_subscription` (
   KEY `idx_active` (`account_id`,`status`),
   CONSTRAINT `fk_account_subscription_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_account_subscription_package` FOREIGN KEY (`sub_package_id`) REFERENCES `subscription_package` (`sub_package_id`) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `account_tax_claim` (
@@ -1083,7 +1083,7 @@ CREATE TABLE `subscription_history` (
   KEY `idx_date` (`event_date`),
   CONSTRAINT `fk_subscription_history_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_subscription_history_subscription` FOREIGN KEY (`subscription_id`) REFERENCES `account_subscription` (`subscription_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `subscription_package` (
@@ -1115,16 +1115,16 @@ CREATE TABLE `subscription_package` (
 
 CREATE TABLE `subscription_payment` (
   `payment_id` int NOT NULL AUTO_INCREMENT,
-  `subscription_id` int NOT NULL,
+  `subscription_id` int DEFAULT NULL,
   `account_id` int NOT NULL,
   `payment_ref` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `amount` decimal(10,2) NOT NULL,
   `currency` varchar(3) COLLATE utf8mb4_unicode_ci DEFAULT 'MYR',
   `period_start` datetime NOT NULL,
   `period_end` datetime NOT NULL,
-  `payment_gateway` enum('ToyyibPay','Stripe','Manual') COLLATE utf8mb4_unicode_ci DEFAULT 'ToyyibPay',
+  `payment_gateway` enum('ToyyibPay','Stripe','Chip','Manual') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'Chip',
   `gateway_transaction_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `gateway_response` text COLLATE utf8mb4_unicode_ci,
+  `gateway_response` json DEFAULT NULL,
   `payment_status` enum('Pending','Processing','Paid','Failed','Refunded','Cancelled') COLLATE utf8mb4_unicode_ci DEFAULT 'Pending',
   `created_date` datetime DEFAULT CURRENT_TIMESTAMP,
   `paid_date` datetime DEFAULT NULL,
@@ -1138,7 +1138,7 @@ CREATE TABLE `subscription_payment` (
   KEY `idx_gateway` (`payment_gateway`,`gateway_transaction_id`),
   CONSTRAINT `fk_subscription_payment_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_subscription_payment_subscription` FOREIGN KEY (`subscription_id`) REFERENCES `account_subscription` (`subscription_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `tax_category` (
@@ -1233,4 +1233,4 @@ CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_user_claims_summary` AS
 DROP TABLE IF EXISTS `vw_user_expenses_by_category`;
 CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_user_expenses_by_category` AS select `ae`.`account_id` AS `account_id`,year(`ae`.`expenses_date`) AS `expense_year`,`tc`.`tax_code` AS `tax_code`,`tc`.`tax_title` AS `tax_title`,`tc`.`tax_max_claim` AS `tax_max_claim`,sum(`ae`.`expenses_total_amount`) AS `total_expenses` from (`account_expenses` `ae` left join `tax_category` `tc` on((`ae`.`expenses_tax_category` = `tc`.`tax_id`))) where ((`ae`.`status` = 'Active') and (`ae`.`expenses_tax_eligible` = 'Yes')) group by `ae`.`account_id`,year(`ae`.`expenses_date`),`tc`.`tax_id`;
 
--- 2026-01-14 06:29:16 UTC
+-- 2026-01-17 01:45:16 UTC
