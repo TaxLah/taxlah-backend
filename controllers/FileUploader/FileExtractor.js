@@ -1,6 +1,7 @@
 /**
  * File Uploader Controller (Updated)
  * Includes auto-categorization for tax relief
+ * Requires authentication and active subscription
  */
 
 const express = require('express');
@@ -10,20 +11,129 @@ const {
     DEFAULT_API_RESPONSE,
     INTERNAL_SERVER_ERROR_API_RESPONSE,
     BAD_REQUEST_API_RESPONSE,
-    SUCCESS_API_RESPONSE
+    SUCCESS_API_RESPONSE,
+    UNAUTHORIZED_API_RESPONSE,
+    FORBIDDEN_API_RESPONSE,
+    ERROR_UNAUTHENTICATED,
+    CHECK_EMPTY
 } = require('../../configs/helper');
+const { auth } = require('../../configs/auth');
 const ExtractReceipt = require('./ExtractReceipt');
 const { categorizeReceiptFull } = require('../../models/AppModel/TaxCategorizationServices');
+const { checkSubscriptionAccess } = require('../../models/AppModel/SubscriptionService');
+const { canUploadReceipt, recordReceiptUpload } = require('../../models/AppModel/ReceiptUsageService');
+
+/**
+ * Middleware to check if user has active subscription
+ */
+const checkSubscription = async (req, res, next) => {
+    try {
+        const user = req.user;
+        
+        if (CHECK_EMPTY(user)) {
+            const response = UNAUTHORIZED_API_RESPONSE;
+            response.message = ERROR_UNAUTHENTICATED;
+            return res.status(response.status_code).json(response);
+        }
+
+        // Check subscription access
+        const accessResult = await checkSubscriptionAccess(user.account_id);
+        
+        if (!accessResult.success) {
+            const response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response.message = "Failed to verify subscription status.";
+            return res.status(response.status_code).json(response);
+        }
+
+        if (!accessResult.has_access) {
+            const response = FORBIDDEN_API_RESPONSE;
+            response.message = "Active subscription required. Please subscribe to access this feature.";
+            response.data = {
+                subscription_status: accessResult.subscription_status,
+                has_access: false,
+                message: "Your subscription is not active. Please renew or subscribe to continue."
+            };
+            return res.status(response.status_code).json(response);
+        }
+
+        // Attach subscription info to request for potential use
+        req.subscription = {
+            has_access: accessResult.has_access,
+            status: accessResult.subscription_status,
+            features: accessResult.features
+        };
+
+        next();
+    } catch (error) {
+        console.error("Subscription check error:", error);
+        const response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response.message = "An error occurred while checking subscription.";
+        return res.status(response.status_code).json(response);
+    }
+};
+
+/**
+ * Middleware to check upload limits
+ * Validates if user can upload based on subscription tier and usage limits
+ */
+const checkUploadLimit = async (req, res, next) => {
+    try {
+        const user = req.user;
+        
+        if (CHECK_EMPTY(user)) {
+            const response = UNAUTHORIZED_API_RESPONSE;
+            response.message = ERROR_UNAUTHENTICATED;
+            return res.status(response.status_code).json(response);
+        }
+
+        // Check if user can upload
+        const uploadCheck = await canUploadReceipt(user.account_id);
+        
+        if (!uploadCheck.success) {
+            const response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response.message = "Failed to check upload limits.";
+            return res.status(response.status_code).json(response);
+        }
+
+        if (!uploadCheck.can_upload) {
+            const response = FORBIDDEN_API_RESPONSE;
+            response.message = uploadCheck.message;
+            response.data = {
+                can_upload: false,
+                reason: uploadCheck.reason,
+                usage: uploadCheck.usage,
+                upgrade_message: "Upgrade to premium for unlimited uploads and advanced features."
+            };
+            return res.status(response.status_code).json(response);
+        }
+
+        // Attach upload info to request
+        req.uploadInfo = {
+            can_upload: true,
+            reason: uploadCheck.reason,
+            usage: uploadCheck.usage
+        };
+
+        next();
+    } catch (error) {
+        console.error("Upload limit check error:", error);
+        const response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response.message = "An error occurred while checking upload limits.";
+        return res.status(response.status_code).json(response);
+    }
+};
 
 /**
  * POST /file-uploader
  * Upload single or multiple files
+ * Requires authentication and active subscription
  */
-router.post("/", upload.array('files', 10), async (req, res) => {
+router.post("/", auth(), checkSubscription, checkUploadLimit, upload.array('files', 10), async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
 
     try {
         const files = req.files;
+        const user = req.user;
 
         if (!files || files.length === 0) {
             response = BAD_REQUEST_API_RESPONSE;
@@ -50,8 +160,13 @@ router.post("/", upload.array('files', 10), async (req, res) => {
         response.message = `${files.length} file(s) uploaded successfully.`;
         response.data = {
             files: uploadedFiles,
-            count: files.length
+            count: files.length,
+            usage_info: req.uploadInfo.usage
         };
+
+        // Record the upload
+        const usedFreeReceipt = req.uploadInfo.reason === 'free_receipt';
+        await recordReceiptUpload(user.account_id, usedFreeReceipt);
 
         res.status(response.status_code).json(response);
 
@@ -66,12 +181,14 @@ router.post("/", upload.array('files', 10), async (req, res) => {
 /**
  * POST /file-uploader/single
  * Upload single file with OCR extraction
+ * Requires authentication and active subscription
  */
-router.post("/single", upload.single('file'), async (req, res) => {
+router.post("/single", auth(), checkSubscription, checkUploadLimit, upload.single('file'), async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
 
     try {
         const file = req.file;
+        const user = req.user;
 
         if (!file) {
             response = BAD_REQUEST_API_RESPONSE;
@@ -91,7 +208,8 @@ router.post("/single", upload.single('file'), async (req, res) => {
             mimetype: file.mimetype,
             size: file.size,
             path: file.path,
-            url: fileUrl
+            url: fileUrl,
+            usage_info: req.uploadInfo.usage
         };
 
         // Extract receipt data using Azure Document Intelligence
@@ -102,6 +220,10 @@ router.post("/single", upload.single('file'), async (req, res) => {
             console.log("Receipt extraction error:", extractError);
             // Continue without extraction - user can enter manually
         }
+
+        // Record the upload
+        const usedFreeReceipt = req.uploadInfo.reason === 'free_receipt';
+        await recordReceiptUpload(user.account_id, usedFreeReceipt);
 
         res.status(response.status_code).json({
             file_image: response.data,
@@ -120,12 +242,14 @@ router.post("/single", upload.single('file'), async (req, res) => {
  * POST /file-uploader/receipt
  * Upload receipt with OCR extraction AND auto-categorization
  * This is the new endpoint for full receipt processing
+ * Requires authentication and active subscription
  */
-router.post("/receipt", upload.single('file'), async (req, res) => {
+router.post("/receipt", auth(), checkSubscription, checkUploadLimit, upload.single('file'), async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
 
     try {
         const file = req.file;
+        const user = req.user;
         const taxYear = parseInt(req.body.year) || new Date().getFullYear();
 
         if (!file) {
@@ -212,8 +336,13 @@ router.post("/receipt", upload.single('file'), async (req, res) => {
                 success: false,
                 message: "Unable to categorize. Please select tax category manually."
             },
-            tax_year: taxYear
+            tax_year: taxYear,
+            usage_info: req.uploadInfo.usage
         };
+
+        // Record the upload
+        const usedFreeReceipt = req.uploadInfo.reason === 'free_receipt';
+        await recordReceiptUpload(user.account_id, usedFreeReceipt);
 
         res.status(response.status_code).json(response);
 
@@ -229,8 +358,10 @@ router.post("/receipt", upload.single('file'), async (req, res) => {
  * POST /file-uploader/categorize
  * Categorize existing receipt data (without file upload)
  * Useful for re-categorizing or manual testing
+ * Requires authentication and active subscription
+ * Note: This doesn't count against upload limits since no Azure OCR is used
  */
-router.post("/categorize", async (req, res) => {
+router.post("/categorize", auth(), checkSubscription, async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
 
     try {
@@ -261,6 +392,45 @@ router.post("/categorize", async (req, res) => {
         console.log("Error Categorize Receipt: ", error);
         response = INTERNAL_SERVER_ERROR_API_RESPONSE;
         response.message = error.message || "Error. An error occurred while categorizing receipt.";
+        res.status(response.status_code).json(response);
+    }
+});
+
+/**
+ * GET /file-uploader/usage
+ * Get user's upload usage statistics
+ * Shows daily/monthly limits, free receipts remaining, etc.
+ */
+router.get("/usage", auth(), async (req, res) => {
+    let response = DEFAULT_API_RESPONSE;
+    const user = req.user;
+
+    try {
+        if (CHECK_EMPTY(user)) {
+            response = UNAUTHORIZED_API_RESPONSE;
+            response.message = ERROR_UNAUTHENTICATED;
+            return res.status(response.status_code).json(response);
+        }
+
+        const { getUsageStatistics } = require('../../models/AppModel/ReceiptUsageService');
+        const usageResult = await getUsageStatistics(user.account_id);
+
+        if (!usageResult.success) {
+            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response.message = "Failed to retrieve usage statistics.";
+            return res.status(response.status_code).json(response);
+        }
+
+        response = SUCCESS_API_RESPONSE;
+        response.message = "Usage statistics retrieved successfully.";
+        response.data = usageResult.data;
+
+        res.status(response.status_code).json(response);
+
+    } catch (error) {
+        console.log("Error Get Usage Statistics: ", error);
+        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response.message = error.message || "Error. An error occurred while retrieving usage statistics.";
         res.status(response.status_code).json(response);
     }
 });

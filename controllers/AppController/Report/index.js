@@ -171,6 +171,21 @@ router.post("/generate", async (req, res) => {
             return res.status(response.status_code).json(response);
         }
 
+        // Create notification for completed report
+        try {
+            const { UserNotificationCreate } = require('../../../models/AppModel/Notification');
+            await UserNotificationCreate({
+                account_id: user.account_id,
+                notification_title: '📄 Tax Report Ready',
+                notification_description: `Your ${REPORT_CONFIG[reportType].name} for tax year ${taxYear} has been generated successfully and is ready for download!`,
+                read_status: 'No',
+                archive_status: 'No',
+                status: 'Active'
+            });
+        } catch (notifError) {
+            console.error('[Report] Failed to create notification:', notifError);
+        }
+
         response = SUCCESS_API_RESPONSE;
         response.message = "Report generated successfully.";
         response.data = {

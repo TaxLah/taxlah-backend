@@ -14,6 +14,8 @@ router.get("/", async(req , res) => {
     try {
         
         let account_id = user.account_id
+        console.log("Account ID:", account_id, "Offset:", offset, "Limit:", limit)
+        
         let list = await UserNotificationGetList({ account_id, offset, limit })
         if(list.status) {
             response            = SUCCESS_API_RESPONSE

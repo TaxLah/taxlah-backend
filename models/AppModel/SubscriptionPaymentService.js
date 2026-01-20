@@ -248,6 +248,21 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                 'Active'
             );
 
+            // Create notification for successful subscription payment
+            try {
+                const { UserNotificationCreate } = require('./Notification');
+                await UserNotificationCreate({
+                    account_id: payment.account_id,
+                    notification_title: '✅ Subscription Payment Successful',
+                    notification_description: `Your subscription payment of ${payment.currency} ${payment.amount} has been processed successfully! Your subscription is now active.`,
+                    read_status: 'No',
+                    archive_status: 'No',
+                    status: 'Active'
+                });
+            } catch (notifError) {
+                console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
+            }
+
             return {
                 success: true,
                 message: 'Payment processed and subscription activated',
@@ -297,6 +312,21 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                 WHERE payment_ref = ?
             `;
             await db.raw(updatePaymentSubSql, [createResult.data.subscription_id, paymentRef]);
+
+            // Create notification for new subscription
+            try {
+                const { UserNotificationCreate } = require('./Notification');
+                await UserNotificationCreate({
+                    account_id: payment.account_id,
+                    notification_title: '🎉 Subscription Activated',
+                    notification_description: `Welcome to TaxLah Premium! Your subscription payment of ${payment.currency} ${payment.amount} has been processed and your subscription is now active.`,
+                    read_status: 'No',
+                    archive_status: 'No',
+                    status: 'Active'
+                });
+            } catch (notifError) {
+                console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
+            }
 
             return {
                 success: true,

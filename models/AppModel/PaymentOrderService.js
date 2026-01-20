@@ -305,6 +305,23 @@ async function processPaymentSuccess(orderUuid, paymentData) {
 
         console.log('[PaymentOrderService] Payment processed successfully:', orderUuid);
 
+        // Create notification for successful payment
+        try {
+            const { UserNotificationCreate } = require('./Notification');
+            const totalCredits = orderData.credit_amount + orderData.bonus_credits;
+            await UserNotificationCreate({
+                account_id: orderData.account_id,
+                notification_title: '💰 Credit Top-up Successful',
+                notification_description: `Your payment has been processed successfully! ${totalCredits} credits have been added to your account. Order: ${orderUuid}`,
+                read_status: 'No',
+                archive_status: 'No',
+                status: 'Active'
+            });
+        } catch (notifError) {
+            console.error('[PaymentOrderService] Failed to create notification:', notifError);
+            // Don't fail the payment processing if notification fails
+        }
+
         return {
             success: true,
             data: {
