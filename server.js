@@ -18,8 +18,8 @@ const nlp 			= winkNLP(model);
 const its 			= nlp.its;
 const as 			= nlp.as;
 
-const { decryptMiddleware, encryptData } = require("./utils/crypto.js");
-const { Logger } = require("./utils/logger.js");
+const { Logger } 							= require("./utils/logger.js");
+require("./queue/worker.js");
 
 NODE_ENV === "production" ? app.use(cors(corsOptions)) : app.use(cors());
 app.use(express.static("assets"));
@@ -34,30 +34,8 @@ app.get("/", (req, res) => {
 	res.json({ hello: "Hello World!" });
 });
 
-// Protected route
-app.post("/protected", decryptMiddleware, (req, res) => {
-  	// Now `req.decryptedBody` contains your clean data
-	console.log("Decrypted Data:", req.decryptedBody);
-	return res.json({ message: "Protected route works", data: req.decryptedBody });
-});
-
-app.all("/nlp", async(req , res) => {
-
-	const doc 		= nlp.readDoc(req.query.text || "Hello World!");
-	const tokens 	= doc.tokens().out(its.normal, as.freqTable);
-	console.log(tokens);
-
-	return res.status(200).json({
-		status: 200,
-		message: 'success',
-		data: req.query,
-		nlp: tokens
-	})
-})
-
-app.use("/api/test", require("./routers/TestRouter"))
-
 app.use("/api", require("./routers/AppRouter"))
+app.use("/api/test", require("./routers/TestRouter"))
 app.use("/admin", require("./routers/AdminRouter"))
 app.use("/file-uploader", require("./routers/FileUploader"))
 
@@ -75,6 +53,16 @@ app.use((req, res, next) => {
 app.listen(PORT, async () => {
 	console.log(`Your are listening on port ${PORT}`);
 	Logger("server.log", `Server started on port ${PORT} in ${NODE_ENV} mode.`);
+
+	console.log(`
+	╔════════════════════════════════════════════╗
+	║                                            ║
+	║   🚀 Server running on port ${PORT}           ║
+	║   📍 http://localhost:${PORT}                 ║
+	║   🌍 Environment: ${(process.env.NODE_ENV || "development").padEnd(18)}║
+	║                                            ║
+	╚════════════════════════════════════════════╝
+	`);
 
 	if(!fs.existsSync("./asset")) {
 		fs.mkdirSync("./asset")
@@ -94,5 +82,17 @@ app.listen(PORT, async () => {
 
 	if(!fs.existsSync("./assets/logs")) {
 		fs.mkdirSync("./assets/logs")
+	}
+
+	if(!fs.existsSync("./asset/document")) {
+		fs.mkdirSync("./asset/document")
+	}
+
+	if(!fs.existsSync("./asset/image")) {
+		fs.mkdirSync("./asset/image")
+	}
+
+	if(!fs.existsSync("./asset/logs")) {
+		fs.mkdirSync("./asset/logs")
 	}
 });

@@ -129,9 +129,11 @@ async function getActiveSubscription(accountId) {
                 p.package_description,
                 p.features,
                 p.package_badge,
-                p.package_color
+                p.package_color,
+                d.device_fcm_token
             FROM account_subscription s
-            JOIN subscription_package p ON s.sub_package_id = p.sub_package_id
+            LEFT JOIN subscription_package p ON s.sub_package_id = p.sub_package_id
+            LEFT JOIN account_device d ON s.account_id = d.account_id
             WHERE s.account_id = ?
             AND s.status IN ('Trial', 'Active', 'Past_Due')
             ORDER BY s.created_date DESC

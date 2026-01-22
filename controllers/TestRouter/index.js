@@ -1,20 +1,6 @@
 const express = require('express')
-const mailService = require('../../services/MailService')
 const queues = require('../../queue')
 const router = express.Router()
-
-router.post("/send-email", async (req, res) => {
-
-    const { to, subject, text, html, from, attachments } = req.body
-
-    const result = await mailService.sendMail({ to, subject, text, html, from, attachments })
-
-    if (result.success) {
-        return res.status(200).json(result)
-    } else {
-        return res.status(400).json(result)
-    }
-})
 
 router.get('/cronjob', async (req, res) => {
     const users = ["user1", "user2", "user3", "user4", "user5", "user6"]

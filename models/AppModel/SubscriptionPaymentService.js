@@ -3,8 +3,11 @@
  * Manages subscription payments and payment gateway integration
  */
 
-const db = require('../../utils/sqlbuilder');
-const crypto = require('crypto');
+const queues                        = require('../../queue');
+const db                            = require('../../utils/sqlbuilder');
+const crypto                        = require('crypto');
+const { UserNotificationCreate }    = require('./Notification');
+const CreditService                 = require('./CreditService');
 
 /**
  * Create subscription payment record
@@ -250,7 +253,6 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
 
             // Initialize/update credit account with free_receipts_limit based on package
             try {
-                const CreditService = require('./CreditService');
                 const packageResult = await SubscriptionService.getPackageById(existingSub.data.sub_package_id);
                 
                 if (packageResult.success) {
@@ -269,8 +271,7 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                     // Update free_receipts_limit
                     const updateCreditSql = `
                         UPDATE account_credit
-                        SET free_receipts_limit = ?,
-                            last_modified = NOW()
+                        SET free_receipts_limit = ?, last_modified = NOW()
                         WHERE account_id = ?
                     `;
                     await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
@@ -283,7 +284,6 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
 
             // Create notification for successful subscription payment
             try {
-                const { UserNotificationCreate } = require('./Notification');
                 await UserNotificationCreate({
                     account_id: payment.account_id,
                     notification_title: '✅ Subscription Payment Successful',
@@ -292,6 +292,17 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                     archive_status: 'No',
                     status: 'Active'
                 });
+
+                await queues.notification.add('pushSingle', {
+                    token: existingSub.data.fcm_token,
+                    title: '✅ Subscription Payment Successful',
+                    body: `Your subscription payment of ${payment.currency} ${payment.amount} has been processed successfully! Your subscription is now active.`,
+                    data: {
+                        type: 'SubscriptionPayment',
+                        subscription_id: payment.subscription_id
+                    }
+                }, { priority: 5 });
+
             } catch (notifError) {
                 console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
             }
@@ -348,7 +359,6 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
 
             // Initialize/update credit account with free_receipts_limit based on package
             try {
-                const CreditService = require('./CreditService');
                 const packageResult = await SubscriptionService.getPackageById(packageId);
                 
                 if (packageResult.success) {
@@ -367,8 +377,7 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                     // Update free_receipts_limit
                     const updateCreditSql = `
                         UPDATE account_credit
-                        SET free_receipts_limit = ?,
-                            last_modified = NOW()
+                        SET free_receipts_limit = ?, last_modified = NOW()
                         WHERE account_id = ?
                     `;
                     await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
@@ -381,7 +390,6 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
 
             // Create notification for new subscription
             try {
-                const { UserNotificationCreate } = require('./Notification');
                 await UserNotificationCreate({
                     account_id: payment.account_id,
                     notification_title: '🎉 Subscription Activated',
@@ -432,15 +440,23 @@ async function processFailedPayment(paymentRef, reason = null) {
         // Update subscription to Past_Due
         const updateSubSql = `
             UPDATE account_subscription
-            SET status = 'Past_Due',
-                last_modified = NOW()
+            SET status = 'Past_Due', last_modified = NOW()
             WHERE subscription_id = ?
             AND status IN ('Trial', 'Active')
         `;
         await db.raw(updateSubSql, [payment.subscription_id]);
 
         // Log subscription history
-        const SubscriptionService = require('./SubscriptionService');
+        const SubscriptionService   = require('./SubscriptionService');
+        const Device                = require('./Device');
+
+        const deviceResult = await Device.DeviceUser(payment.account_id);
+        let fcmToken = null;
+
+        if(deviceResult.status && deviceResult.data.length > 0) {
+            fcmToken = deviceResult.data[0].device_fcm_token;
+        }
+
         await SubscriptionService.logSubscriptionHistory(
             payment.subscription_id,
             payment.account_id,
@@ -449,6 +465,25 @@ async function processFailedPayment(paymentRef, reason = null) {
             'Active',
             'Past_Due'
         );
+
+        await UserNotificationCreate({
+            account_id: payment.account_id,
+            notification_title: '⚠️ Subscription Payment Failed',
+            notification_description: `Unfortunately, your subscription payment of ${payment.currency} ${payment.amount} has failed. Please update your payment method to continue enjoying our services.`,
+            read_status: 'No',
+            archive_status: 'No',
+            status: 'Active'
+        });
+
+        await queues.notification.add('pushSingle', {
+            token: fcmToken,
+            title: '⚠️ Subscription Payment Failed',
+            body: `Unfortunately, your subscription payment of ${payment.currency} ${payment.amount} has failed. Please update your payment method to continue enjoying our services.`,
+            data: {
+                type: 'SubscriptionPaymentFailed',
+                subscription_id: payment.subscription_id
+            }
+        }, { priority: 5 });    
 
         return {
             success: true,

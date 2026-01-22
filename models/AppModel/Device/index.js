@@ -1,5 +1,21 @@
 const db = require("../../../utils/sqlbuilder")
 
+async function DeviceUser(account_id = '') {
+    let result = null
+    try {
+        let query = await db.select("account_device", { account_id })
+        if(query.length > 0) {
+            result = { status: true, data: query }
+        } else {
+            result = { status: false, data: [] }
+        }
+    } catch (e) {
+        result = { status: false, data: [] }
+    } finally {
+        return result
+    }
+}
+
 async function DeviceCreate(params = { account_id: '', device_uuid: '', device_name: '', device_os: '', device_enable_fcm: 'Yes', device_fcm_token: ''}) {
     let result = null
     try {
@@ -33,6 +49,7 @@ async function DeviceUpdate(params = { account_id: '', device_id: '',  device_uu
 }
 
 module.exports = {
+    DeviceUser,
     DeviceCreate,
     DeviceUpdate
 }
