@@ -76,6 +76,10 @@ app.listen(PORT, async () => {
 	console.log(`Your are listening on port ${PORT}`);
 	Logger("server.log", `Server started on port ${PORT} in ${NODE_ENV} mode.`);
 
+	if(!fs.existsSync("./asset")) {
+		fs.mkdirSync("./asset")
+	}
+
 	if(!fs.existsSync("./assets")) {
 		fs.mkdirSync("./assets")
 	}

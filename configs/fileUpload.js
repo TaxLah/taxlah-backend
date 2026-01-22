@@ -6,7 +6,7 @@ const fs = require('fs')
 const ENV = process.env.NODE_ENV || 'development'
 
 // Base upload directory
-const BASE_UPLOAD_DIR = path.join(__dirname, '../assets')
+const BASE_UPLOAD_DIR = path.join(__dirname, '../asset')
 
 // Ensure assets directory exists
 if (!fs.existsSync(BASE_UPLOAD_DIR)) {
