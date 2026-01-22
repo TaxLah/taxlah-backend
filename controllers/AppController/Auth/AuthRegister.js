@@ -76,8 +76,7 @@ router.post("/", async(req , res) => {
                     account_name: sanitize(account_name),
                     account_fullname: sanitize(account_fullname),
                     account_email: sanitize(account_email),
-                    account_contact: sanitize(account_phone),
-                    account_status: 'Active'
+                    account_contact: sanitize(account_phone)
                 }
 
                 let profile = await AccountCreate(account)

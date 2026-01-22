@@ -229,8 +229,8 @@ async function createSubscription(accountId, packageId, paymentMethod = null, sk
             return packageResult;
         }
 
-        const pkg = packageResult.data;
-        const hasTrial = pkg.trial_days > 0;
+        const pkg       = packageResult.data;
+        const hasTrial  = pkg.trial_days > 0;
         
         // For non-trial packages, only create subscription if skipPayment=true (called from webhook)
         if (!hasTrial && !skipPayment) {

@@ -21,6 +21,7 @@ async function AccountGetInfo(account_id) {
 }
 
 async function AccountCreate(data) {
+    console.log("Log Data Create Account Profile : ", data)
     let result = null
     try {
         let account = await db.insert('account', data)

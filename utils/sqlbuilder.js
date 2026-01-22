@@ -20,14 +20,11 @@ function buildWhereClause(where = {}) {
 
 const db = {
     insert: async (table, data) => {
-        const keys = Object.keys(data);
-        const values = Object.values(data);
-        const placeholders = keys.map(() => '?').join(', ');
+        const keys          = Object.keys(data);
+        const values        = Object.values(data);
+        const placeholders  = keys.map(() => '?').join(', ');
 
-        const [result] = await pool.execute(
-        `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`,
-        values
-        );
+        const [result] = await pool.execute(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`, values);
         return result;
     },
 

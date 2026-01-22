@@ -251,7 +251,7 @@ router.post("/init/:year", async (req, res) => {
     try {
         const taxYear = parseInt(req.params.year);
 
-        if (isNaN(taxYear) || taxYear < 2023 || taxYear > new Date().getFullYear() + 1) {
+        if (isNaN(taxYear) || taxYear < 2023) {
             response = BAD_REQUEST_API_RESPONSE;
             response.message = "Invalid tax year. Must be 2023 or later.";
             return res.status(response.status_code).json(response);

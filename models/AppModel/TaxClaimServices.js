@@ -505,7 +505,7 @@ async function getRemainingClaimable(accountId, taxId, taxYear) {
             FROM tax_category tc
             LEFT JOIN account_tax_claim atc ON tc.tax_id = atc.tax_id 
                 AND atc.account_id = ? 
-                AND atc.tax_year = ?
+                -- AND atc.tax_year = ?
                 AND atc.status = 'Active'
             WHERE tc.tax_id = ?
             GROUP BY tc.tax_id

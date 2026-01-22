@@ -209,7 +209,7 @@ router.post("/subscribe", auth(), async (req, res) => {
         const subResult = await SubscriptionService.createSubscription(
             user.account_id,
             package_id,
-            payment_method || 'Chip'
+            payment_method || 'Chip',
         );
 
         if (!subResult.success) {
