@@ -108,7 +108,7 @@ function getFileUrl(filePath) {
         baseUrl = 'http://localhost:3000' // local
     }
     
-    return `${baseUrl}/assets${relativePath}`
+    return `${baseUrl}/asset${relativePath}`
 }
 
 module.exports = {
