@@ -510,7 +510,9 @@ async function getRemainingClaimable(accountId, taxId, taxYear) {
             WHERE tc.tax_id = ?
             GROUP BY tc.tax_id
         `;
-        const result = await db.raw(sql, [accountId, taxYear, taxId]);
+        
+        // const result = await db.raw(sql, [accountId, taxYear, taxId]);
+        const result = await db.raw(sql, [accountId, taxId]);
         
         if (result.length === 0) {
             return { max: 0, claimed: 0, remaining: 0 };
