@@ -327,7 +327,7 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                     
                     const updateCreditSql = `
                         UPDATE account_credit
-                        SET free_receipts_limit = ?, last_modified = NOW()
+                        SET free_receipts_limit = ?
                         WHERE account_id = ?
                     `;
                     await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
@@ -411,7 +411,7 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                         // Update free_receipts_limit
                         const updateCreditSql = `
                             UPDATE account_credit
-                            SET free_receipts_limit = ?, last_modified = NOW()
+                            SET free_receipts_limit = ?
                             WHERE account_id = ?
                         `;
                         await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
@@ -507,7 +507,7 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                         // Update free_receipts_limit
                         const updateCreditSql = `
                             UPDATE account_credit
-                            SET free_receipts_limit = ?, last_modified = NOW()
+                            SET free_receipts_limit = ?
                             WHERE account_id = ?
                         `;
                         await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);

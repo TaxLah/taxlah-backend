@@ -335,8 +335,7 @@ async function createSubscription(accountId, packageId, paymentMethod = null, sk
             // Update free_receipts_limit
             const updateCreditSql = `
                 UPDATE account_credit
-                SET free_receipts_limit = ?,
-                    last_modified = NOW()
+                SET free_receipts_limit = ?
                 WHERE account_id = ?
             `;
             await db.raw(updateCreditSql, [freeReceiptsLimit, accountId]);
