@@ -21,6 +21,17 @@ const CHIP_CONFIG = {
     testMode: process.env.NODE_ENV !== 'production'
 };
 
+// Validate CHIP configuration
+if (!CHIP_CONFIG.apiKey) {
+    console.error('[CHIP] ERROR: CHIP_API_KEY environment variable is not set!');
+    console.error('[CHIP] Please add CHIP_API_KEY to your .env file');
+}
+
+if (!CHIP_CONFIG.brandId) {
+    console.error('[CHIP] ERROR: CHIP_BRAND_ID environment variable is not set!');
+    console.error('[CHIP] Please add CHIP_BRAND_ID to your .env file');
+}
+
 // Create axios instance for CHIP API
 const chipApi = axios.create({
     baseURL: CHIP_CONFIG.baseUrl,
