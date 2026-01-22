@@ -233,7 +233,11 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
         
         if (payment.gateway_response) {
             try {
-                const metadata = JSON.parse(payment.gateway_response);
+                // gateway_response might already be an object or a JSON string
+                const metadata = typeof payment.gateway_response === 'string' 
+                    ? JSON.parse(payment.gateway_response) 
+                    : payment.gateway_response;
+                    
                 packageId = metadata.package_id;
                 isRenewal = metadata.is_renewal === true;
             } catch (e) {
