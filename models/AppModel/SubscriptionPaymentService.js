@@ -736,10 +736,121 @@ async function createRenewalPayment(subscriptionId) {
     }
 }
 
+/**
+ * Get payment receipt with full details
+ * @param {string} paymentRef - Payment reference
+ * @returns {Object} - Payment receipt details
+ */
+async function getPaymentReceipt(paymentRef) {
+    try {
+        const sql = `
+            SELECT 
+                sp.payment_id,
+                sp.payment_ref,
+                sp.subscription_id,
+                sp.account_id,
+                sp.amount,
+                sp.currency,
+                sp.period_start,
+                sp.period_end,
+                sp.payment_gateway,
+                sp.gateway_transaction_id,
+                sp.payment_status,
+                sp.created_date,
+                sp.paid_date,
+                sp.gateway_response,
+                s.subscription_ref,
+                s.billing_period,
+                s.status as subscription_status,
+                pkg.package_name,
+                pkg.package_code,
+                pkg.package_description,
+                pkg.features,
+                a.account_name,
+                a.account_fullname,
+                a.account_email,
+                a.account_contact
+            FROM subscription_payment sp
+            LEFT JOIN account_subscription s ON sp.subscription_id = s.subscription_id
+            LEFT JOIN subscription_package pkg ON s.sub_package_id = pkg.sub_package_id
+            LEFT JOIN account a ON sp.account_id = a.account_id
+            WHERE sp.payment_ref = ?
+        `;
+        
+        const result = await db.raw(sql, [paymentRef]);
+        
+        if (result.length === 0) {
+            return { success: false, error: 'Payment receipt not found' };
+        }
+
+        const payment = result[0];
+
+        // Check if this is a renewal payment
+        let isRenewal = false;
+        if (payment.gateway_response) {
+            try {
+                const metadata = typeof payment.gateway_response === 'string' 
+                    ? JSON.parse(payment.gateway_response) 
+                    : payment.gateway_response;
+                isRenewal = metadata.is_renewal === true;
+            } catch (e) {
+                // Ignore parsing errors
+            }
+        }
+
+        // Format the receipt data
+        const receiptData = {
+            // Payment Information
+            payment_ref: payment.payment_ref,
+            payment_id: payment.payment_id,
+            payment_status: payment.payment_status,
+            payment_date: payment.paid_date || payment.created_date,
+            payment_method: payment.payment_gateway,
+            transaction_id: payment.gateway_transaction_id,
+            
+            // Amount Information
+            amount: parseFloat(payment.amount),
+            currency: payment.currency,
+            
+            // Subscription Information
+            subscription_ref: payment.subscription_ref,
+            subscription_type: isRenewal ? 'Renewal' : 'New Subscription',
+            package_name: payment.package_name,
+            package_code: payment.package_code,
+            package_description: payment.package_description,
+            billing_period: payment.billing_period,
+            features: payment.features || [],
+            
+            // Period Information
+            period_start: payment.period_start,
+            period_end: payment.period_end,
+            
+            // Customer Information
+            account_id: payment.account_id,
+            customer_name: payment.account_fullname || payment.account_name,
+            customer_email: payment.account_email,
+            customer_phone: payment.account_contact,
+            
+            // Additional Info
+            created_date: payment.created_date,
+            is_renewal: isRenewal
+        };
+
+        return {
+            success: true,
+            data: receiptData
+        };
+    } catch (error) {
+        console.error('[SubscriptionPaymentService] getPaymentReceipt error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 module.exports = {
     createPaymentRecord,
     getPaymentByRef,
     getPaymentHistory,
+    getPaymentReceipt,
     updatePaymentStatus,
     processSuccessfulPayment,
     processFailedPayment,

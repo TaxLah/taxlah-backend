@@ -584,7 +584,83 @@ Get specific payment details.
 
 ---
 
-### 13. Payment Webhook
+### 13. Get Payment Receipt
+
+Get detailed payment receipt for display or download.
+
+**Endpoint:** `GET /api/subscription/payment-receipt/:paymentRef`
+
+**Authentication:** Required
+
+**Parameters:**
+- `paymentRef` (path parameter) - Payment reference
+
+**Response:**
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Payment receipt retrieved successfully.",
+  "data": {
+    "payment_ref": "SUBPAY-1705234567-XYZ789AB",
+    "payment_id": 1,
+    "payment_status": "Paid",
+    "payment_date": "2026-01-14T08:35:00.000Z",
+    "payment_method": "Chip",
+    "transaction_id": "CHIP123456",
+    "amount": 14.90,
+    "currency": "MYR",
+    "subscription_ref": "SUB-1705234567-ABC123DE",
+    "subscription_type": "New Subscription",
+    "package_name": "Package Pro",
+    "package_code": "PRO",
+    "package_description": "Perfect for regular users with unlimited access",
+    "billing_period": "Monthly",
+    "features": [
+      "Unlimited receipt uploads",
+      "AI-powered auto-categorization",
+      "Secure cloud storage"
+    ],
+    "period_start": "2026-01-14T08:30:00.000Z",
+    "period_end": "2026-02-14T08:30:00.000Z",
+    "account_id": 2,
+    "customer_name": "John Doe",
+    "customer_email": "john@example.com",
+    "customer_phone": "+60123456789",
+    "created_date": "2026-01-14T08:30:00.000Z",
+    "is_renewal": false
+  }
+}
+```
+
+**Renewal Receipt Response:**
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Payment receipt retrieved successfully.",
+  "data": {
+    "payment_ref": "SUBPAY-1705934567-XYZ789AB",
+    "subscription_type": "Renewal",
+    "is_renewal": true,
+    ...
+  }
+}
+```
+
+**Error Response:**
+```json
+{
+  "status": false,
+  "status_code": 404,
+  "message": "Payment receipt not found",
+  "data": null
+}
+```
+
+---
+
+### 14. Payment Webhook
 
 Webhook endpoint for payment gateway callbacks (CHIP).
 

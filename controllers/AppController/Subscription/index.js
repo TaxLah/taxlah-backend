@@ -596,6 +596,51 @@ router.get("/payment/:paymentRef", auth(), async (req, res) => {
     }
 });
 
+/**
+ * GET /api/subscription/payment-receipt/:paymentRef
+ * Get payment receipt with full details for display/download
+ */
+router.get("/payment-receipt/:paymentRef", auth(), async (req, res) => {
+    let response = DEFAULT_API_RESPONSE;
+    let user = req.user || null;
+
+    if (CHECK_EMPTY(user)) {
+        response = UNAUTHORIZED_API_RESPONSE;
+        response.message = ERROR_UNAUTHENTICATED;
+        return res.status(response.status_code).json(response);
+    }
+
+    try {
+        const { paymentRef } = req.params;
+
+        const result = await SubscriptionPaymentService.getPaymentReceipt(paymentRef);
+
+        if (!result.success) {
+            response = NOT_FOUND_API_RESPONSE;
+            response.message = result.error;
+            return res.status(response.status_code).json(response);
+        }
+
+        // Verify payment belongs to user
+        if (result.data.account_id !== user.account_id) {
+            response = UNAUTHORIZED_API_RESPONSE;
+            response.message = "Unauthorized access to payment receipt.";
+            return res.status(response.status_code).json(response);
+        }
+
+        response = SUCCESS_API_RESPONSE;
+        response.message = "Payment receipt retrieved successfully.";
+        response.data = result.data;
+
+        res.status(response.status_code).json(response);
+    } catch (error) {
+        console.error("Error Get Payment Receipt:", error);
+        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response.message = "An error occurred while retrieving payment receipt.";
+        res.status(response.status_code).json(response);
+    }
+});
+
 // ============================================================================
 // WEBHOOK - PAYMENT GATEWAY CALLBACK
 // ============================================================================
