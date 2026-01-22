@@ -1016,6 +1016,172 @@ async function sendExpiryReminders() {
     }
 }
 
+/**
+ * Renew expired or expiring subscription
+ * @param {number} accountId - User account ID
+ * @param {number} packageId - Optional: New package ID (if changing package)
+ * @param {string} paymentMethod - Payment method
+ * @returns {Object} - Renewal result with payment details
+ */
+async function renewSubscription(accountId, packageId = null, paymentMethod = 'Chip') {
+    try {
+        // Get user's most recent subscription (active or expired)
+        const historySql = `
+            SELECT 
+                s.*,
+                p.package_name,
+                p.package_code,
+                p.billing_period as pkg_billing_period,
+                p.price_amount as pkg_price_amount
+            FROM account_subscription s
+            LEFT JOIN subscription_package p ON s.sub_package_id = p.sub_package_id
+            WHERE s.account_id = ?
+            ORDER BY s.created_date DESC
+            LIMIT 1
+        `;
+        
+        const [lastSubscription] = await db.raw(historySql, [accountId]);
+
+        // Check if user has an active subscription
+        const activeCheck = await getActiveSubscription(accountId);
+        if (activeCheck.has_subscription) {
+            const activeSub = activeCheck.data;
+            
+            // If subscription is active and not cancelled, they can't renew yet
+            if (activeSub.status === 'Active' && activeSub.cancel_at_period_end !== 'Yes') {
+                return {
+                    success: false,
+                    error: 'You have an active subscription. Cancel it first or wait until it expires to renew.'
+                };
+            }
+        }
+
+        // Determine which package to renew with
+        let renewPackageId = packageId;
+        if (!renewPackageId) {
+            // Use the same package from last subscription
+            if (lastSubscription && lastSubscription.sub_package_id) {
+                renewPackageId = lastSubscription.sub_package_id;
+            } else {
+                return {
+                    success: false,
+                    error: 'No previous subscription found. Please subscribe to a package first.'
+                };
+            }
+        }
+
+        // Get package details
+        const packageResult = await getPackageById(renewPackageId);
+        if (!packageResult.success) {
+            return {
+                success: false,
+                error: 'Package not found or inactive.'
+            };
+        }
+
+        const pkg = packageResult.data;
+
+        // Get user details for payment
+        const userSql = `
+            SELECT account_email, account_name, account_fullname
+            FROM account
+            WHERE account_id = ?
+        `;
+        const [userDetails] = await db.raw(userSql, [accountId]);
+        
+        if (!userDetails) {
+            return {
+                success: false,
+                error: 'User account not found.'
+            };
+        }
+
+        // Calculate period dates
+        const now = new Date();
+        const periodStart = now;
+        const periodEnd = new Date(periodStart);
+        
+        if (pkg.billing_period === 'Monthly') {
+            periodEnd.setMonth(periodEnd.getMonth() + 1);
+        } else {
+            periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+        }
+
+        // Create payment record for renewal
+        const SubscriptionPaymentService = require('./SubscriptionPaymentService');
+        const paymentResult = await SubscriptionPaymentService.createPaymentRecord(
+            null, // subscription_id will be set after successful payment
+            accountId,
+            pkg.price_amount,
+            periodStart,
+            periodEnd,
+            paymentMethod
+        );
+
+        if (!paymentResult.success) {
+            return {
+                success: false,
+                error: 'Failed to create payment record.'
+            };
+        }
+
+        // Store package_id in payment metadata for subscription creation after payment
+        const updateMetadataSql = `
+            UPDATE subscription_payment
+            SET gateway_response = ?
+            WHERE payment_ref = ?
+        `;
+        await db.raw(updateMetadataSql, [
+            JSON.stringify({ 
+                package_id: renewPackageId,
+                is_renewal: true 
+            }),
+            paymentResult.data.payment_ref
+        ]);
+
+        // Create payment gateway URL
+        const ChipPaymentService = require('../../services/ChipPaymentService');
+        const paymentGatewayResult = await ChipPaymentService.createSubscriptionPayment({
+            payment_ref: paymentResult.data.payment_ref,
+            account_id: accountId,
+            amount: pkg.price_amount,
+            description: `${pkg.package_name} - ${pkg.billing_period} Renewal`,
+            customer_email: userDetails.account_email || '',
+            customer_name: userDetails.account_name || userDetails.account_fullname || ''
+        });
+
+        if (!paymentGatewayResult.success) {
+            return {
+                success: false,
+                error: 'Failed to create payment gateway URL.'
+            };
+        }
+
+        return {
+            success: true,
+            message: 'Please complete payment to renew your subscription.',
+            data: {
+                package_name: pkg.package_name,
+                package_code: pkg.package_code,
+                billing_period: pkg.billing_period,
+                amount: pkg.price_amount,
+                currency: pkg.currency,
+                period_start: periodStart,
+                period_end: periodEnd,
+                payment_url: paymentGatewayResult.data.payment_url,
+                payment_ref: paymentResult.data.payment_ref
+            }
+        };
+
+    } catch (error) {
+        console.error('[SubscriptionService] renewSubscription error:', error);
+        return { 
+            success: false, 
+            error: error.message 
+        };
+    }
+}
+
 module.exports = {
     getSubscriptionPackages,
     getPackageById,
@@ -1024,6 +1190,7 @@ module.exports = {
     createSubscription,
     cancelSubscription,
     resumeSubscription,
+    renewSubscription,
     checkSubscriptionAccess,
     logSubscriptionHistory,
     getSubscriptionEvents,

@@ -385,6 +385,50 @@ router.post("/resume", auth(), async (req, res) => {
     }
 });
 
+/**
+ * POST /api/subscription/renew
+ * Renew an expired or expiring subscription
+ * Body: { package_id, payment_method }
+ */
+router.post("/renew", auth(), async (req, res) => {
+    let response = DEFAULT_API_RESPONSE;
+    let user = req.user || null;
+
+    if (CHECK_EMPTY(user)) {
+        response = UNAUTHORIZED_API_RESPONSE;
+        response.message = ERROR_UNAUTHENTICATED;
+        return res.status(response.status_code).json(response);
+    }
+
+    try {
+        const { package_id, payment_method } = req.body;
+
+        // package_id is optional - if not provided, will renew with same package
+        const result = await SubscriptionService.renewSubscription(
+            user.account_id,
+            package_id || null,
+            payment_method || 'Chip'
+        );
+
+        if (!result.success) {
+            response = BAD_REQUEST_API_RESPONSE;
+            response.message = result.error;
+            return res.status(response.status_code).json(response);
+        }
+
+        response = SUCCESS_API_RESPONSE;
+        response.message = result.message;
+        response.data = result.data;
+
+        res.status(response.status_code).json(response);
+    } catch (error) {
+        console.error("Error Renew Subscription:", error);
+        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response.message = "An error occurred while processing renewal.";
+        res.status(response.status_code).json(response);
+    }
+});
+
 // ============================================================================
 // SUBSCRIPTION HISTORY
 // ============================================================================

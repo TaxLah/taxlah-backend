@@ -7,6 +7,7 @@ const bcrypt    = require('bcrypt');
 const { UserNotificationCreate } = require('../../../models/AppModel/Notification')
 const mailService = require('../../../services/MailService')
 const { OnboardingEmail } = require('../../../services/MailTemplate')
+const SubscriptionService = require('../../../models/AppModel/SubscriptionService')
 
 router.post("/", async(req , res) => {
     let response            = DEFAULT_API_RESPONSE
@@ -106,6 +107,42 @@ router.post("/", async(req , res) => {
                         response            = SUCCESS_API_RESPONSE
                         response.message    = "Congratulation! Your account has been created successfully."
                         response.data       = null
+
+                        // Auto-subscribe to freemium package
+                        try {
+                            // Get freemium package (adjust package_code based on your database)
+                            const packagesResult = await SubscriptionService.getSubscriptionPackages();
+                            if (packagesResult.success && packagesResult.data.length > 0) {
+                                // Find FREE or FREEMIUM package, or use the first package with price 0
+                                const freemiumPackage = packagesResult.data.find(pkg => 
+                                    pkg.package_code === 'FREE' || 
+                                    pkg.package_code === 'FREEMIUM' ||
+                                    pkg.package_code === 'BASIC' ||
+                                    pkg.price_amount === 0
+                                );
+
+                                if (freemiumPackage) {
+                                    // Create freemium subscription automatically (skipPayment=true for free packages)
+                                    const subscriptionResult = await SubscriptionService.createSubscription(
+                                        account_id,
+                                        freemiumPackage.sub_package_id,
+                                        'Free',
+                                        true // skipPayment - no payment required for freemium
+                                    );
+
+                                    if (subscriptionResult.success) {
+                                        console.log(`[Registration] Auto-subscribed account ${account_id} to ${freemiumPackage.package_name}`);
+                                    } else {
+                                        console.error(`[Registration] Failed to auto-subscribe account ${account_id}:`, subscriptionResult.error);
+                                    }
+                                } else {
+                                    console.warn('[Registration] No freemium package found for auto-subscription');
+                                }
+                            }
+                        } catch (subError) {
+                            // Don't fail registration if subscription fails
+                            console.error('[Registration] Error during auto-subscription:', subError);
+                        }
 
                         let { subject, text, html } = OnboardingEmail(account_fullname, account_email)
 

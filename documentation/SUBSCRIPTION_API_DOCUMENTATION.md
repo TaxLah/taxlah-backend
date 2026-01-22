@@ -343,7 +343,75 @@ Resume a cancelled subscription (before period end).
 
 ---
 
-### 8. Get Subscription History
+### 8. Renew Subscription
+
+Renew an expired or expiring subscription.
+
+**Endpoint:** `POST /api/subscription/renew`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "package_id": 1,
+  "payment_method": "Chip"
+}
+```
+
+**Parameters:**
+- `package_id` (optional) - Package ID to renew with. If not provided, uses the same package from last subscription
+- `payment_method` (optional) - Payment method (default: "Chip")
+
+**Response:**
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Please complete payment to renew your subscription.",
+  "data": {
+    "package_name": "Package Pro",
+    "package_code": "PRO",
+    "billing_period": "Monthly",
+    "amount": 14.90,
+    "currency": "MYR",
+    "period_start": "2026-01-22T10:30:00.000Z",
+    "period_end": "2026-02-22T10:30:00.000Z",
+    "payment_url": "https://gate.chip-in.asia/pay/xyz123",
+    "payment_ref": "SUBPAY-1705934567-XYZ789AB"
+  }
+}
+```
+
+**Error Responses:**
+```json
+{
+  "status": false,
+  "status_code": 400,
+  "message": "You have an active subscription. Cancel it first or wait until it expires to renew.",
+  "data": null
+}
+```
+
+```json
+{
+  "status": false,
+  "status_code": 400,
+  "message": "No previous subscription found. Please subscribe to a package first.",
+  "data": null
+}
+```
+
+**Notes:**
+- Users can renew their expired subscriptions
+- Users can renew if their subscription is cancelled and set to end at period end
+- Can optionally change to a different package during renewal
+- Payment must be completed to activate the renewed subscription
+- Trial periods do not apply to renewals
+
+---
+
+### 9. Get Subscription History
 
 Get user's subscription history.
 
@@ -393,7 +461,7 @@ Get user's subscription history.
 
 ---
 
-### 9. Get Subscription Events
+### 10. Get Subscription Events
 
 Get user's subscription event history (changes, payments, etc.).
 
@@ -435,7 +503,7 @@ Get user's subscription event history (changes, payments, etc.).
 
 ---
 
-### 10. Get Payment History
+### 11. Get Payment History
 
 Get user's subscription payment history.
 
@@ -474,7 +542,7 @@ Get user's subscription payment history.
 
 ---
 
-### 11. Get Payment Details
+### 12. Get Payment Details
 
 Get specific payment details.
 
@@ -516,7 +584,7 @@ Get specific payment details.
 
 ---
 
-### 12. Payment Webhook
+### 13. Payment Webhook
 
 Webhook endpoint for payment gateway callbacks (CHIP).
 
@@ -639,6 +707,14 @@ Common error responses:
 5. **Payment Callback**: Webhook processes payment
 6. **Check Access**: `GET /api/subscription/check-access` to verify features
 
+### Renewal Flow:
+
+1. **Check Subscription**: `GET /api/subscription/my-subscription` (shows expired or expiring)
+2. **Renew Subscription**: `POST /api/subscription/renew` with optional package_id
+3. **Complete Payment**: User redirected to payment_url
+4. **Payment Callback**: Webhook processes payment and creates new subscription
+5. **Subscription Activated**: User can access premium features again
+
 ### Cancel and Resume Flow:
 
 1. **Cancel Subscription**: `POST /api/subscription/cancel` with cancel_at_period_end: true
@@ -650,7 +726,6 @@ Common error responses:
 
 - All timestamps are in ISO 8601 format (UTC)
 - Amounts are in MYR (Malaysian Ringgit)
-- Trial periods (if available) are automatically applied on first subscription
+- Trial periods (if available) are automatically applied on first subscription only, not on renewals
 - Users can only have ONE active subscription at a time
-- Webhooks are secured with signature verification
-- Payment gateway integration uses CHIP (chip-in.asia)
+- Renewals can be done with the same package or a different package

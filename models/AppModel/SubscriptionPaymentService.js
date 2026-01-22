@@ -227,125 +227,73 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
 
         const SubscriptionService = require('./SubscriptionService');
 
-        // Check if subscription already exists
-        const existingSub = await SubscriptionService.getActiveSubscription(payment.account_id);
+        // Check if this is a renewal payment
+        let isRenewal = false;
+        let packageId = null;
         
-        if (existingSub.has_subscription) {
-            // Subscription exists - just update status if needed
-            const updateSubSql = `
-                UPDATE account_subscription
-                SET status = 'Active',
-                    payment_method = ?,
-                    last_modified = NOW()
-                WHERE subscription_id = ?
-                AND status IN ('Trial', 'Past_Due')
-            `;
-            await db.raw(updateSubSql, [payment.payment_gateway, payment.subscription_id]);
-
-            await SubscriptionService.logSubscriptionHistory(
-                payment.subscription_id,
-                payment.account_id,
-                'Payment_Succeeded',
-                `Payment of ${payment.currency} ${payment.amount} completed successfully`,
-                null,
-                'Active'
-            );
-
-            // Initialize/update credit account with free_receipts_limit based on package
+        if (payment.gateway_response) {
             try {
-                const packageResult = await SubscriptionService.getPackageById(existingSub.data.sub_package_id);
-                
-                if (packageResult.success) {
-                    const packageCode = packageResult.data.package_code;
-                    let freeReceiptsLimit = 0;
-                    
-                    if (packageCode === 'PRO') {
-                        freeReceiptsLimit = 20;
-                    } else if (packageCode === 'PREMIUM') {
-                        freeReceiptsLimit = 50;
-                    }
-                    
-                    // Ensure credit account exists
-                    await CreditService.getOrCreateCreditAccount(payment.account_id);
-                    
-                    // Update free_receipts_limit
-                    const updateCreditSql = `
-                        UPDATE account_credit
-                        SET free_receipts_limit = ?, last_modified = NOW()
-                        WHERE account_id = ?
-                    `;
-                    await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
-                    
-                    console.log(`[SubscriptionPaymentService] Credit account updated for account ${payment.account_id}: free_receipts_limit set to ${freeReceiptsLimit} (${packageCode})`);
-                }
-            } catch (creditError) {
-                console.error('[SubscriptionPaymentService] Failed to update credit account:', creditError);
+                const metadata = JSON.parse(payment.gateway_response);
+                packageId = metadata.package_id;
+                isRenewal = metadata.is_renewal === true;
+            } catch (e) {
+                console.error('[SubscriptionPaymentService] Failed to parse gateway_response:', e);
             }
+        }
 
-            // Create notification for successful subscription payment
-            try {
-                await UserNotificationCreate({
-                    account_id: payment.account_id,
-                    notification_title: '✅ Subscription Payment Successful',
-                    notification_description: `Your subscription payment of ${payment.currency} ${payment.amount} has been processed successfully! Your subscription is now active.`,
-                    read_status: 'No',
-                    archive_status: 'No',
-                    status: 'Active'
-                });
+        console.log(`[SubscriptionPaymentService] Processing payment ${paymentRef}: isRenewal=${isRenewal}, packageId=${packageId}`);
 
-                await queues.notification.add('pushSingle', {
-                    token: existingSub.data.fcm_token,
-                    title: '✅ Subscription Payment Successful',
-                    body: `Your subscription payment of ${payment.currency} ${payment.amount} has been processed successfully! Your subscription is now active.`,
-                    data: {
-                        type: 'SubscriptionPayment',
-                        subscription_id: payment.subscription_id
-                    }
-                }, { priority: 5 });
+        if (isRenewal) {
+            // RENEWAL FLOW: Close old subscription and create new one
+            console.log('[SubscriptionPaymentService] Processing renewal payment...');
 
-            } catch (notifError) {
-                console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
-            }
-
-            return {
-                success: true,
-                message: 'Payment processed and subscription activated',
-                data: {
-                    payment_ref: paymentRef,
-                    subscription_id: payment.subscription_id,
-                    amount: payment.amount
-                }
-            };
-        } else {
-            // No subscription exists - create it now (for non-trial packages)
-            // Get package ID from payment gateway_response metadata
-            let packageId = null;
-            
-            if (payment.gateway_response) {
-                try {
-                    const metadata = JSON.parse(payment.gateway_response);
-                    packageId = metadata.package_id;
-                } catch (e) {
-                    console.error('Failed to parse gateway_response:', e);
-                }
-            }
-            
             if (!packageId) {
                 return {
                     success: false,
-                    error: 'Cannot determine package ID from payment metadata'
+                    error: 'Cannot determine package ID for renewal'
                 };
             }
 
-            // Create subscription with skipPayment=true since payment is already confirmed
+            // Get existing subscription (active, expired, or cancelled)
+            const existingSub = await SubscriptionService.getActiveSubscription(payment.account_id);
+            
+            // If there's an active subscription, close it first
+            if (existingSub.has_subscription) {
+                const oldSubId = existingSub.data.subscription_id;
+                
+                // Close the old subscription
+                const closeSubSql = `
+                    UPDATE account_subscription
+                    SET 
+                        status = 'Expired',
+                        ended_at = NOW(),
+                        last_modified = NOW()
+                    WHERE subscription_id = ?
+                `;
+                await db.raw(closeSubSql, [oldSubId]);
+
+                await SubscriptionService.logSubscriptionHistory(
+                    oldSubId,
+                    payment.account_id,
+                    'Expired',
+                    'Subscription closed due to renewal',
+                    existingSub.data.status,
+                    'Expired'
+                );
+
+                console.log(`[SubscriptionPaymentService] Closed old subscription ${oldSubId} for renewal`);
+            }
+
+            // Create new subscription for renewal
             const createResult = await SubscriptionService.createSubscription(
                 payment.account_id,
                 packageId,
                 payment.payment_gateway,
-                true // skipPayment = true
+                true // skipPayment = true (payment already confirmed)
             );
 
             if (!createResult.success) {
+                console.error('[SubscriptionPaymentService] Failed to create renewal subscription:', createResult.error);
                 return createResult;
             }
 
@@ -357,7 +305,7 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
             `;
             await db.raw(updatePaymentSubSql, [createResult.data.subscription_id, paymentRef]);
 
-            // Initialize/update credit account with free_receipts_limit based on package
+            // Initialize/update credit account
             try {
                 const packageResult = await SubscriptionService.getPackageById(packageId);
                 
@@ -371,10 +319,8 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                         freeReceiptsLimit = 50;
                     }
                     
-                    // Ensure credit account exists
                     await CreditService.getOrCreateCreditAccount(payment.account_id);
                     
-                    // Update free_receipts_limit
                     const updateCreditSql = `
                         UPDATE account_credit
                         SET free_receipts_limit = ?, last_modified = NOW()
@@ -382,36 +328,218 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                     `;
                     await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
                     
-                    console.log(`[SubscriptionPaymentService] Credit account initialized for account ${payment.account_id}: free_receipts_limit set to ${freeReceiptsLimit} (${packageCode})`);
+                    console.log(`[SubscriptionPaymentService] Credit account updated for renewal: account ${payment.account_id}, limit ${freeReceiptsLimit}`);
                 }
             } catch (creditError) {
-                console.error('[SubscriptionPaymentService] Failed to initialize credit account:', creditError);
+                console.error('[SubscriptionPaymentService] Failed to update credit account:', creditError);
             }
 
-            // Create notification for new subscription
+            // Create notification for successful renewal
             try {
                 await UserNotificationCreate({
                     account_id: payment.account_id,
-                    notification_title: '🎉 Subscription Activated',
-                    notification_description: `Welcome to TaxLah Premium! Your subscription payment of ${payment.currency} ${payment.amount} has been processed and your subscription is now active.`,
+                    notification_title: '🎉 Subscription Renewed',
+                    notification_description: `Your subscription has been renewed successfully! Payment of ${payment.currency} ${payment.amount} has been processed.`,
                     read_status: 'No',
                     archive_status: 'No',
                     status: 'Active'
                 });
             } catch (notifError) {
-                console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
+                console.error('[SubscriptionPaymentService] Failed to create renewal notification:', notifError);
             }
+
+            console.log(`[SubscriptionPaymentService] Renewal completed: new subscription ${createResult.data.subscription_id}`);
 
             return {
                 success: true,
-                message: 'Payment processed and subscription created',
+                message: 'Subscription renewed successfully',
                 data: {
                     payment_ref: paymentRef,
                     subscription_id: createResult.data.subscription_id,
-                    amount: payment.amount
+                    amount: payment.amount,
+                    is_renewal: true
                 }
             };
+
+        } else {
+            // ORIGINAL FLOW: New subscription or existing subscription payment
+            // Check if subscription already exists
+            const existingSub = await SubscriptionService.getActiveSubscription(payment.account_id);
+            
+            if (existingSub.has_subscription) {
+                // Subscription exists - just update status if needed
+                const updateSubSql = `
+                    UPDATE account_subscription
+                    SET status = 'Active',
+                        payment_method = ?,
+                        last_modified = NOW()
+                    WHERE subscription_id = ?
+                    AND status IN ('Trial', 'Past_Due')
+                `;
+                await db.raw(updateSubSql, [payment.payment_gateway, payment.subscription_id]);
+
+                await SubscriptionService.logSubscriptionHistory(
+                    payment.subscription_id,
+                    payment.account_id,
+                    'Payment_Succeeded',
+                    `Payment of ${payment.currency} ${payment.amount} completed successfully`,
+                    null,
+                    'Active'
+                );
+
+                // Initialize/update credit account with free_receipts_limit based on package
+                try {
+                    const packageResult = await SubscriptionService.getPackageById(existingSub.data.sub_package_id);
+                    
+                    if (packageResult.success) {
+                        const packageCode = packageResult.data.package_code;
+                        let freeReceiptsLimit = 0;
+                        
+                        if (packageCode === 'PRO') {
+                            freeReceiptsLimit = 20;
+                        } else if (packageCode === 'PREMIUM') {
+                            freeReceiptsLimit = 50;
+                        }
+                        
+                        // Ensure credit account exists
+                        await CreditService.getOrCreateCreditAccount(payment.account_id);
+                        
+                        // Update free_receipts_limit
+                        const updateCreditSql = `
+                            UPDATE account_credit
+                            SET free_receipts_limit = ?, last_modified = NOW()
+                            WHERE account_id = ?
+                        `;
+                        await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
+                        
+                        console.log(`[SubscriptionPaymentService] Credit account updated for account ${payment.account_id}: free_receipts_limit set to ${freeReceiptsLimit} (${packageCode})`);
+                    }
+                } catch (creditError) {
+                    console.error('[SubscriptionPaymentService] Failed to update credit account:', creditError);
+                }
+
+                // Create notification for successful subscription payment
+                try {
+                    await UserNotificationCreate({
+                        account_id: payment.account_id,
+                        notification_title: '✅ Subscription Payment Successful',
+                        notification_description: `Your subscription payment of ${payment.currency} ${payment.amount} has been processed successfully! Your subscription is now active.`,
+                        read_status: 'No',
+                        archive_status: 'No',
+                        status: 'Active'
+                    });
+
+                    await queues.notification.add('pushSingle', {
+                        token: existingSub.data.fcm_token,
+                        title: '✅ Subscription Payment Successful',
+                        body: `Your subscription payment of ${payment.currency} ${payment.amount} has been processed successfully! Your subscription is now active.`,
+                        data: {
+                            type: 'SubscriptionPayment',
+                            subscription_id: payment.subscription_id
+                        }
+                    }, { priority: 5 });
+
+                } catch (notifError) {
+                    console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
+                }
+
+                return {
+                    success: true,
+                    message: 'Payment processed and subscription activated',
+                    data: {
+                        payment_ref: paymentRef,
+                        subscription_id: payment.subscription_id,
+                        amount: payment.amount
+                    }
+                };
+            } else {
+                // No subscription exists - create it now (for non-trial packages)
+                // Get package ID from payment gateway_response metadata
+                
+                if (!packageId) {
+                    return {
+                        success: false,
+                        error: 'Cannot determine package ID from payment metadata'
+                    };
+                }
+
+                // Create subscription with skipPayment=true since payment is already confirmed
+                const createResult = await SubscriptionService.createSubscription(
+                    payment.account_id,
+                    packageId,
+                    payment.payment_gateway,
+                    true // skipPayment = true
+                );
+
+                if (!createResult.success) {
+                    return createResult;
+                }
+
+                // Update payment record with the new subscription_id
+                const updatePaymentSubSql = `
+                    UPDATE subscription_payment
+                    SET subscription_id = ?
+                    WHERE payment_ref = ?
+                `;
+                await db.raw(updatePaymentSubSql, [createResult.data.subscription_id, paymentRef]);
+
+                // Initialize/update credit account with free_receipts_limit based on package
+                try {
+                    const packageResult = await SubscriptionService.getPackageById(packageId);
+                    
+                    if (packageResult.success) {
+                        const packageCode = packageResult.data.package_code;
+                        let freeReceiptsLimit = 0;
+                        
+                        if (packageCode === 'PRO') {
+                            freeReceiptsLimit = 20;
+                        } else if (packageCode === 'PREMIUM') {
+                            freeReceiptsLimit = 50;
+                        }
+                        
+                        // Ensure credit account exists
+                        await CreditService.getOrCreateCreditAccount(payment.account_id);
+                        
+                        // Update free_receipts_limit
+                        const updateCreditSql = `
+                            UPDATE account_credit
+                            SET free_receipts_limit = ?, last_modified = NOW()
+                            WHERE account_id = ?
+                        `;
+                        await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
+                        
+                        console.log(`[SubscriptionPaymentService] Credit account initialized for account ${payment.account_id}: free_receipts_limit set to ${freeReceiptsLimit} (${packageCode})`);
+                    }
+                } catch (creditError) {
+                    console.error('[SubscriptionPaymentService] Failed to initialize credit account:', creditError);
+                }
+
+                // Create notification for new subscription
+                try {
+                    await UserNotificationCreate({
+                        account_id: payment.account_id,
+                        notification_title: '🎉 Subscription Activated',
+                        notification_description: `Welcome to TaxLah Premium! Your subscription payment of ${payment.currency} ${payment.amount} has been processed and your subscription is now active.`,
+                        read_status: 'No',
+                        archive_status: 'No',
+                        status: 'Active'
+                    });
+                } catch (notifError) {
+                    console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
+                }
+
+                return {
+                    success: true,
+                    message: 'Payment processed and subscription created',
+                    data: {
+                        payment_ref: paymentRef,
+                        subscription_id: createResult.data.subscription_id,
+                        amount: payment.amount
+                    }
+                };
+            }
         }
+        
     } catch (error) {
         console.error('[SubscriptionPaymentService] processSuccessfulPayment error:', error);
         return { success: false, error: error.message };
