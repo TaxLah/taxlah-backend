@@ -51,6 +51,7 @@ async function UserNotificationCreate(params = { account_id, notification_title:
             result = { status: false, data: null }
         }
     } catch (e) {
+        console.log("err create notif : ", e)
         result = { status: false, data: null }
     }  finally {
         return result
