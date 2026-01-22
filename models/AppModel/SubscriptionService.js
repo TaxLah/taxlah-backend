@@ -628,6 +628,394 @@ async function getSubscriptionEvents(accountId, limit = 20) {
     }
 }
 
+/**
+ * Process expired subscriptions (called by cron job)
+ * Updates subscriptions that have passed their current_period_end or trial_end_date
+ * @returns {Object} - Processing result with count of expired subscriptions
+ */
+async function processExpiredSubscriptions() {
+    try {
+        console.log('[SubscriptionService] Starting expired subscriptions check...');
+        
+        // Get all subscriptions that should be expired
+        const expiredSql = `
+            SELECT 
+                s.subscription_id,
+                s.subscription_ref,
+                s.account_id,
+                s.status,
+                s.current_period_end,
+                s.trial_end_date,
+                s.cancel_at_period_end,
+                a.account_name,
+                a.account_email,
+                pkg.package_name,
+                pkg.package_code
+            FROM account_subscription s
+            JOIN account a ON s.account_id = a.account_id
+            JOIN subscription_package pkg ON s.sub_package_id = pkg.sub_package_id
+            WHERE (
+                (s.status = 'Active' AND s.current_period_end < NOW())
+                OR
+                (s.status = 'Trial' AND s.trial_end_date < NOW())
+            )
+            AND s.status NOT IN ('Expired', 'Cancelled', 'Suspended')
+        `;
+        
+        const expiredSubscriptions = await db.raw(expiredSql);
+        
+        if (expiredSubscriptions.length === 0) {
+            console.log('[SubscriptionService] No expired subscriptions found');
+            return {
+                success: true,
+                message: 'No expired subscriptions found',
+                count: 0
+            };
+        }
+
+        console.log(`[SubscriptionService] Found ${expiredSubscriptions.length} expired subscription(s)`);
+
+        const queues = require('../../queue');
+        const CreditService = require('./CreditService');
+        const { UserNotificationCreate } = require('./Notification');
+
+        let processedCount = 0;
+        let failedCount = 0;
+
+        // Process each expired subscription
+        for (const subscription of expiredSubscriptions) {
+            try {
+                const now = new Date();
+                
+                // Update subscription status to Expired
+                const updateSql = `
+                    UPDATE account_subscription
+                    SET 
+                        status = 'Expired',
+                        ended_at = ?,
+                        last_modified = NOW()
+                    WHERE subscription_id = ?
+                `;
+                await db.raw(updateSql, [now, subscription.subscription_id]);
+
+                // Log subscription history
+                await logSubscriptionHistory(
+                    subscription.subscription_id,
+                    subscription.account_id,
+                    'Expired',
+                    `Subscription expired - ${subscription.status === 'Trial' ? 'trial period ended' : 'billing period ended without renewal'}`,
+                    subscription.status,
+                    'Expired'
+                );
+
+                // Reset free_receipts_limit to default (50)
+                // try {
+                //     await CreditService.getOrCreateCreditAccount(subscription.account_id);
+                    
+                //     const resetCreditSql = `
+                //         UPDATE account_credit
+                //         SET free_receipts_limit = 50,
+                //             last_modified = NOW()
+                //         WHERE account_id = ?
+                //     `;
+                //     await db.raw(resetCreditSql, [subscription.account_id]);
+                    
+                //     console.log(`[SubscriptionService] Reset free_receipts_limit for account ${subscription.account_id}`);
+                // } catch (creditError) {
+                //     console.error(`[SubscriptionService] Failed to reset credit limit for account ${subscription.account_id}:`, creditError);
+                // }
+
+                // Create notification
+                const notificationTitle = subscription.status === 'Trial' 
+                    ? '⏰ Trial Period Ended'
+                    : '⏰ Subscription Expired';
+                    
+                const notificationBody = subscription.status === 'Trial'
+                    ? `Your ${subscription.package_name} trial period has ended. Subscribe now to continue enjoying premium features!`
+                    : `Your ${subscription.package_name} subscription has expired. Renew now to continue accessing premium features.`;
+
+                await UserNotificationCreate({
+                    account_id: subscription.account_id,
+                    notification_title: notificationTitle,
+                    notification_description: notificationBody,
+                    read_status: 'No',
+                    archive_status: 'No',
+                    status: 'Active'
+                });
+
+                // Queue push notification
+                try {
+                    const Device = require('./Device');
+                    const deviceResult = await Device.DeviceUser(subscription.account_id);
+                    
+                    if (deviceResult.status && deviceResult.data.length > 0) {
+                        const fcmToken = deviceResult.data[0].device_fcm_token;
+                        
+                        if (fcmToken) {
+                            await queues.notification.add('push', {
+                                token: fcmToken,
+                                title: notificationTitle,
+                                body: notificationBody,
+                                data: {
+                                    type: 'SubscriptionExpired',
+                                    subscription_id: subscription.subscription_id,
+                                    account_id: subscription.account_id
+                                }
+                            }, { priority: 7 });
+                        }
+                    }
+                } catch (pushError) {
+                    console.error(`[SubscriptionService] Failed to queue push notification for account ${subscription.account_id}:`, pushError);
+                }
+
+                // Queue email notification
+                try {
+                    await queues.email.add('send', {
+                        to: subscription.account_email,
+                        subject: notificationTitle,
+                        html: `
+                            <h2>${notificationTitle}</h2>
+                            <p>Hi ${subscription.account_name},</p>
+                            <p>${notificationBody}</p>
+                            <p>To reactivate your subscription, please log in to your account and choose a plan that fits your needs.</p>
+                            <p>Thank you for using TaxLah!</p>
+                        `
+                    }, { priority: 5 });
+                } catch (emailError) {
+                    console.error(`[SubscriptionService] Failed to queue email for ${subscription.account_email}:`, emailError);
+                }
+
+                processedCount++;
+                console.log(`[SubscriptionService] Processed expired subscription ${subscription.subscription_ref} for account ${subscription.account_id}`);
+                
+            } catch (error) {
+                failedCount++;
+                console.error(`[SubscriptionService] Failed to process subscription ${subscription.subscription_ref}:`, error);
+            }
+        }
+
+        const result = {
+            success: true,
+            message: `Processed ${processedCount} expired subscription(s)`,
+            count: processedCount,
+            failed: failedCount,
+            total: expiredSubscriptions.length
+        };
+
+        console.log('[SubscriptionService] Expired subscriptions processing completed:', result);
+        return result;
+
+    } catch (error) {
+        console.error('[SubscriptionService] processExpiredSubscriptions error:', error);
+        return { 
+            success: false, 
+            error: error.message,
+            count: 0
+        };
+    }
+}
+
+/**
+ * Send expiry reminders for subscriptions expiring in 3 days (called by cron job)
+ * Notifies users whose subscriptions will expire soon
+ * @returns {Object} - Processing result with count of reminders sent
+ */
+async function sendExpiryReminders() {
+    try {
+        console.log('[SubscriptionService] Starting expiry reminders check...');
+        
+        // Get subscriptions expiring in 3 days
+        const reminderSql = `
+            SELECT 
+                s.subscription_id,
+                s.subscription_ref,
+                s.account_id,
+                s.status,
+                s.current_period_end,
+                s.trial_end_date,
+                s.billing_period,
+                s.price_amount,
+                a.account_name,
+                a.account_email,
+                pkg.package_name,
+                pkg.package_code,
+                pkg.features
+            FROM account_subscription s
+            JOIN account a ON s.account_id = a.account_id
+            JOIN subscription_package pkg ON s.sub_package_id = pkg.sub_package_id
+            -- WHERE s.auto_renew = 'No'
+            WHERE s.status IN ('Active', 'Trial')
+            AND (
+                (s.status = 'Active' AND DATE(s.current_period_end) = DATE(DATE_ADD(NOW(), INTERVAL 3 DAY)))
+                OR
+                (s.status = 'Trial' AND DATE(s.trial_end_date) = DATE(DATE_ADD(NOW(), INTERVAL 3 DAY)))
+            )
+        `;
+        
+        const expiringSubscriptions = await db.raw(reminderSql);
+        
+        if (expiringSubscriptions.length === 0) {
+            console.log('[SubscriptionService] No subscriptions expiring in 3 days');
+            return {
+                success: true,
+                message: 'No subscriptions expiring in 3 days',
+                count: 0
+            };
+        }
+
+        console.log(`[SubscriptionService] Found ${expiringSubscriptions.length} subscription(s) expiring in 3 days`);
+
+        const queues = require('../../queue');
+        const { UserNotificationCreate } = require('./Notification');
+
+        let processedCount = 0;
+        let failedCount = 0;
+
+        // Process each expiring subscription
+        for (const subscription of expiringSubscriptions) {
+            try {
+                const expiryDate = subscription.status === 'Trial' 
+                    ? new Date(subscription.trial_end_date)
+                    : new Date(subscription.current_period_end);
+                
+                const formattedDate = expiryDate.toLocaleDateString('en-MY', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+
+                // Create notification
+                const notificationTitle = subscription.status === 'Trial' 
+                    ? '⚠️ Trial Ending Soon'
+                    : '⚠️ Subscription Expiring Soon';
+                    
+                const notificationBody = subscription.status === 'Trial'
+                    ? `Your ${subscription.package_name} trial will end on ${formattedDate}. Subscribe now to keep your premium features!`
+                    : `Your ${subscription.package_name} subscription will expire on ${formattedDate}. Renew now to avoid service interruption.`;
+
+                await UserNotificationCreate({
+                    account_id: subscription.account_id,
+                    notification_title: notificationTitle,
+                    notification_description: notificationBody,
+                    read_status: 'No',
+                    archive_status: 'No',
+                    status: 'Active'
+                });
+
+                // Queue push notification
+                try {
+                    const Device = require('./Device');
+                    const deviceResult = await Device.DeviceUser(subscription.account_id);
+                    
+                    if (deviceResult.status && deviceResult.data.length > 0) {
+                        const fcmToken = deviceResult.data[0].device_fcm_token;
+                        
+                        if (fcmToken) {
+                            await queues.notification.add('push', {
+                                token: fcmToken,
+                                title: notificationTitle,
+                                body: notificationBody,
+                                data: {
+                                    type: 'SubscriptionExpiryReminder',
+                                    subscription_id: subscription.subscription_id,
+                                    account_id: subscription.account_id,
+                                    expiry_date: expiryDate.toISOString()
+                                }
+                            }, { priority: 6 });
+                        }
+                    }
+                } catch (pushError) {
+                    console.error(`[SubscriptionService] Failed to queue push notification for account ${subscription.account_id}:`, pushError);
+                }
+
+                // Queue email notification
+                try {
+                    const emailSubject = subscription.status === 'Trial'
+                        ? `Reminder - Your TaxLah Trial Ends in 3 Days`
+                        : `Reminder - Your TaxLah Subscription Expires in 3 Days`;
+                    
+                    const emailBody = `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #1a5f7a;">${notificationTitle}</h2>
+                            <p>Hi ${subscription.account_name},</p>
+                            <p>${notificationBody}</p>
+                            
+                            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                <strong>Subscription Details:</strong><br>
+                                Plan: ${subscription.package_name}<br>
+                                ${subscription.status === 'Trial' ? 'Trial Ends' : 'Expires'}: ${formattedDate}<br>
+                                ${subscription.status !== 'Trial' ? `Price: RM ${subscription.price_amount}/${subscription.billing_period}` : ''}
+                            </div>
+                            
+                            <p>Don't miss out on these premium features:</p>
+                            <ul>
+                                ${subscription.features.map(feature => `<li>${feature}</li>`).join('')}
+                            </ul>
+                            
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="${process.env.APP_URL || 'https://taxlah.com'}/subscription" 
+                                    style="background-color: #1a5f7a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                                    Renew Now
+                                </a>
+                            </div>
+                            
+                            <p style="color: #666; font-size: 14px;">
+                                If you have any questions, feel free to contact our support team.
+                            </p>
+                            
+                            <p>Best regards,<br>The TaxLah Team</p>
+                        </div>
+                    `;
+
+                    await queues.email.add('send', {
+                        to: subscription.account_email,
+                        subject: emailSubject,
+                        html: emailBody
+                    }, { priority: 2 });
+                } catch (emailError) {
+                    console.error(`[SubscriptionService] Failed to queue email for ${subscription.account_email}:`, emailError);
+                }
+
+                // Log subscription history
+                await logSubscriptionHistory(
+                    subscription.subscription_id,
+                    subscription.account_id,
+                    'Reminder',
+                    `Expiry reminder sent - subscription ${subscription.status === 'Trial' ? 'trial' : 'period'} ends on ${formattedDate}`,
+                    null,
+                    null
+                );
+
+                processedCount++;
+                console.log(`[SubscriptionService] Sent expiry reminder for subscription ${subscription.subscription_ref} (account ${subscription.account_id})`);
+                
+            } catch (error) {
+                failedCount++;
+                console.error(`[SubscriptionService] Failed to send reminder for subscription ${subscription.subscription_ref}:`, error);
+            }
+        }
+
+        const result = {
+            success: true,
+            message: `Sent ${processedCount} expiry reminder(s)`,
+            count: processedCount,
+            failed: failedCount,
+            total: expiringSubscriptions.length
+        };
+
+        console.log('[SubscriptionService] Expiry reminders processing completed:', result);
+        return result;
+
+    } catch (error) {
+        console.error('[SubscriptionService] sendExpiryReminders error:', error);
+        return { 
+            success: false, 
+            error: error.message,
+            count: 0
+        };
+    }
+}
+
 module.exports = {
     getSubscriptionPackages,
     getPackageById,
@@ -638,5 +1026,7 @@ module.exports = {
     resumeSubscription,
     checkSubscriptionAccess,
     logSubscriptionHistory,
-    getSubscriptionEvents
+    getSubscriptionEvents,
+    processExpiredSubscriptions,
+    sendExpiryReminders
 };

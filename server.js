@@ -19,6 +19,7 @@ const its 			= nlp.its;
 const as 			= nlp.as;
 
 const { Logger } 							= require("./utils/logger.js");
+const { initCronJobs } = require("./cronjob/index.js");
 require("./queue/worker.js");
 
 NODE_ENV === "production" ? app.use(cors(corsOptions)) : app.use(cors());
@@ -95,4 +96,6 @@ app.listen(PORT, async () => {
 	if(!fs.existsSync("./asset/logs")) {
 		fs.mkdirSync("./asset/logs")
 	}
+
+	initCronJobs();
 });

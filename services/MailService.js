@@ -79,7 +79,7 @@ class MailService {
         }
 
         const mailOptions = {
-            from: from || `"TaxLah" <${process.env.SMTP_USER}>`,
+            from: from || `"TaxLah" <${process.env.SMTP_USER || 'admin@taxlah.com'}>`,
             to,
             subject,
             text,

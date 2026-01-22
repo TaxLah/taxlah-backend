@@ -45,13 +45,7 @@ const queues = {
 	add: async (queueName, jobName, data, options = {}) => {
 		const queue = queues[queueName] || defaultQueue;
 		const defaultOptions = {
-			attempts: 3,
-			backoff: {
-				type: "exponential",
-				delay: 2000,
-			},
-			removeOnComplete: 100,
-			removeOnFail: 50,
+			attempts: 3
 		};
 
 		const job = await queue.add(jobName, data, { ...defaultOptions, ...options, priority: options.priority || 5 });

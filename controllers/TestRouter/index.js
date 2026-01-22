@@ -14,7 +14,53 @@ router.get('/cronjob', async (req, res) => {
             await queues.default.add('General Queue', { user }, { priority: 5 } )
         }
     }
-    res.json({ success: true, message: 'Cronjob tasks queued' })
+    return res.json({ success: true, message: 'Cronjob tasks queued' })
+})
+
+// Test endpoint to manually trigger subscription expiry check
+router.get('/expire-subscriptions', async (req, res) => {
+    try {
+        const SubscriptionService = require('../../models/AppModel/SubscriptionService');
+        
+        console.log('[Test] Manually triggering subscription expiry check...');
+        const result = await SubscriptionService.processExpiredSubscriptions();
+        
+        return res.json({
+            success: true,
+            message: 'Subscription expiry check completed',
+            data: result
+        });
+    } catch (error) {
+        console.error('[Test] Subscription expiry check failed:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to check expired subscriptions',
+            error: error.message
+        });
+    }
+})
+
+// Test endpoint to manually trigger expiry reminder notifications
+router.get('/expiry-reminders', async (req, res) => {
+    try {
+        const SubscriptionService = require('../../models/AppModel/SubscriptionService');
+        
+        console.log('[Test] Manually triggering expiry reminders...');
+        const result = await SubscriptionService.sendExpiryReminders();
+        
+        return res.json({
+            success: true,
+            message: 'Expiry reminders sent',
+            data: result
+        });
+    } catch (error) {
+        console.error('[Test] Expiry reminders failed:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to send expiry reminders',
+            error: error.message
+        });
+    }
 })
 
 module.exports = router
