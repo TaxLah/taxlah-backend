@@ -14,8 +14,8 @@ const path      = require('path');
 // CHIP API Configuration
 const CHIP_CONFIG = {
     baseUrl: process.env.CHIP_API_URL || 'https://gate.chip-in.asia/api/v1',
-    brandId: process.env.CHIP_BRAND_ID,
-    apiKey: process.env.CHIP_API_KEY,
+    brandId: process.env.CHIP_BRAND_ID || '3661e896-89cc-43b5-93db-54fc8d5da00e',
+    apiKey: process.env.CHIP_API_KEY || 'xGFwSV3Vch9PkQdIBSW5JgHr-MN5qBSoK0Q9RG5R7RPMEXNjfdLXiCW0dWhibewYQeIcNGBaoukwGPP_-iNA4w==',
     webhookPublicKey: fs.readFileSync(path.join(__dirname, 'chip.pem'), 'utf8'),
     currency: 'MYR',
     testMode: process.env.NODE_ENV !== 'production'
