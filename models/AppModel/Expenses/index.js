@@ -45,6 +45,7 @@ const Expenses = {
             return result
         }
     },
+
     GetExpensesById: async (account_id, expenses_id) => {
         try {
             let sql     = `SELECT * FROM account_expenses WHERE account_id ? AND expenses_id = ? LIMIT 1`
@@ -61,9 +62,11 @@ const Expenses = {
             return result
         }
     },
+
     GetExpensesByReceipt: async () => {
 
     },
+
     CreateExpenses: async (params) => {
         try {
             let query = await db.insert("account_expenses", params)
@@ -79,6 +82,7 @@ const Expenses = {
             return result
         }
     },
+
     UpdateExpenses: async (expenses_id, params) => {
         try {
             let query = await db.update("account_expenses", params, { expenses_id })
@@ -93,6 +97,7 @@ const Expenses = {
             return result
         }
     },
+
     DeleteExpenses: async (account_id, expenses_id) => {
         try {
             let query = await db.update("account_expenses", { status: 'Deleted' }, { expenses_id, account_id })
@@ -107,6 +112,7 @@ const Expenses = {
             return result
         }
     },
+
     HardDeleteExpenses: async (account_id, expenses_id) => {
         try {
             let query = await db.delete("account_expenses", { account_id, expenses_id })
@@ -121,6 +127,7 @@ const Expenses = {
             return result
         }
     },
+
     TotalData: async (account_id, search) => {
         let whereSearch = ``
         if(search) {
@@ -138,4 +145,9 @@ const Expenses = {
     }
 }
 
-module.exports = Expenses
+// Export new enhanced model instead of old one
+const ExpensesModel = require('./ExpensesModel');
+module.exports = ExpensesModel;
+
+// Old model kept for reference (commented out)
+// module.exports = Expenses

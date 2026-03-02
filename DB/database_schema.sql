@@ -1,4 +1,4 @@
--- Adminer 5.4.1 MySQL 8.0.44-0ubuntu0.24.04.1 dump
+-- Adminer 5.4.1 MySQL 8.0.45-0ubuntu0.24.04.1 dump
 
 SET NAMES utf8;
 SET time_zone = '+00:00';
@@ -63,6 +63,194 @@ BEGIN
     SET p_transaction_id = LAST_INSERT_ID();
     
     COMMIT;
+END;;
+
+DROP PROCEDURE IF EXISTS `sp_ai_categorize_expense`;;
+CREATE PROCEDURE `sp_ai_categorize_expense` (IN `p_merchant_name` varchar(256), IN `p_merchant_id` varchar(100), IN `p_amount` decimal(15,2), IN `p_tax_year` year, OUT `p_tax_id` int, OUT `p_taxsub_id` int, OUT `p_confidence` decimal(5,2))
+proc_label: BEGIN
+    DECLARE v_found BOOLEAN DEFAULT FALSE;
+    
+    SET p_tax_id = NULL;
+    SET p_taxsub_id = NULL;
+    SET p_confidence = NULL;
+    
+    -- Priority 1: Check merchant_tax_category mapping
+    SELECT mtc.tax_id, mtc.taxsub_id, 95.00
+    INTO p_tax_id, p_taxsub_id, p_confidence
+    FROM merchant_tax_category mtc
+    JOIN merchant m ON mtc.merchant_id = m.merchant_id
+    WHERE m.merchant_uniq_no = p_merchant_id
+      AND mtc.status = 'Active'
+    ORDER BY mtc.priority ASC
+    LIMIT 1;
+    
+    IF p_tax_id IS NOT NULL THEN
+        -- Verify category exists for current year
+        SELECT tc.tax_id INTO p_tax_id
+        FROM tax_category tc
+        WHERE tc.tax_id = p_tax_id
+          AND tc.tax_year = p_tax_year
+          AND tc.status = 'Active'
+        LIMIT 1;
+        
+        -- If found, exit early
+        IF p_tax_id IS NOT NULL THEN
+            LEAVE proc_label;
+        END IF;
+    END IF;
+    
+    -- Priority 2: Pattern matching with current year categories
+    IF p_merchant_name LIKE '%POPULAR%' OR p_merchant_name LIKE '%MPH%' OR p_merchant_name LIKE '%BOOKSTORE%' THEN
+        SELECT tax_id INTO p_tax_id
+        FROM tax_category
+        WHERE tax_code = 'LIFESTYLE' AND tax_year = p_tax_year AND status = 'Active'
+        LIMIT 1;
+        
+        -- Try to find books subcategory
+        IF p_tax_id IS NOT NULL THEN
+            SELECT taxsub_id INTO p_taxsub_id
+            FROM tax_subcategory
+            WHERE tax_id = p_tax_id 
+              AND (taxsub_code = 'BOOKS' OR taxsub_title LIKE '%Book%')
+              AND status = 'Active'
+            LIMIT 1;
+        END IF;
+        
+        SET p_confidence = 85.00;
+        SET v_found = TRUE;
+        
+    ELSEIF p_merchant_name LIKE '%CLINIC%' OR p_merchant_name LIKE '%HOSPITAL%' OR p_merchant_name LIKE '%PHARMACY%' THEN
+        SELECT tax_id INTO p_tax_id
+        FROM tax_category
+        WHERE tax_code = 'MEDICAL' AND tax_year = p_tax_year AND status = 'Active'
+        LIMIT 1;
+        
+        SET p_taxsub_id = NULL;
+        SET p_confidence = 80.00;
+        SET v_found = TRUE;
+        
+    ELSEIF p_merchant_name LIKE '%GYM%' OR p_merchant_name LIKE '%FITNESS%' OR p_merchant_name LIKE '%SPORT%' THEN
+        SELECT tax_id INTO p_tax_id
+        FROM tax_category
+        WHERE tax_code = 'LIFESTYLE' AND tax_year = p_tax_year AND status = 'Active'
+        LIMIT 1;
+        
+        -- Try to find gym/sports subcategory
+        IF p_tax_id IS NOT NULL THEN
+            SELECT taxsub_id INTO p_taxsub_id
+            FROM tax_subcategory
+            WHERE tax_id = p_tax_id 
+              AND (taxsub_code = 'GYM' OR taxsub_title LIKE '%Gym%' OR taxsub_title LIKE '%Sport%')
+              AND status = 'Active'
+            LIMIT 1;
+        END IF;
+        
+        SET p_confidence = 80.00;
+        SET v_found = TRUE;
+    END IF;
+    
+    -- If still not found, use default
+    IF NOT v_found OR p_tax_id IS NULL THEN
+        SELECT tax_id INTO p_tax_id
+        FROM tax_category
+        WHERE tax_code = 'LIFESTYLE' AND tax_year = p_tax_year AND status = 'Active'
+        LIMIT 1;
+        
+        SET p_taxsub_id = NULL;
+        SET p_confidence = 50.00;
+    END IF;
+    
+END proc_label;;
+
+DROP PROCEDURE IF EXISTS `sp_ai_categorize_expense_preliminary`;;
+CREATE PROCEDURE `sp_ai_categorize_expense_preliminary` (IN `p_merchant_name` varchar(256), IN `p_merchant_id` varchar(100), IN `p_amount` decimal(15,2), IN `p_tax_year` year, OUT `p_tax_id` int, OUT `p_taxsub_id` int, OUT `p_confidence` decimal(5,2))
+proc_label: BEGIN
+    DECLARE v_previous_year YEAR;
+    DECLARE v_found BOOLEAN DEFAULT FALSE;
+    
+    SET v_previous_year = p_tax_year - 1;
+    SET p_tax_id = NULL;
+    SET p_taxsub_id = NULL;
+    SET p_confidence = NULL;
+    
+    -- Priority 1: Check merchant_tax_category mapping
+    SELECT mtc.tax_id, mtc.taxsub_id, 85.00
+    INTO p_tax_id, p_taxsub_id, p_confidence
+    FROM merchant_tax_category mtc
+    JOIN merchant m ON mtc.merchant_id = m.merchant_id
+    WHERE m.merchant_uniq_no = p_merchant_id
+      AND mtc.status = 'Active'
+    ORDER BY mtc.priority ASC
+    LIMIT 1;
+    
+    IF p_tax_id IS NOT NULL THEN
+        SET v_found = TRUE;
+        -- Map to previous year's equivalent category
+        SELECT tc2.tax_id INTO p_tax_id
+        FROM tax_category tc1
+        JOIN tax_category tc2 ON tc1.tax_code = tc2.tax_code
+        WHERE tc1.tax_id = p_tax_id
+          AND tc2.tax_year = v_previous_year
+          AND tc2.status = 'Active'
+        LIMIT 1;
+        
+        -- If found, exit early
+        IF p_tax_id IS NOT NULL THEN
+            LEAVE proc_label;
+        END IF;
+    END IF;
+    
+    -- Priority 2: Simple pattern matching (use previous year's categories)
+    IF p_merchant_name LIKE '%POPULAR%' OR p_merchant_name LIKE '%MPH%' OR p_merchant_name LIKE '%BOOKSTORE%' THEN
+        SELECT tax_id INTO p_tax_id
+        FROM tax_category
+        WHERE tax_code = 'LIFESTYLE' AND tax_year = v_previous_year AND status = 'Active'
+        LIMIT 1;
+        SET p_confidence = 75.00;
+        SET v_found = TRUE;
+        
+    ELSEIF p_merchant_name LIKE '%CLINIC%' OR p_merchant_name LIKE '%HOSPITAL%' OR p_merchant_name LIKE '%PHARMACY%' THEN
+        SELECT tax_id INTO p_tax_id
+        FROM tax_category
+        WHERE tax_code = 'MEDICAL' AND tax_year = v_previous_year AND status = 'Active'
+        LIMIT 1;
+        SET p_confidence = 70.00;
+        SET v_found = TRUE;
+        
+    ELSEIF p_merchant_name LIKE '%GYM%' OR p_merchant_name LIKE '%FITNESS%' OR p_merchant_name LIKE '%SPORT%' THEN
+        SELECT tax_id INTO p_tax_id
+        FROM tax_category
+        WHERE tax_code = 'LIFESTYLE' AND tax_year = v_previous_year AND status = 'Active'
+        LIMIT 1;
+        SET p_confidence = 70.00;
+        SET v_found = TRUE;
+    END IF;
+    
+    -- If still not found, use default
+    IF NOT v_found OR p_tax_id IS NULL THEN
+        SELECT tax_id INTO p_tax_id
+        FROM tax_category
+        WHERE tax_code = 'LIFESTYLE' AND tax_year = v_previous_year AND status = 'Active'
+        LIMIT 1;
+        SET p_confidence = 50.00;
+    END IF;
+    
+    -- Try to find matching subcategory (optional)
+    SET p_taxsub_id = NULL;
+    
+END proc_label;;
+
+DROP PROCEDURE IF EXISTS `sp_check_official_mapping_exists`;;
+CREATE PROCEDURE `sp_check_official_mapping_exists` (IN `p_tax_year` year, OUT `p_exists` boolean, OUT `p_published_date` date)
+BEGIN
+    SELECT 
+        COUNT(*) > 0,
+        MAX(tax_published_date)
+    INTO p_exists, p_published_date
+    FROM tax_category
+    WHERE tax_year = p_tax_year 
+      AND tax_mapping_status = 'Official'
+      AND status = 'Active';
 END;;
 
 DROP PROCEDURE IF EXISTS `sp_expire_credits`;;
@@ -175,6 +363,124 @@ BEGIN
     
 END;;
 
+DROP PROCEDURE IF EXISTS `sp_upload_receipt_with_mapping`;;
+CREATE PROCEDURE `sp_upload_receipt_with_mapping` (IN `p_account_id` int, IN `p_receipt_date` date, IN `p_merchant_name` varchar(256), IN `p_amount` decimal(15,2), IN `p_merchant_id` varchar(100), IN `p_receipt_no` varchar(256), OUT `p_expenses_id` int, OUT `p_mapping_status` varchar(20), OUT `p_tax_category_name` varchar(256), OUT `p_confidence` decimal(5,2), OUT `p_message` varchar(500))
+BEGIN
+    DECLARE v_tax_year YEAR;
+    DECLARE v_official_mapping_exists BOOLEAN DEFAULT FALSE;
+    DECLARE v_tax_id INT DEFAULT NULL;
+    DECLARE v_taxsub_id INT DEFAULT NULL;
+    DECLARE v_confidence DECIMAL(5,2) DEFAULT NULL;
+    DECLARE v_mapping_version VARCHAR(50);
+    DECLARE v_published_date DATE;
+    
+    -- Initialize output variables
+    SET p_expenses_id = NULL;
+    SET p_mapping_status = NULL;
+    SET p_tax_category_name = NULL;
+    SET p_confidence = NULL;
+    SET p_message = NULL;
+    
+    SET v_tax_year = YEAR(p_receipt_date);
+    
+    -- Check if official LHDN mapping exists
+    CALL sp_check_official_mapping_exists(v_tax_year, v_official_mapping_exists, v_published_date);
+    
+    IF v_official_mapping_exists THEN
+        -- Use official mapping
+        SET v_mapping_version = CONCAT(v_tax_year, '-official');
+        
+        CALL sp_ai_categorize_expense(
+            p_merchant_name, p_merchant_id, p_amount, v_tax_year,
+            v_tax_id, v_taxsub_id, v_confidence
+        );
+        
+        -- Insert expense with confirmed mapping
+        INSERT INTO account_expenses (
+            account_id, expenses_merchant_name, expenses_merchant_id,
+            expenses_receipt_no, expenses_total_amount, 
+            expenses_date, expenses_year,
+            expenses_tax_category, expenses_tax_subcategory,
+            expenses_mapping_status, expenses_mapping_confidence,
+            expenses_mapping_version, expenses_mapping_date,
+            expenses_tax_eligible, status
+        ) VALUES (
+            p_account_id, p_merchant_name, p_merchant_id,
+            p_receipt_no, p_amount,
+            p_receipt_date, v_tax_year,
+            v_tax_id, v_taxsub_id,
+            'Confirmed', v_confidence, v_mapping_version, NOW(),
+            'Yes', 'Active'
+        );
+        
+        SET p_expenses_id = LAST_INSERT_ID();
+        SET p_mapping_status = 'Confirmed';
+        SET p_confidence = v_confidence;
+        
+        -- Get category name
+        SELECT tax_title INTO p_tax_category_name
+        FROM tax_category WHERE tax_id = v_tax_id;
+        
+        SET p_message = CONCAT('Receipt categorized as "', COALESCE(p_tax_category_name, 'Unknown'), '" using official LHDN mapping');
+        
+    ELSE
+        -- Use preliminary mapping
+        SET v_mapping_version = CONCAT(v_tax_year, '-preliminary');
+        
+        CALL sp_ai_categorize_expense_preliminary(
+            p_merchant_name, p_merchant_id, p_amount, v_tax_year,
+            v_tax_id, v_taxsub_id, v_confidence
+        );
+        
+        -- Insert expense with estimated mapping
+        INSERT INTO account_expenses (
+            account_id, expenses_merchant_name, expenses_merchant_id,
+            expenses_receipt_no, expenses_total_amount,
+            expenses_date, expenses_year,
+            expenses_tax_category, expenses_tax_subcategory,
+            expenses_mapping_status, expenses_mapping_confidence,
+            expenses_mapping_version, expenses_mapping_date,
+            expenses_original_tax_category,
+            expenses_tax_eligible, status
+        ) VALUES (
+            p_account_id, p_merchant_name, p_merchant_id,
+            p_receipt_no, p_amount,
+            p_receipt_date, v_tax_year,
+            v_tax_id, v_taxsub_id,
+            'Estimated', v_confidence, v_mapping_version, NOW(),
+            v_tax_id,
+            'Yes', 'Active'
+        );
+        
+        SET p_expenses_id = LAST_INSERT_ID();
+        SET p_mapping_status = 'Estimated';
+        SET p_confidence = v_confidence;
+        
+        -- Get category name (from previous year)
+        SELECT tax_title INTO p_tax_category_name
+        FROM tax_category WHERE tax_id = v_tax_id;
+        
+        SET p_message = CONCAT(
+            'Receipt saved with estimated category "', COALESCE(p_tax_category_name, 'Unknown'), 
+            '". Official ', v_tax_year, ' LHDN tax categories will be available in October.'
+        );
+    END IF;
+    
+    -- Log initial categorization in history (only if expense was created)
+    IF p_expenses_id IS NOT NULL THEN
+        INSERT INTO account_expenses_mapping_history (
+            expenses_id, new_tax_category, new_tax_subcategory,
+            change_reason, confidence_after, mapping_version_after,
+            changed_by, changed_date
+        ) VALUES (
+            p_expenses_id, v_tax_id, v_taxsub_id,
+            'Initial', v_confidence, v_mapping_version,
+            'System', NOW()
+        );
+    END IF;
+    
+END;;
+
 DROP PROCEDURE IF EXISTS `sp_use_credits`;;
 CREATE PROCEDURE `sp_use_credits` (IN `p_account_id` int, IN `p_amount` int, IN `p_description` varchar(255), IN `p_reference_type` varchar(50), IN `p_reference_id` int, OUT `p_success` boolean, OUT `p_message` varchar(255))
 BEGIN
@@ -272,11 +578,11 @@ DELIMITER ;
 
 CREATE TABLE `account` (
   `account_id` int NOT NULL AUTO_INCREMENT,
-  `account_secret_key` varchar(256) NOT NULL DEFAULT 'uuid()',
+  `account_secret_key` varchar(256) DEFAULT (uuid()),
   `account_name` varchar(256) NOT NULL,
   `account_fullname` varchar(256) NOT NULL,
   `account_email` varchar(100) NOT NULL,
-  `account_contact` varchar(20) DEFAULT NULL,
+  `account_contact` varchar(30) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `account_ic` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `account_gender` enum('Male','Female') CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `account_dob` datetime DEFAULT NULL,
@@ -290,21 +596,18 @@ CREATE TABLE `account` (
   `account_address_city` varchar(100) DEFAULT NULL,
   `account_address_state` varchar(100) DEFAULT NULL,
   `account_profile_image` text,
-  `account_status` enum('Pending','Active','Suspended','Others') NOT NULL DEFAULT 'Pending',
+  `account_status` enum('Pending','Active','Suspended','Others') CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT 'Active',
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`account_id`),
   KEY `account_search_index` (`account_id`,`account_secret_key`,`account_name`,`account_email`,`account_status`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 DELIMITER ;;
 
 CREATE TRIGGER `account_ai` AFTER INSERT ON `account` FOR EACH ROW
 INSERT INTO account_logs SELECT * FROM account;;
-
-CREATE TRIGGER `account_ai_uuid` AFTER INSERT ON `account` FOR EACH ROW
-UPDATE account SET account_secret_key = UUID() WHERE account_id = NEW.account_id;;
 
 CREATE TRIGGER `account_au` AFTER UPDATE ON `account` FOR EACH ROW
 INSERT INTO account_logs (
@@ -364,7 +667,7 @@ CREATE TABLE `account_credit` (
   KEY `idx_balance` (`credit_balance`),
   KEY `idx_status` (`status`),
   CONSTRAINT `fk_account_credit_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `account_dependant` (
@@ -391,7 +694,7 @@ CREATE TABLE `account_dependant` (
   PRIMARY KEY (`dependant_id`),
   KEY `account_id` (`account_id`),
   CONSTRAINT `account_dependant_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `account_device` (
@@ -408,7 +711,7 @@ CREATE TABLE `account_device` (
   PRIMARY KEY (`device_id`),
   KEY `account_id` (`account_id`),
   CONSTRAINT `account_device_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `account_expenses` (
@@ -423,6 +726,11 @@ CREATE TABLE `account_expenses` (
   `expenses_date` date NOT NULL,
   `expenses_year` year NOT NULL,
   `expenses_tax_eligible` enum('No','Yes') NOT NULL DEFAULT 'Yes',
+  `expenses_mapping_status` enum('Pending','Estimated','Confirmed','Manual') DEFAULT 'Pending' COMMENT 'Pending=no mapping yet, Estimated=prelim AI, Confirmed=official LHDN, Manual=user override',
+  `expenses_mapping_confidence` decimal(5,2) DEFAULT NULL COMMENT 'AI confidence score 0-100',
+  `expenses_mapping_version` varchar(50) DEFAULT NULL COMMENT 'e.g., 2026-prelim, 2026-official',
+  `expenses_original_tax_category` int DEFAULT NULL COMMENT 'Store original prelim category before remap',
+  `expenses_mapping_date` datetime DEFAULT NULL COMMENT 'When category was assigned',
   `expenses_for` enum('Self','Spouse','Child','Parent','Sibling') DEFAULT 'Self',
   `dependant_id` int DEFAULT NULL,
   `claim_id` int DEFAULT NULL,
@@ -437,13 +745,70 @@ CREATE TABLE `account_expenses` (
   KEY `expenses_idx` (`expenses_id`,`expenses_tags`,`expenses_tax_category`,`expenses_tax_subcategory`,`expenses_receipt_no`,`expenses_date`,`expenses_year`,`expenses_tax_eligible`,`status`,`account_id`),
   KEY `fk_expenses_claim` (`claim_id`),
   KEY `fk_expenses_dependant` (`dependant_id`),
+  KEY `fk_expenses_original_tax` (`expenses_original_tax_category`),
+  KEY `idx_mapping_status` (`expenses_mapping_status`,`expenses_year`),
+  KEY `idx_mapping_version` (`expenses_mapping_version`),
+  KEY `idx_mapping_date` (`expenses_mapping_date`),
+  KEY `idx_account_year_status` (`account_id`,`expenses_year`,`expenses_mapping_status`,`status`),
+  KEY `idx_confidence_year` (`expenses_mapping_confidence`,`expenses_year`,`status`),
+  KEY `idx_account_year_status_mapping` (`account_id`,`expenses_year`,`expenses_mapping_status`,`status`),
+  KEY `idx_date_status_mapping` (`expenses_date`,`status`,`expenses_mapping_status`),
+  KEY `idx_merchant_mapping` (`expenses_merchant_id`,`expenses_mapping_status`),
   CONSTRAINT `account_expenses_ibfk_1` FOREIGN KEY (`expenses_tax_category`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET NULL,
   CONSTRAINT `account_expenses_ibfk_2` FOREIGN KEY (`expenses_tax_subcategory`) REFERENCES `tax_subcategory` (`taxsub_id`) ON DELETE SET NULL,
   CONSTRAINT `account_expenses_ibfk_3` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_expenses_claim` FOREIGN KEY (`claim_id`) REFERENCES `account_tax_claim` (`claim_id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_expenses_dependant` FOREIGN KEY (`dependant_id`) REFERENCES `account_dependant` (`dependant_id`) ON DELETE SET NULL
+  CONSTRAINT `fk_expenses_dependant` FOREIGN KEY (`dependant_id`) REFERENCES `account_dependant` (`dependant_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_expenses_original_tax` FOREIGN KEY (`expenses_original_tax_category`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
+
+DELIMITER ;;
+
+CREATE TRIGGER `trg_expenses_category_change` AFTER UPDATE ON `account_expenses` FOR EACH ROW
+BEGIN
+    -- Only log if tax category actually changed
+    IF (OLD.expenses_tax_category != NEW.expenses_tax_category 
+        OR OLD.expenses_tax_subcategory != NEW.expenses_tax_subcategory) THEN
+        
+        INSERT INTO `account_expenses_mapping_history` (
+            expenses_id,
+            old_tax_category,
+            new_tax_category,
+            old_tax_subcategory,
+            new_tax_subcategory,
+            change_reason,
+            confidence_before,
+            confidence_after,
+            mapping_version_before,
+            mapping_version_after,
+            changed_by,
+            changed_date
+        ) VALUES (
+            NEW.expenses_id,
+            OLD.expenses_tax_category,
+            NEW.expenses_tax_category,
+            OLD.expenses_tax_subcategory,
+            NEW.expenses_tax_subcategory,
+            CASE 
+                WHEN NEW.expenses_mapping_status = 'Manual' THEN 'User_Override'
+                WHEN OLD.expenses_mapping_version != NEW.expenses_mapping_version THEN 'LHDN_Update'
+                ELSE 'AI_Refinement'
+            END,
+            OLD.expenses_mapping_confidence,
+            NEW.expenses_mapping_confidence,
+            OLD.expenses_mapping_version,
+            NEW.expenses_mapping_version,
+            CASE 
+                WHEN NEW.expenses_mapping_status = 'Manual' THEN 'User'
+                ELSE 'System'
+            END,
+            NOW()
+        );
+    END IF;
+END;;
+
+DELIMITER ;
 
 CREATE TABLE `account_expenses_item` (
   `item_id` int NOT NULL AUTO_INCREMENT,
@@ -461,6 +826,76 @@ CREATE TABLE `account_expenses_item` (
   KEY `expenses_item_idx` (`item_id`,`item_name`,`status`,`expenses_id`),
   CONSTRAINT `account_expenses_item_ibfk_1` FOREIGN KEY (`expenses_id`) REFERENCES `account_expenses` (`expenses_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+
+CREATE TABLE `account_expenses_mapping_history` (
+  `history_id` int NOT NULL AUTO_INCREMENT,
+  `expenses_id` int NOT NULL COMMENT 'FK to account_expenses',
+  `old_tax_category` int DEFAULT NULL,
+  `new_tax_category` int DEFAULT NULL,
+  `old_tax_subcategory` int DEFAULT NULL,
+  `new_tax_subcategory` int DEFAULT NULL,
+  `change_reason` enum('Initial','LHDN_Update','User_Override','AI_Refinement','Admin_Correction','Merchant_Pattern') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Initial' COMMENT 'Reason for categorization change',
+  `confidence_before` decimal(5,2) DEFAULT NULL COMMENT 'AI confidence before change',
+  `confidence_after` decimal(5,2) DEFAULT NULL COMMENT 'AI confidence after change',
+  `mapping_version_before` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `mapping_version_after` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `changed_by` enum('System','User','Admin','AI') COLLATE utf8mb4_unicode_ci DEFAULT 'System',
+  `changed_by_user_id` int DEFAULT NULL COMMENT 'account_id or admin_id',
+  `change_notes` text COLLATE utf8mb4_unicode_ci,
+  `change_metadata` json DEFAULT NULL COMMENT 'Extra data (merchant info, AI reasoning, etc.)',
+  `changed_date` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`history_id`),
+  KEY `idx_expenses` (`expenses_id`),
+  KEY `idx_change_reason` (`change_reason`),
+  KEY `idx_changed_date` (`changed_date`),
+  KEY `idx_expenses_date` (`expenses_id`,`changed_date`),
+  KEY `idx_changed_by` (`changed_by`,`changed_by_user_id`),
+  KEY `fk_mapping_history_old_tax` (`old_tax_category`),
+  KEY `fk_mapping_history_new_tax` (`new_tax_category`),
+  KEY `fk_mapping_history_old_taxsub` (`old_tax_subcategory`),
+  KEY `fk_mapping_history_new_taxsub` (`new_tax_subcategory`),
+  KEY `idx_reason_date` (`change_reason`,`changed_date`),
+  KEY `idx_reason_date_expenses` (`change_reason`,`changed_date`,`expenses_id`),
+  KEY `idx_changed_date_reason` (`changed_date` DESC,`change_reason`),
+  CONSTRAINT `fk_mapping_history_expenses` FOREIGN KEY (`expenses_id`) REFERENCES `account_expenses` (`expenses_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mapping_history_new_tax` FOREIGN KEY (`new_tax_category`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_mapping_history_new_taxsub` FOREIGN KEY (`new_tax_subcategory`) REFERENCES `tax_subcategory` (`taxsub_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_mapping_history_old_tax` FOREIGN KEY (`old_tax_category`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_mapping_history_old_taxsub` FOREIGN KEY (`old_tax_subcategory`) REFERENCES `tax_subcategory` (`taxsub_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Audit trail for all expense categorization changes';
+
+
+CREATE TABLE `account_expenses_mapping_notification` (
+  `notification_id` int NOT NULL AUTO_INCREMENT,
+  `account_id` int NOT NULL,
+  `tax_year` year NOT NULL,
+  `notification_type` enum('Mapping Available','Category Changed','Review Required','Preliminary Reminder','Expiry Warning') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `notification_title` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `notification_message` text COLLATE utf8mb4_unicode_ci,
+  `notification_priority` enum('Low','Normal','High') COLLATE utf8mb4_unicode_ci DEFAULT 'Normal',
+  `affected_expenses_count` int DEFAULT '0',
+  `notification_data` json DEFAULT NULL COMMENT 'Details of changes, affected categories, etc.',
+  `notification_status` enum('Pending','Sent','Read','Dismissed','Failed') COLLATE utf8mb4_unicode_ci DEFAULT 'Pending',
+  `delivery_method` set('Push','Email','InApp') COLLATE utf8mb4_unicode_ci DEFAULT 'Push,InApp',
+  `action_url` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Deep link to review page',
+  `created_date` datetime DEFAULT CURRENT_TIMESTAMP,
+  `sent_date` datetime DEFAULT NULL,
+  `read_date` datetime DEFAULT NULL,
+  `dismissed_date` datetime DEFAULT NULL,
+  `retry_count` int DEFAULT '0',
+  `last_retry_date` datetime DEFAULT NULL,
+  PRIMARY KEY (`notification_id`),
+  KEY `idx_account_year` (`account_id`,`tax_year`),
+  KEY `idx_status` (`notification_status`),
+  KEY `idx_type` (`notification_type`),
+  KEY `idx_created` (`created_date`),
+  KEY `idx_pending` (`notification_status`,`created_date`),
+  KEY `idx_account_year_status_type` (`account_id`,`tax_year`,`notification_status`,`notification_type`),
+  KEY `idx_pending_priority` (`notification_status`,`notification_priority`,`created_date`),
+  KEY `idx_notification_data` ((cast(json_unquote(json_extract(`notification_data`,_utf8mb4'$.requires_review')) as unsigned))),
+  CONSTRAINT `fk_mapping_notif_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Notification queue for tax mapping updates';
 
 
 CREATE TABLE `account_file` (
@@ -496,6 +931,8 @@ CREATE TABLE `account_logs` (
   `account_gender` enum('Male','Female') CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `account_dob` date DEFAULT NULL,
   `account_age` int DEFAULT NULL,
+  `account_nationality` varchar(50) DEFAULT 'Malaysia',
+  `account_salary_range` decimal(15,2) DEFAULT '0.00',
   `account_address_1` text,
   `account_address_2` text,
   `account_address_3` text,
@@ -512,17 +949,17 @@ CREATE TABLE `account_logs` (
 CREATE TABLE `account_notification` (
   `notification_id` int NOT NULL AUTO_INCREMENT,
   `account_id` int NOT NULL,
-  `notification_title` varchar(256) NOT NULL,
-  `notification_description` text,
-  `read_status` enum('No','Yes') NOT NULL DEFAULT 'No',
-  `archive_status` enum('No','Yes') NOT NULL DEFAULT 'No',
-  `status` enum('Active','Inactive','Deleted','Others') NOT NULL DEFAULT 'Active',
+  `notification_title` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `notification_description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `read_status` enum('No','Yes') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'No',
+  `archive_status` enum('No','Yes') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'No',
+  `status` enum('Active','Inactive','Deleted','Others') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Active',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`notification_id`),
   KEY `account_id` (`account_id`),
   CONSTRAINT `account_notification_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=72 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `account_storage` (
@@ -540,7 +977,7 @@ CREATE TABLE `account_storage` (
   KEY `get_account_storage_idx` (`storage_id`,`storage_current_space`,`status`,`account_id`),
   CONSTRAINT `account_storage_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `BALANCE_MOST_NOT_NEGATIVE` CHECK ((`storage_current_space` > 0.00))
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `account_subscription` (
@@ -573,7 +1010,7 @@ CREATE TABLE `account_subscription` (
   KEY `idx_active` (`account_id`,`status`),
   CONSTRAINT `fk_account_subscription_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_account_subscription_package` FOREIGN KEY (`sub_package_id`) REFERENCES `subscription_package` (`sub_package_id`) ON DELETE RESTRICT
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `account_tax_claim` (
@@ -604,7 +1041,7 @@ CREATE TABLE `account_tax_claim` (
   CONSTRAINT `fk_claim_taxsub` FOREIGN KEY (`taxsub_id`) REFERENCES `tax_subcategory` (`taxsub_id`) ON DELETE SET NULL,
   CONSTRAINT `chk_claimed_amount` CHECK ((`claimed_amount` >= 0)),
   CONSTRAINT `chk_claimed_not_exceed_max` CHECK ((`claimed_amount` <= `max_claimable`))
-) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `account_tax_summary` (
@@ -639,7 +1076,7 @@ CREATE TABLE `admin` (
   PRIMARY KEY (`admin_id`),
   UNIQUE KEY `admin_email` (`admin_email`),
   KEY `admin_id_admin_name_admin_email_admin_role_admin_status` (`admin_id`,`admin_name`,`admin_email`,`admin_role`,`admin_status`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `admin_auth` (
@@ -660,12 +1097,12 @@ CREATE TABLE `admin_auth` (
   KEY `admin_id` (`admin_id`),
   KEY `aauth_login_idx` (`aauth_id`,`aauth_username`,`aauth_usermail`,`aauth_password`,`aauth_role`,`aauth_status`,`admin_id`),
   CONSTRAINT `admin_auth_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `admin` (`admin_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `auth_access` (
   `auth_id` int NOT NULL AUTO_INCREMENT,
-  `auth_reference_key` varchar(256) NOT NULL DEFAULT 'uuid()',
+  `auth_reference_key` varchar(256) DEFAULT (uuid()),
   `auth_username` varchar(256) NOT NULL,
   `auth_usermail` varchar(100) NOT NULL,
   `auth_password` varchar(256) NOT NULL,
@@ -681,16 +1118,13 @@ CREATE TABLE `auth_access` (
   KEY `account_id` (`account_id`),
   KEY `search_login` (`auth_id`,`auth_reference_key`,`auth_username`,`auth_usermail`,`auth_password`,`auth_is_verified`,`auth_status`),
   CONSTRAINT `auth_access_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 DELIMITER ;;
 
 CREATE TRIGGER `auth_access_ai` AFTER INSERT ON `auth_access` FOR EACH ROW
 INSERT INTO auth_access_logs SELECT * FROM auth_access;;
-
-CREATE TRIGGER `auth_access_ai_uuid` AFTER INSERT ON `auth_access` FOR EACH ROW
-UPDATE auth_access SET auth_reference_key = UUID() WHERE auth_id = NEW.auth_id;;
 
 CREATE TRIGGER `auth_access_au` AFTER UPDATE ON `auth_access` FOR EACH ROW
 INSERT INTO auth_access_logs (
@@ -792,7 +1226,7 @@ CREATE TABLE `credit_package` (
   UNIQUE KEY `package_code` (`package_code`),
   KEY `idx_status` (`status`),
   KEY `idx_sort` (`sort_order`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `credit_transaction` (
@@ -839,7 +1273,7 @@ CREATE TABLE `credit_usage_rate` (
   KEY `idx_code` (`rate_code`),
   KEY `idx_category` (`feature_category`),
   KEY `idx_active` (`is_active`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `inquiry` (
@@ -852,7 +1286,7 @@ CREATE TABLE `inquiry` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`inquiry_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `merchant` (
@@ -868,7 +1302,7 @@ CREATE TABLE `merchant` (
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`merchant_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=63 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `merchant_tax_category` (
@@ -907,7 +1341,7 @@ CREATE TABLE `package` (
   CONSTRAINT `package_chk_1` CHECK (json_valid(`package_content`)),
   CONSTRAINT `package_chk_2` CHECK (json_valid(`package_item`)),
   CONSTRAINT `package_content` CHECK (json_valid(`package_content`))
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `payment_gateway_conf` (
@@ -954,7 +1388,7 @@ CREATE TABLE `payment_order` (
   KEY `fk_payment_order_package` (`package_id`),
   CONSTRAINT `fk_payment_order_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_payment_order_package` FOREIGN KEY (`package_id`) REFERENCES `credit_package` (`package_id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `payment_transaction` (
@@ -1004,7 +1438,7 @@ CREATE TABLE `promo_code` (
   KEY `idx_code` (`promo_code`),
   KEY `idx_status` (`status`),
   KEY `idx_dates` (`start_date`,`end_date`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `promo_code_usage` (
@@ -1038,13 +1472,13 @@ CREATE TABLE `receipt` (
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `account_id` int NOT NULL,
-  `rc_id` int NOT NULL,
+  `rc_id` int DEFAULT NULL,
   PRIMARY KEY (`receipt_id`),
   KEY `rc_id` (`rc_id`),
   KEY `account_id` (`account_id`),
   CONSTRAINT `receipt_ibfk_1` FOREIGN KEY (`rc_id`) REFERENCES `receipt_category` (`rc_id`) ON DELETE SET DEFAULT,
   CONSTRAINT `receipt_ibfk_2` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE SET DEFAULT
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `receipt_category` (
@@ -1055,7 +1489,7 @@ CREATE TABLE `receipt_category` (
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`rc_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `receipt_tax_mapping` (
@@ -1076,14 +1510,14 @@ CREATE TABLE `receipt_tax_mapping` (
   CONSTRAINT `fk_mapping_receipt` FOREIGN KEY (`receipt_id`) REFERENCES `receipt` (`receipt_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_mapping_tax` FOREIGN KEY (`tax_id`) REFERENCES `tax_category` (`tax_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_mapping_taxsub` FOREIGN KEY (`taxsub_id`) REFERENCES `tax_subcategory` (`taxsub_id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 CREATE TABLE `subscription_history` (
   `history_id` int NOT NULL AUTO_INCREMENT,
   `subscription_id` int NOT NULL,
   `account_id` int NOT NULL,
-  `event_type` enum('Created','Activated','Renewed','Upgraded','Downgraded','Cancelled','Expired','Suspended','Resumed','Payment_Failed','Payment_Succeeded') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `event_type` enum('Created','Activated','Reminder','Renewed','Upgraded','Downgraded','Cancelled','Expired','Suspended','Resumed','Payment_Failed','Payment_Succeeded') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `event_description` text COLLATE utf8mb4_unicode_ci,
   `old_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `new_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1096,7 +1530,7 @@ CREATE TABLE `subscription_history` (
   KEY `idx_date` (`event_date`),
   CONSTRAINT `fk_subscription_history_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_subscription_history_subscription` FOREIGN KEY (`subscription_id`) REFERENCES `account_subscription` (`subscription_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `subscription_package` (
@@ -1123,7 +1557,7 @@ CREATE TABLE `subscription_package` (
   UNIQUE KEY `package_code` (`package_code`),
   KEY `idx_code` (`package_code`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `subscription_payment` (
@@ -1151,7 +1585,7 @@ CREATE TABLE `subscription_payment` (
   KEY `idx_gateway` (`payment_gateway`,`gateway_transaction_id`),
   CONSTRAINT `fk_subscription_payment_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_subscription_payment_subscription` FOREIGN KEY (`subscription_id`) REFERENCES `account_subscription` (`subscription_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `tax_category` (
@@ -1162,6 +1596,9 @@ CREATE TABLE `tax_category` (
   `tax_max_claim` decimal(15,2) NOT NULL DEFAULT '0.00',
   `tax_content` json DEFAULT NULL,
   `tax_year` year DEFAULT NULL COMMENT 'ax reliefs change yearly',
+  `tax_mapping_status` enum('Draft','Preliminary','Official','Archived') DEFAULT 'Draft' COMMENT 'Draft=not ready, Preliminary=based on prev year, Official=LHDN published',
+  `tax_published_date` date DEFAULT NULL COMMENT 'Date LHDN officially published this year mapping',
+  `tax_based_on_year` year DEFAULT NULL COMMENT 'If preliminary, which year was used as reference',
   `tax_eligibility_criteria` json DEFAULT NULL COMMENT 'Who qualifies (e.g., disabled, senior)',
   `tax_requires_receipt` enum('No','Yes') DEFAULT NULL COMMENT 'Some reliefs need proof',
   `tax_claim_for` set('Self','Spouse','Child','Parent','Dependant') DEFAULT 'Self',
@@ -1173,8 +1610,10 @@ CREATE TABLE `tax_category` (
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`tax_id`),
-  UNIQUE KEY `unique_tax_code_year` (`tax_code`,`tax_year`)
-) ENGINE=InnoDB AUTO_INCREMENT=77 DEFAULT CHARSET=latin1;
+  UNIQUE KEY `unique_tax_code_year` (`tax_code`,`tax_year`),
+  KEY `idx_mapping_status` (`tax_mapping_status`,`tax_year`),
+  KEY `idx_published_date` (`tax_published_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `tax_subcategory` (
@@ -1195,16 +1634,37 @@ CREATE TABLE `tax_subcategory` (
   PRIMARY KEY (`taxsub_id`),
   KEY `tax_id` (`tax_id`),
   CONSTRAINT `tax_subcategory_ibfk_1` FOREIGN KEY (`tax_id`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET DEFAULT
-) ENGINE=InnoDB AUTO_INCREMENT=74 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
 CREATE TABLE `v_account_credit_summary` (`account_id` int, `account_name` varchar(256), `account_email` varchar(100), `credit_balance` int, `lifetime_credits` int, `lifetime_spent` int, `free_receipts_used` int, `free_receipts_limit` int, `free_receipts_remaining` bigint, `active_batches` bigint, `nearest_expiry` datetime, `status` enum('Active','Suspended','Inactive'), `created_date` datetime);
+
+
+CREATE TABLE `v_account_mapping_dashboard` (`account_id` int, `account_name` varchar(256), `account_email` varchar(100), `current_year_receipts` bigint, `current_year_amount` decimal(37,2), `confirmed_count` decimal(23,0), `estimated_count` decimal(23,0), `pending_count` decimal(23,0), `manual_count` decimal(23,0), `avg_confidence` decimal(9,6), `needs_review_count` decimal(23,0), `last_receipt_date` date, `last_mapping_date` datetime);
+
+
+CREATE TABLE `v_expenses_requiring_review` (`expenses_id` int, `account_id` int, `account_name` varchar(256), `account_email` varchar(100), `expenses_merchant_name` varchar(256), `expenses_total_amount` decimal(15,2), `expenses_date` date, `expenses_year` year, `tax_code` varchar(100), `tax_title` varchar(256), `expenses_mapping_status` enum('Pending','Estimated','Confirmed','Manual'), `expenses_mapping_confidence` decimal(5,2), `expenses_mapping_version` varchar(50), `change_count` bigint, `last_change_reason` varchar(16), `last_change_date` datetime);
+
+
+CREATE TABLE `v_mapping_changes_summary` (`change_date` date, `change_reason` enum('Initial','LHDN_Update','User_Override','AI_Refinement','Admin_Correction','Merchant_Pattern'), `changed_by` enum('System','User','Admin','AI'), `change_count` bigint, `unique_expenses` bigint, `affected_users` bigint, `avg_confidence_after` decimal(9,6), `low_confidence_changes` decimal(23,0));
+
+
+CREATE TABLE `v_monthly_mapping_stats` (`month` varchar(7), `expenses_mapping_status` enum('Pending','Estimated','Confirmed','Manual'), `receipt_count` bigint, `unique_users` bigint, `total_amount` decimal(37,2), `avg_confidence` decimal(9,6), `low_confidence_count` decimal(23,0), `high_confidence_count` decimal(23,0));
 
 
 CREATE TABLE `v_monthly_revenue` (`month` varchar(7), `total_orders` bigint, `unique_buyers` bigint, `total_revenue` decimal(32,2), `total_credits_issued` decimal(33,0), `avg_order_value` decimal(14,6));
 
 
 CREATE TABLE `v_package_performance` (`package_id` int, `package_code` varchar(50), `package_name` varchar(100), `price_amount` decimal(10,2), `credit_amount` int, `total_orders` bigint, `paid_orders` bigint, `total_revenue` decimal(32,2), `total_credits_sold` decimal(32,0));
+
+
+CREATE TABLE `v_pending_mapping_notifications` (`notification_id` int, `account_id` int, `account_name` varchar(256), `account_email` varchar(100), `tax_year` year, `notification_type` enum('Mapping Available','Category Changed','Review Required','Preliminary Reminder','Expiry Warning'), `notification_title` varchar(256), `notification_message` text, `notification_priority` enum('Low','Normal','High'), `affected_expenses_count` int, `delivery_method` set('Push','Email','InApp'), `action_url` varchar(256), `created_date` datetime, `retry_count` int, `changed_count` longtext, `review_count` longtext, `fcm_tokens` text);
+
+
+CREATE TABLE `v_tax_mapping_readiness` (`tax_year` year, `tax_mapping_status` enum('Draft','Preliminary','Official','Archived'), `category_count` bigint, `subcategory_count` bigint, `tax_published_date` date, `tax_based_on_year` year, `affected_users` bigint, `affected_expenses` bigint, `pending_remap_count` decimal(23,0), `total_expense_amount` decimal(37,2));
+
+
+CREATE TABLE `v_user_expenses_mapping_status` (`account_id` int, `account_name` varchar(256), `expenses_year` year, `expenses_mapping_status` enum('Pending','Estimated','Confirmed','Manual'), `expense_count` bigint, `total_amount` decimal(37,2), `avg_confidence` decimal(9,6), `min_confidence` decimal(5,2), `max_confidence` decimal(5,2), `low_confidence_count` decimal(23,0), `expenses_mapping_version` varchar(50), `last_mapping_date` datetime);
 
 
 CREATE TABLE `vw_tax_relief_full` (`tax_year` year, `tax_id` int, `tax_code` varchar(100), `tax_title` varchar(256), `tax_description` text, `category_max_claim` decimal(15,2), `tax_is_auto_claim` enum('No','Yes'), `tax_requires_receipt` enum('No','Yes'), `tax_claim_for` set('Self','Spouse','Child','Parent','Dependant'), `taxsub_id` int, `taxsub_code` varchar(100), `taxsub_title` varchar(256), `taxsub_description` text, `subcategory_max_claim` decimal(15,2));
@@ -1225,11 +1685,32 @@ CREATE TABLE `vw_user_expenses_by_category` (`account_id` int, `expense_year` in
 DROP TABLE IF EXISTS `v_account_credit_summary`;
 CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v_account_credit_summary` AS select `ac`.`account_id` AS `account_id`,`a`.`account_name` AS `account_name`,`a`.`account_email` AS `account_email`,`ac`.`credit_balance` AS `credit_balance`,`ac`.`lifetime_credits` AS `lifetime_credits`,`ac`.`lifetime_spent` AS `lifetime_spent`,`ac`.`free_receipts_used` AS `free_receipts_used`,`ac`.`free_receipts_limit` AS `free_receipts_limit`,(`ac`.`free_receipts_limit` - `ac`.`free_receipts_used`) AS `free_receipts_remaining`,(select count(0) from `credit_batch` `cb` where ((`cb`.`account_id` = `ac`.`account_id`) and (`cb`.`status` = 'Active') and (`cb`.`expiry_date` > now()))) AS `active_batches`,(select min(`cb`.`expiry_date`) from `credit_batch` `cb` where ((`cb`.`account_id` = `ac`.`account_id`) and (`cb`.`status` = 'Active') and (`cb`.`credits_remaining` > 0) and (`cb`.`expiry_date` > now()))) AS `nearest_expiry`,`ac`.`status` AS `status`,`ac`.`created_date` AS `created_date` from (`account_credit` `ac` join `account` `a` on((`ac`.`account_id` = `a`.`account_id`)));
 
+DROP TABLE IF EXISTS `v_account_mapping_dashboard`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v_account_mapping_dashboard` AS select `a`.`account_id` AS `account_id`,`a`.`account_name` AS `account_name`,`a`.`account_email` AS `account_email`,count(distinct (case when (year(`ae`.`expenses_date`) = year(curdate())) then `ae`.`expenses_id` end)) AS `current_year_receipts`,sum((case when (year(`ae`.`expenses_date`) = year(curdate())) then `ae`.`expenses_total_amount` else 0 end)) AS `current_year_amount`,sum((case when (`ae`.`expenses_mapping_status` = 'Confirmed') then 1 else 0 end)) AS `confirmed_count`,sum((case when (`ae`.`expenses_mapping_status` = 'Estimated') then 1 else 0 end)) AS `estimated_count`,sum((case when (`ae`.`expenses_mapping_status` = 'Pending') then 1 else 0 end)) AS `pending_count`,sum((case when (`ae`.`expenses_mapping_status` = 'Manual') then 1 else 0 end)) AS `manual_count`,avg(`ae`.`expenses_mapping_confidence`) AS `avg_confidence`,sum((case when (`ae`.`expenses_mapping_confidence` < 70) then 1 else 0 end)) AS `needs_review_count`,max(`ae`.`expenses_date`) AS `last_receipt_date`,max(`ae`.`expenses_mapping_date`) AS `last_mapping_date` from (`account` `a` left join `account_expenses` `ae` on(((`a`.`account_id` = `ae`.`account_id`) and (`ae`.`status` = 'Active')))) where (`a`.`account_status` = 'Active') group by `a`.`account_id`,`a`.`account_name`,`a`.`account_email`;
+
+DROP TABLE IF EXISTS `v_expenses_requiring_review`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v_expenses_requiring_review` AS select `ae`.`expenses_id` AS `expenses_id`,`ae`.`account_id` AS `account_id`,`a`.`account_name` AS `account_name`,`a`.`account_email` AS `account_email`,`ae`.`expenses_merchant_name` AS `expenses_merchant_name`,`ae`.`expenses_total_amount` AS `expenses_total_amount`,`ae`.`expenses_date` AS `expenses_date`,`ae`.`expenses_year` AS `expenses_year`,`tc`.`tax_code` AS `tax_code`,`tc`.`tax_title` AS `tax_title`,`ae`.`expenses_mapping_status` AS `expenses_mapping_status`,`ae`.`expenses_mapping_confidence` AS `expenses_mapping_confidence`,`ae`.`expenses_mapping_version` AS `expenses_mapping_version`,(select count(0) from `account_expenses_mapping_history` `h` where (`h`.`expenses_id` = `ae`.`expenses_id`)) AS `change_count`,(select `h`.`change_reason` from `account_expenses_mapping_history` `h` where (`h`.`expenses_id` = `ae`.`expenses_id`) order by `h`.`changed_date` desc limit 1) AS `last_change_reason`,(select `h`.`changed_date` from `account_expenses_mapping_history` `h` where (`h`.`expenses_id` = `ae`.`expenses_id`) order by `h`.`changed_date` desc limit 1) AS `last_change_date` from ((`account_expenses` `ae` join `account` `a` on((`ae`.`account_id` = `a`.`account_id`))) left join `tax_category` `tc` on((`ae`.`expenses_tax_category` = `tc`.`tax_id`))) where ((`ae`.`status` = 'Active') and ((`ae`.`expenses_mapping_confidence` < 70) or (`ae`.`expenses_mapping_status` = 'Pending') or exists(select 1 from `account_expenses_mapping_history` `h` where ((`h`.`expenses_id` = `ae`.`expenses_id`) and (`h`.`change_reason` = 'LHDN_Update') and (`h`.`changed_date` >= (now() - interval 7 day)))))) order by `ae`.`expenses_mapping_confidence`,`ae`.`expenses_date` desc;
+
+DROP TABLE IF EXISTS `v_mapping_changes_summary`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v_mapping_changes_summary` AS select cast(`h`.`changed_date` as date) AS `change_date`,`h`.`change_reason` AS `change_reason`,`h`.`changed_by` AS `changed_by`,count(`h`.`history_id`) AS `change_count`,count(distinct `h`.`expenses_id`) AS `unique_expenses`,count(distinct `ae`.`account_id`) AS `affected_users`,avg(`h`.`confidence_after`) AS `avg_confidence_after`,sum((case when (`h`.`confidence_after` < 70) then 1 else 0 end)) AS `low_confidence_changes` from (`account_expenses_mapping_history` `h` join `account_expenses` `ae` on((`h`.`expenses_id` = `ae`.`expenses_id`))) group by cast(`h`.`changed_date` as date),`h`.`change_reason`,`h`.`changed_by` order by `change_date` desc,`h`.`change_reason`;
+
+DROP TABLE IF EXISTS `v_monthly_mapping_stats`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v_monthly_mapping_stats` AS select date_format(`ae`.`expenses_date`,'%Y-%m') AS `month`,`ae`.`expenses_mapping_status` AS `expenses_mapping_status`,count(`ae`.`expenses_id`) AS `receipt_count`,count(distinct `ae`.`account_id`) AS `unique_users`,sum(`ae`.`expenses_total_amount`) AS `total_amount`,avg(`ae`.`expenses_mapping_confidence`) AS `avg_confidence`,sum((case when (`ae`.`expenses_mapping_confidence` < 70) then 1 else 0 end)) AS `low_confidence_count`,sum((case when (`ae`.`expenses_mapping_confidence` >= 90) then 1 else 0 end)) AS `high_confidence_count` from `account_expenses` `ae` where ((`ae`.`status` = 'Active') and (`ae`.`expenses_mapping_status` is not null)) group by date_format(`ae`.`expenses_date`,'%Y-%m'),`ae`.`expenses_mapping_status` order by `month` desc,`ae`.`expenses_mapping_status`;
+
 DROP TABLE IF EXISTS `v_monthly_revenue`;
 CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v_monthly_revenue` AS select date_format(`po`.`paid_date`,'%Y-%m') AS `month`,count(distinct `po`.`order_id`) AS `total_orders`,count(distinct `po`.`account_id`) AS `unique_buyers`,sum(`po`.`order_amount`) AS `total_revenue`,sum((`po`.`credit_amount` + `po`.`bonus_credits`)) AS `total_credits_issued`,avg(`po`.`order_amount`) AS `avg_order_value` from `payment_order` `po` where (`po`.`payment_status` = 'Paid') group by date_format(`po`.`paid_date`,'%Y-%m') order by `month` desc;
 
 DROP TABLE IF EXISTS `v_package_performance`;
 CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v_package_performance` AS select `cp`.`package_id` AS `package_id`,`cp`.`package_code` AS `package_code`,`cp`.`package_name` AS `package_name`,`cp`.`price_amount` AS `price_amount`,`cp`.`credit_amount` AS `credit_amount`,count(distinct `po`.`order_id`) AS `total_orders`,count(distinct (case when (`po`.`payment_status` = 'Paid') then `po`.`order_id` end)) AS `paid_orders`,coalesce(sum((case when (`po`.`payment_status` = 'Paid') then `po`.`order_amount` end)),0) AS `total_revenue`,coalesce(sum((case when (`po`.`payment_status` = 'Paid') then `po`.`credit_amount` end)),0) AS `total_credits_sold` from (`credit_package` `cp` left join `payment_order` `po` on((`cp`.`package_id` = `po`.`package_id`))) group by `cp`.`package_id`;
+
+DROP TABLE IF EXISTS `v_pending_mapping_notifications`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v_pending_mapping_notifications` AS select `n`.`notification_id` AS `notification_id`,`n`.`account_id` AS `account_id`,`a`.`account_name` AS `account_name`,`a`.`account_email` AS `account_email`,`n`.`tax_year` AS `tax_year`,`n`.`notification_type` AS `notification_type`,`n`.`notification_title` AS `notification_title`,`n`.`notification_message` AS `notification_message`,`n`.`notification_priority` AS `notification_priority`,`n`.`affected_expenses_count` AS `affected_expenses_count`,`n`.`delivery_method` AS `delivery_method`,`n`.`action_url` AS `action_url`,`n`.`created_date` AS `created_date`,`n`.`retry_count` AS `retry_count`,json_unquote(json_extract(`n`.`notification_data`,'$.changed_expenses')) AS `changed_count`,json_unquote(json_extract(`n`.`notification_data`,'$.requires_review')) AS `review_count`,(select group_concat(`ad`.`device_fcm_token` separator ',') from `account_device` `ad` where ((`ad`.`account_id` = `n`.`account_id`) and (`ad`.`device_status` = 'Active') and (`ad`.`device_enable_fcm` = 'Yes'))) AS `fcm_tokens` from (`account_expenses_mapping_notification` `n` join `account` `a` on((`n`.`account_id` = `a`.`account_id`))) where ((`n`.`notification_status` = 'Pending') and (`n`.`retry_count` < 3)) order by `n`.`notification_priority` desc,`n`.`created_date`;
+
+DROP TABLE IF EXISTS `v_tax_mapping_readiness`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v_tax_mapping_readiness` AS select `tc`.`tax_year` AS `tax_year`,`tc`.`tax_mapping_status` AS `tax_mapping_status`,count(distinct `tc`.`tax_id`) AS `category_count`,count(distinct `ts`.`taxsub_id`) AS `subcategory_count`,`tc`.`tax_published_date` AS `tax_published_date`,`tc`.`tax_based_on_year` AS `tax_based_on_year`,count(distinct `ae`.`account_id`) AS `affected_users`,count(`ae`.`expenses_id`) AS `affected_expenses`,sum((case when (`ae`.`expenses_mapping_status` = 'Estimated') then 1 else 0 end)) AS `pending_remap_count`,sum(`ae`.`expenses_total_amount`) AS `total_expense_amount` from ((`tax_category` `tc` left join `tax_subcategory` `ts` on(((`tc`.`tax_id` = `ts`.`tax_id`) and (`ts`.`status` = 'Active')))) left join `account_expenses` `ae` on(((`tc`.`tax_year` = `ae`.`expenses_year`) and (`ae`.`status` = 'Active')))) where (`tc`.`status` = 'Active') group by `tc`.`tax_year`,`tc`.`tax_mapping_status`,`tc`.`tax_published_date`,`tc`.`tax_based_on_year` order by `tc`.`tax_year` desc;
+
+DROP TABLE IF EXISTS `v_user_expenses_mapping_status`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v_user_expenses_mapping_status` AS select `ae`.`account_id` AS `account_id`,`a`.`account_name` AS `account_name`,`ae`.`expenses_year` AS `expenses_year`,`ae`.`expenses_mapping_status` AS `expenses_mapping_status`,count(`ae`.`expenses_id`) AS `expense_count`,sum(`ae`.`expenses_total_amount`) AS `total_amount`,avg(`ae`.`expenses_mapping_confidence`) AS `avg_confidence`,min(`ae`.`expenses_mapping_confidence`) AS `min_confidence`,max(`ae`.`expenses_mapping_confidence`) AS `max_confidence`,sum((case when (`ae`.`expenses_mapping_confidence` < 70) then 1 else 0 end)) AS `low_confidence_count`,`ae`.`expenses_mapping_version` AS `expenses_mapping_version`,max(`ae`.`expenses_mapping_date`) AS `last_mapping_date` from (`account_expenses` `ae` join `account` `a` on((`ae`.`account_id` = `a`.`account_id`))) where (`ae`.`status` = 'Active') group by `ae`.`account_id`,`a`.`account_name`,`ae`.`expenses_year`,`ae`.`expenses_mapping_status`,`ae`.`expenses_mapping_version` order by `ae`.`account_id`,`ae`.`expenses_year` desc;
 
 DROP TABLE IF EXISTS `vw_tax_relief_full`;
 CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_tax_relief_full` AS select `tc`.`tax_year` AS `tax_year`,`tc`.`tax_id` AS `tax_id`,`tc`.`tax_code` AS `tax_code`,`tc`.`tax_title` AS `tax_title`,`tc`.`tax_description` AS `tax_description`,`tc`.`tax_max_claim` AS `category_max_claim`,`tc`.`tax_is_auto_claim` AS `tax_is_auto_claim`,`tc`.`tax_requires_receipt` AS `tax_requires_receipt`,`tc`.`tax_claim_for` AS `tax_claim_for`,`ts`.`taxsub_id` AS `taxsub_id`,`ts`.`taxsub_code` AS `taxsub_code`,`ts`.`taxsub_title` AS `taxsub_title`,`ts`.`taxsub_description` AS `taxsub_description`,`ts`.`taxsub_max_claim` AS `subcategory_max_claim` from (`tax_category` `tc` left join `tax_subcategory` `ts` on(((`tc`.`tax_id` = `ts`.`tax_id`) and (`ts`.`status` = 'Active')))) where (`tc`.`status` = 'Active') order by `tc`.`tax_year` desc,`tc`.`tax_sort_order`,`ts`.`taxsub_sort_order`;
@@ -1246,4 +1727,4 @@ CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_user_claims_summary` AS
 DROP TABLE IF EXISTS `vw_user_expenses_by_category`;
 CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_user_expenses_by_category` AS select `ae`.`account_id` AS `account_id`,year(`ae`.`expenses_date`) AS `expense_year`,`tc`.`tax_code` AS `tax_code`,`tc`.`tax_title` AS `tax_title`,`tc`.`tax_max_claim` AS `tax_max_claim`,sum(`ae`.`expenses_total_amount`) AS `total_expenses` from (`account_expenses` `ae` left join `tax_category` `tc` on((`ae`.`expenses_tax_category` = `tc`.`tax_id`))) where ((`ae`.`status` = 'Active') and (`ae`.`expenses_tax_eligible` = 'Yes')) group by `ae`.`account_id`,year(`ae`.`expenses_date`),`tc`.`tax_id`;
 
--- 2026-01-22 03:57:35 UTC
+-- 2026-03-02 02:50:06 UTC

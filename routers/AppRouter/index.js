@@ -14,6 +14,7 @@ const ReceiptCategoryRouter = require("../../controllers/AppController/ReceiptCa
 const ReceiptRouter         = require("../../controllers/AppController/Receipt")
 
 // NEW Controllers
+const ExpensesRouter        = require("../../controllers/AppController/Expenses");
 const DependantRouter       = require("../../controllers/AppController/Dependant");
 const TaxClaimRouter        = require("../../controllers/AppController/TaxClaim");
 const ReportRouter          = require("../../controllers/AppController/Report")
@@ -32,6 +33,7 @@ router.use("/receipt-category", ReceiptCategoryRouter)
 router.use("/receipt", ReceiptRouter)
 
 // NEW routes
+router.use("/expenses", auth(), ExpensesRouter);        // /api/expenses/*
 router.use("/dependant", auth(), DependantRouter);      // /api/dependant/*
 router.use("/tax", auth(), TaxClaimRouter);             // /api/tax/*
 router.use("/report", auth(), ReportRouter);  
