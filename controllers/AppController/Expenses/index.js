@@ -16,6 +16,7 @@
  * - GET    /api/expenses/requiring-review  - Get expenses needing review
  * - GET    /api/expenses/mapping-dashboard - Get mapping status dashboard
  * - GET    /api/expenses/stats             - Get expense statistics
+ * - GET    /api/expenses/dashboard         - Get comprehensive dashboard summary
  */
 
 const express = require('express');
@@ -32,6 +33,7 @@ const OverrideTaxCategory = require('./OverrideTaxCategory');
 const GetRequiringReview = require('./GetRequiringReview');
 const GetMappingDashboard = require('./GetMappingDashboard');
 const GetExpenseStats = require('./GetExpenseStats');
+const GetDashboardSummary = require('./GetDashboardSummary');
 
 // Mount routes
 router.use('/create', CreateExpense);
@@ -44,5 +46,6 @@ router.use('/override-category', OverrideTaxCategory);
 router.use('/requiring-review', GetRequiringReview);
 router.use('/mapping-dashboard', GetMappingDashboard);
 router.use('/stats', GetExpenseStats);
+router.use('/dashboard', GetDashboardSummary);
 
 module.exports = router;

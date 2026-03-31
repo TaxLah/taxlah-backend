@@ -2,6 +2,8 @@ require("./envfunc")();
 const { PORT = 3000, SECRET = "secret", NODE_ENV = "development" } = process.env;
 console.log(PORT);
 
+const os 			= require("os")
+
 const cors 			= require("cors");
 const corsOptions 	= require("./configs/cors.js");
 
@@ -50,8 +52,26 @@ app.use((req, res, next) => {
 	});
 });
 
+// Helper function to get local IP address
+function getLocalIPAddress() {
+	const interfaces = os.networkInterfaces();
+	// console.log("Log of network interfaces:", interfaces);
+	
+	for (const name of Object.keys(interfaces)) {
+		for (const iface of interfaces[name]) {
+			// Skip internal (loopback) and non-IPv4 addresses
+			if (iface.family === 'IPv4' && !iface.internal) {
+				return iface.address;
+			}
+		}
+	}
+	return 'localhost'; // fallback
+}
+
 // Engine Listener
 app.listen(PORT, async () => {
+
+	const localIP = getLocalIPAddress();
 	console.log(`Your are listening on port ${PORT}`);
 	Logger("server.log", `Server started on port ${PORT} in ${NODE_ENV} mode.`);
 
@@ -60,6 +80,7 @@ app.listen(PORT, async () => {
 	║                                            ║
 	║   🚀 Server running on port ${PORT}           ║
 	║   📍 http://localhost:${PORT}                 ║
+	║   📍 http://${localIP}:${PORT}${' '.repeat(Math.max(0, 19 - localIP.length))}║
 	║   🌍 Environment: ${(process.env.NODE_ENV || "development").padEnd(18)}║
 	║                                            ║
 	╚════════════════════════════════════════════╝

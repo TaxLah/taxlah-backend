@@ -8,6 +8,7 @@
 
 const db = require("../../../utils/sqlbuilder");
 const { categorizeReceiptFull } = require("../TaxCategorizationServices");
+const { CreateReceipt } = require("../Receipt");
 
 const ERROR_DB = 'Database error occurred. Please contact system administrator.';
 
@@ -136,6 +137,7 @@ const createExpenseItems = async (expenses_id, items) => {
 /**
  * Create expense with NLP-enhanced categorization
  * Uses NLP to determine category, then calls stored procedure for proper status
+ * Now supports receipt file attachment
  */
 const createExpenseEnhanced = async (expenseData) => {
     try {
@@ -149,11 +151,38 @@ const createExpenseEnhanced = async (expenseData) => {
             expenses_tags = null,
             expenses_for = 'Self',
             dependant_id = null,
-            items = []
+            items = [],
+            // Receipt file data
+            receipt_file_url = null,
+            receipt_metadata = null
         } = expenseData;
+
+        // Step 0: Create receipt record if file is uploaded
+        let receipt_id = null;
+        if (receipt_file_url) {
+            const receiptData = {
+                account_id: parseInt(account_id),
+                receipt_name: expenses_merchant_name || 'Expense Receipt',
+                receipt_description: `Receipt for ${expenses_merchant_name || 'expense'} on ${expenses_date}`,
+                receipt_amount: parseFloat(expenses_total_amount),
+                receipt_items: items && items.length > 0 ? JSON.stringify(items) : null,
+                receipt_image_url: receipt_file_url,
+                receipt_metadata: receipt_metadata ? JSON.stringify(receipt_metadata) : null,
+                status: 'Active'
+            };
+
+            const receiptResult = await CreateReceipt(receiptData);
+            if (receiptResult.status) {
+                receipt_id = receiptResult.data;
+                console.log('[ExpensesModel] Receipt created:', receipt_id);
+            } else {
+                console.warn('[ExpensesModel] Failed to create receipt, continuing without receipt_id');
+            }
+        }
 
         // Step 1: Use NLP to categorize
         const receiptData = {
+            receipt_id: receipt_id, // Link to receipt if file was uploaded
             MerchantName: expenses_merchant_name,
             Items: [] // Can be enhanced with item details if available
         };
@@ -229,6 +258,8 @@ const createExpenseEnhanced = async (expenseData) => {
             status: true,
             data: {
                 ...expense.data,
+                receipt_id: receipt_id,
+                receipt_url: receipt_file_url,
                 items: itemsResult.data || [],
                 items_count: itemsResult.count || 0,
                 categorization: {

@@ -62,7 +62,6 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
 
     try {
         const params = req.body;
-        const account_id = user.account_id;
         const uploadedFile = req.file; // Get uploaded file if any
 
         console.log('[CreateExpense] Request:', { 
@@ -70,7 +69,8 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
             params,
             hasFile: !!uploadedFile,
             fileName: uploadedFile?.originalname 
-        });
+       
+        console.log('[CreateExpense] Request:', { account_id, params });
 
         // Required fields
         const expenses_date = params.expenses_date;
@@ -121,13 +121,7 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
 
                 return {
                     item_sku_unit: item.item_sku_unit ? sanitize(item.item_sku_unit) : null,
-                    item_name: item.item_name ? sanitize(item.item_name) : null,
-                    item_unit_price: parseFloat(item.item_unit_price),
-                    item_quantity: parseInt(item.item_quantity),
-                    item_total_price: parseFloat(item.item_total_price)
-                };
-            });
-        } else if (params.items && typeof params.items === 'string') {
+          else if (params.items && typeof params.items === 'string') {
             // Parse items if sent as JSON string (common in multipart form data)
             try {
                 const parsedItems = JSON.parse(params.items);
@@ -140,7 +134,10 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
                         item_total_price: parseFloat(item.item_total_price)
                     }));
                 }
-            } catch (jsonError) {
+            } catch (jso,
+            // Receipt file data
+            receipt_file_url: receipt_file_url,
+            receipt_metadata: receipt_metadatanError) {
                 console.warn('[CreateExpense] Failed to parse items JSON:', jsonError);
             }
         }
@@ -166,6 +163,12 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
                 size: uploadedFile.size,
                 type: uploadedFile.mimetype
             });
+        }           item_name: item.item_name ? sanitize(item.item_name) : null,
+                    item_unit_price: parseFloat(item.item_unit_price),
+                    item_quantity: parseInt(item.item_quantity),
+                    item_total_price: parseFloat(item.item_total_price)
+                };
+            });
         }
 
         // Prepare expense data
@@ -179,10 +182,7 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
             expenses_tags: params.expenses_tags ? sanitize(params.expenses_tags) : null,
             expenses_for: params.expenses_for || 'Self',
             dependant_id: params.dependant_id ? parseInt(params.dependant_id) : null,
-            items: items,
-            // Receipt file data
-            receipt_file_url: receipt_file_url,
-            receipt_metadata: receipt_metadata
+            items: items
         };
 
         // Create expense with enhanced categorization
@@ -218,8 +218,7 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
             expenses_id: result.data.expenses_id,
             mapping_status: result.data.expenses_mapping_status,
             confidence: result.data.expenses_mapping_confidence,
-            items_count: result.data.items_count || 0,
-            receipt_id: result.data.receipt_id || null
+            items_count: result.data.items_count || 0
         });
 
         return res.status(response.status_code).json(response);
