@@ -3,7 +3,7 @@ const db = require("../../../utils/sqlbuilder")
 async function DeviceUser(account_id = '') {
     let result = null
     try {
-        let query = await db.select("account_device", { account_id })
+        let query = await db.select("account_device", { account_id, device_status: 'Active' }, '*', 0, 100)
         if(query.length > 0) {
             result = { status: true, data: query }
         } else {
@@ -11,6 +11,38 @@ async function DeviceUser(account_id = '') {
         }
     } catch (e) {
         result = { status: false, data: [] }
+    } finally {
+        return result
+    }
+}
+
+async function DeviceGetByUUID(account_id = '', device_uuid = '') {
+    let result = null
+    try {
+        let query = await db.select("account_device", { account_id, device_uuid }, '*', 0, 1)
+        if(query.length > 0) {
+            result = { status: true, data: query[0] }
+        } else {
+            result = { status: false, data: null }
+        }
+    } catch (e) {
+        result = { status: false, data: null }
+    } finally {
+        return result
+    }
+}
+
+async function DeviceDeactivate(account_id = '', device_id = '') {
+    let result = null
+    try {
+        let query = await db.update("account_device", { device_status: 'Inactive' }, { account_id, device_id })
+        if(query > 0) {
+            result = { status: true, data: null }
+        } else {
+            result = { status: false, data: null }
+        }
+    } catch (e) {
+        result = { status: false, data: null }
     } finally {
         return result
     }
@@ -50,6 +82,8 @@ async function DeviceUpdate(params = { account_id: '', device_id: '',  device_uu
 
 module.exports = {
     DeviceUser,
+    DeviceGetByUUID,
     DeviceCreate,
-    DeviceUpdate
+    DeviceUpdate,
+    DeviceDeactivate
 }

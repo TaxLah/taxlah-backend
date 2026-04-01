@@ -170,6 +170,42 @@ const initCronJobs = () => {
 		console.log("Cleaned up old logs");
 	});
 
+	// Notify all users when new official tax relief categories are published (daily at 10 AM)
+	// Triggers only on days when LHDN publishes official categories for a given tax year.
+	scheduler.schedule("tax-relief-announcement", "0 10 * * *", async () => {
+		const NotificationService = require("../services/NotificationService");
+		try {
+			const newCategories = await db.raw(`
+				SELECT tax_year, COUNT(*) AS category_count
+				FROM tax_category
+				WHERE tax_mapping_status = 'Official'
+				  AND DATE(tax_published_date) = CURDATE()
+				  AND status = 'Active'
+				GROUP BY tax_year
+			`);
+
+			if (newCategories.length === 0) {
+				console.log("[Cron] tax-relief-announcement: No new official categories published today.");
+				return;
+			}
+
+			for (const row of newCategories) {
+				const title = `📋 New Tax Relief Available (${row.tax_year})`;
+				const body  = `LHDN has released ${row.category_count} official tax relief ${row.category_count === 1 ? 'category' : 'categories'} for Year ${row.tax_year}. Tap to review and claim your reliefs.`;
+
+				const result = await NotificationService.broadcastNotification(title, body, {
+					type:           'NewTaxRelief',
+					tax_year:       String(row.tax_year),
+					category_count: String(row.category_count)
+				});
+
+				console.log(`[Cron] tax-relief-announcement: Year ${row.tax_year} — ${result.total_accounts} accounts notified.`);
+			}
+		} catch (error) {
+			console.error("[Cron] tax-relief-announcement failed:", error);
+		}
+	});
+
 	console.log(`[Cron] Initialized ${scheduledTasks.size} cron jobs`);
 };
 

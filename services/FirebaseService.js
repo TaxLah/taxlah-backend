@@ -17,7 +17,7 @@ class FCMService {
      */
     initializeFirebase() {
         try {
-            const serviceAccountPath = path.join(__dirname, '../taxlah-adminsdk-fcm.json');
+            const serviceAccountPath = path.join(__dirname, '../taxlah-react-native-firebasesdk.json');
             const serviceAccount = require(serviceAccountPath);
 
             if (!admin.apps.length) {

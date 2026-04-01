@@ -110,6 +110,7 @@ async function getReceiptUsage(accountId) {
 async function canUploadReceipt(accountId) {
     try {
         const usageResult = await getReceiptUsage(accountId);
+        console.log("Log Usage Result : ", usageResult)
         
         if (!usageResult.success) {
             return usageResult;

@@ -1431,13 +1431,41 @@ Get user notifications. 🔒 **Requires Authentication**
 
 ### 12. Device Management
 
-#### POST /api/device/register
-Register a device for push notifications. 🔒 **Requires Authentication**
+#### GET /api/device
+Get all active registered devices for the authenticated user. 🔒 **Requires Authentication**
+
+**Response:**
+```json
+{
+  "status_code": 200,
+  "status": "success",
+  "message": "Operation successful",
+  "data": [
+    {
+      "device_id": 5,
+      "account_id": 1,
+      "device_uuid": "550e8400-e29b-41d4-a716-446655440000",
+      "device_name": "iPhone 13",
+      "device_os": "IOS",
+      "device_enable_fcm": "Yes",
+      "device_fcm_token": "fcm-token-abc123",
+      "device_status": "Active",
+      "created_date": "2026-01-15T08:00:00.000Z",
+      "last_modified": "2026-04-01T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+#### POST /api/device
+Register a device for push notifications. If the `device_uuid` already exists for the account, the existing record is updated (FCM token refreshed, device re-activated) instead of creating a duplicate. 🔒 **Requires Authentication**
 
 **Request Body:**
 ```json
 {
-  "device_uuid": "device-uuid-12345",
+  "device_uuid": "550e8400-e29b-41d4-a716-446655440000",
   "device_name": "iPhone 13",
   "device_os": "IOS",
   "device_fcm_token": "fcm-token-abc123",
@@ -1445,31 +1473,67 @@ Register a device for push notifications. 🔒 **Requires Authentication**
 }
 ```
 
-**Device OS Options:**
-- `Android`
-- `IOS`
+**Request Parameters:**
 
-**Response:**
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `device_uuid` | string | ✅ | Unique device identifier (e.g. from `react-native-device-info`) |
+| `device_name` | string | ✅ | Human-readable device name |
+| `device_os` | string | ✅ | `Android` or `IOS` |
+| `device_fcm_token` | string | — | Firebase Cloud Messaging token for push notifications |
+| `device_enable_fcm` | string | — | `Yes` (default) or `No` |
+
+**Response (New device):**
 ```json
 {
   "status_code": 200,
   "status": "success",
   "message": "Device registered successfully.",
   "data": {
-    "device_id": 5
+    "device_id": 5,
+    "is_new": true
   }
 }
 ```
 
+**Response (Existing device updated):**
+```json
+{
+  "status_code": 200,
+  "status": "success",
+  "message": "Device registered successfully.",
+  "data": {
+    "device_id": 5,
+    "is_new": false
+  }
+}
+```
+
+**Error Responses:**
+
+| Status | Message |
+|---|---|
+| `400` | `device_uuid` / `device_name` / `device_os` / `device_enable_fcm` is undefined or empty |
+| `400` | Invalid value for `device_os` — must be `Android` or `IOS` |
+| `403` | Unable to register device |
+
 ---
 
-#### PUT /api/device/update
-Update device FCM token. 🔒 **Requires Authentication**
+#### PATCH /api/device/:device_id
+Update a specific device's details including FCM token. 🔒 **Requires Authentication**
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `device_id` | integer | ✅ | The device ID to update |
 
 **Request Body:**
 ```json
 {
-  "device_uuid": "device-uuid-12345",
+  "device_uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "device_name": "iPhone 13 Pro",
+  "device_os": "IOS",
   "device_fcm_token": "new-fcm-token-xyz789",
   "device_enable_fcm": "Yes"
 }
@@ -1480,10 +1544,38 @@ Update device FCM token. 🔒 **Requires Authentication**
 {
   "status_code": 200,
   "status": "success",
-  "message": "Device updated successfully.",
+  "message": "Operation successful",
+  "data": 1
+}
+```
+
+---
+
+#### DELETE /api/device/:device_id
+Deregister a device (sets status to `Inactive`). The device will no longer receive push notifications. 🔒 **Requires Authentication**
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `device_id` | integer | ✅ | The device ID to deregister |
+
+**Response:**
+```json
+{
+  "status_code": 200,
+  "status": "success",
+  "message": "Device deregistered successfully.",
   "data": null
 }
 ```
+
+**Error Responses:**
+
+| Status | Message |
+|---|---|
+| `400` | `device_id` is undefined or empty |
+| `404` | Device not found or does not belong to this account |
 
 ---
 

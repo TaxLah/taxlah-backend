@@ -245,7 +245,7 @@ router.post("/single", auth(), checkSubscription, checkUploadLimit, upload.singl
  * Requires authentication and active subscription
  */
 // router.post("/receipt", auth(), checkSubscription, checkUploadLimit, upload.single('file'), async (req, res) => {
-router.post("/receipt", auth(), upload.single('file'), async (req, res) => {
+router.post("/receipt", auth(), checkUploadLimit, upload.single('file'), async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
 
     try {

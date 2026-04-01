@@ -5,6 +5,7 @@
 
 const db = require('../../utils/sqlbuilder');
 const crypto = require('crypto');
+const NotificationService = require('../../services/NotificationService');
 
 /**
  * Get all available subscription packages
@@ -674,8 +675,6 @@ async function processExpiredSubscriptions() {
 
         console.log(`[SubscriptionService] Found ${expiredSubscriptions.length} expired subscription(s)`);
 
-        const queues = require('../../queue');
-        const CreditService = require('./CreditService');
         const { UserNotificationCreate } = require('./Notification');
 
         let processedCount = 0;
@@ -707,24 +706,6 @@ async function processExpiredSubscriptions() {
                     'Expired'
                 );
 
-                // Reset free_receipts_limit to default (50)
-                // try {
-                //     await CreditService.getOrCreateCreditAccount(subscription.account_id);
-                    
-                //     const resetCreditSql = `
-                //         UPDATE account_credit
-                //         SET free_receipts_limit = 50,
-                //             last_modified = NOW()
-                //         WHERE account_id = ?
-                //     `;
-                //     await db.raw(resetCreditSql, [subscription.account_id]);
-                    
-                //     console.log(`[SubscriptionService] Reset free_receipts_limit for account ${subscription.account_id}`);
-                // } catch (creditError) {
-                //     console.error(`[SubscriptionService] Failed to reset credit limit for account ${subscription.account_id}:`, creditError);
-                // }
-
-                // Create notification
                 const notificationTitle = subscription.status === 'Trial' 
                     ? '⏰ Trial Period Ended'
                     : '⏰ Subscription Expired';
@@ -733,42 +714,20 @@ async function processExpiredSubscriptions() {
                     ? `Your ${subscription.package_name} trial period has ended. Subscribe now to continue enjoying premium features!`
                     : `Your ${subscription.package_name} subscription has expired. Renew now to continue accessing premium features.`;
 
-                await UserNotificationCreate({
-                    account_id: subscription.account_id,
-                    notification_title: notificationTitle,
-                    notification_description: notificationBody,
-                    read_status: 'No',
-                    archive_status: 'No',
-                    status: 'Active'
-                });
-
-                // Queue push notification
-                try {
-                    const Device = require('./Device');
-                    const deviceResult = await Device.DeviceUser(subscription.account_id);
-                    
-                    if (deviceResult.status && deviceResult.data.length > 0) {
-                        const fcmToken = deviceResult.data[0].device_fcm_token;
-                        
-                        if (fcmToken) {
-                            await queues.notification.add('push', {
-                                token: fcmToken,
-                                title: notificationTitle,
-                                body: notificationBody,
-                                data: {
-                                    type: 'SubscriptionExpired',
-                                    subscription_id: subscription.subscription_id,
-                                    account_id: subscription.account_id
-                                }
-                            }, { priority: 7 });
-                        }
+                // Push + in-app notification via centralized service
+                await NotificationService.sendUserNotification(
+                    subscription.account_id,
+                    notificationTitle,
+                    notificationBody,
+                    {
+                        type:            'SubscriptionExpired',
+                        subscription_id: String(subscription.subscription_id)
                     }
-                } catch (pushError) {
-                    console.error(`[SubscriptionService] Failed to queue push notification for account ${subscription.account_id}:`, pushError);
-                }
+                );
 
                 // Queue email notification
                 try {
+                    const queues = require('../../queue');
                     await queues.email.add('send', {
                         to: subscription.account_email,
                         subject: notificationTitle,
@@ -864,7 +823,6 @@ async function sendExpiryReminders() {
 
         console.log(`[SubscriptionService] Found ${expiringSubscriptions.length} subscription(s) expiring in 3 days`);
 
-        const queues = require('../../queue');
         const { UserNotificationCreate } = require('./Notification');
 
         let processedCount = 0;
@@ -883,7 +841,6 @@ async function sendExpiryReminders() {
                     day: 'numeric'
                 });
 
-                // Create notification
                 const notificationTitle = subscription.status === 'Trial' 
                     ? '⚠️ Trial Ending Soon'
                     : '⚠️ Subscription Expiring Soon';
@@ -892,43 +849,21 @@ async function sendExpiryReminders() {
                     ? `Your ${subscription.package_name} trial will end on ${formattedDate}. Subscribe now to keep your premium features!`
                     : `Your ${subscription.package_name} subscription will expire on ${formattedDate}. Renew now to avoid service interruption.`;
 
-                await UserNotificationCreate({
-                    account_id: subscription.account_id,
-                    notification_title: notificationTitle,
-                    notification_description: notificationBody,
-                    read_status: 'No',
-                    archive_status: 'No',
-                    status: 'Active'
-                });
-
-                // Queue push notification
-                try {
-                    const Device = require('./Device');
-                    const deviceResult = await Device.DeviceUser(subscription.account_id);
-                    
-                    if (deviceResult.status && deviceResult.data.length > 0) {
-                        const fcmToken = deviceResult.data[0].device_fcm_token;
-                        
-                        if (fcmToken) {
-                            await queues.notification.add('push', {
-                                token: fcmToken,
-                                title: notificationTitle,
-                                body: notificationBody,
-                                data: {
-                                    type: 'SubscriptionExpiryReminder',
-                                    subscription_id: subscription.subscription_id,
-                                    account_id: subscription.account_id,
-                                    expiry_date: expiryDate.toISOString()
-                                }
-                            }, { priority: 6 });
-                        }
+                // Push + in-app notification via centralized service
+                await NotificationService.sendUserNotification(
+                    subscription.account_id,
+                    notificationTitle,
+                    notificationBody,
+                    {
+                        type:            'SubscriptionExpiryReminder',
+                        subscription_id: String(subscription.subscription_id),
+                        expiry_date:     expiryDate.toISOString()
                     }
-                } catch (pushError) {
-                    console.error(`[SubscriptionService] Failed to queue push notification for account ${subscription.account_id}:`, pushError);
-                }
+                );
 
-                // Queue email notification
+                // Queue email reminder
                 try {
+                    const queues = require('../../queue');
                     const emailSubject = subscription.status === 'Trial'
                         ? `Reminder - Your TaxLah Trial Ends in 3 Days`
                         : `Reminder - Your TaxLah Subscription Expires in 3 Days`;

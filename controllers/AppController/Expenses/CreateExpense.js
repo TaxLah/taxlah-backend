@@ -23,6 +23,7 @@ const {
 } = require('../../../configs/helper');
 const ExpensesModel = require('../../../models/AppModel/Expenses');
 const { upload, getFileUrl } = require('../../../configs/fileUpload');
+const NotificationService = require('../../../services/NotificationService');
 
 /**
  * POST /api/expenses/create
@@ -221,6 +222,19 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
             items_count: result.data.items_count || 0,
             receipt_id: result.data.receipt_id || null
         });
+
+        // Fire-and-forget push + in-app notification
+        // NotificationService.sendUserNotification(
+        //     account_id,
+        //     '🧾 New Expense Recorded',
+        //     `RM ${parseFloat(expenses_total_amount).toFixed(2)} at ${expenses_merchant_name} has been saved.`,
+        //     {
+        //         type:        'NewExpense',
+        //         expenses_id: String(result.data.expenses_id),
+        //         amount:      String(expenses_total_amount),
+        //         merchant:    expenses_merchant_name
+        //     }
+        // ).catch(err => console.error('[CreateExpense] Notification error:', err));
 
         return res.status(response.status_code).json(response);
 

@@ -8,6 +8,7 @@ const db                            = require('../../utils/sqlbuilder');
 const crypto                        = require('crypto');
 const { UserNotificationCreate }    = require('./Notification');
 const CreditService                 = require('./CreditService');
+const NotificationService           = require('../../services/NotificationService');
 
 /**
  * Create subscription payment record
@@ -338,16 +339,18 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                 console.error('[SubscriptionPaymentService] Failed to update credit account:', creditError);
             }
 
-            // Create notification for successful renewal
+            // Create notification + FCM push for successful renewal
             try {
-                await UserNotificationCreate({
-                    account_id: payment.account_id,
-                    notification_title: '🎉 Subscription Renewed',
-                    notification_description: `Your subscription has been renewed successfully! Payment of ${payment.currency} ${payment.amount} has been processed.`,
-                    read_status: 'No',
-                    archive_status: 'No',
-                    status: 'Active'
-                });
+                await NotificationService.sendUserNotification(
+                    payment.account_id,
+                    '🎉 Subscription Renewed',
+                    `Your subscription has been renewed successfully! Payment of ${payment.currency} ${payment.amount} has been processed.`,
+                    {
+                        type:        'SubscriptionRenewed',
+                        payment_ref: paymentRef,
+                        amount:      String(payment.amount)
+                    }
+                );
             } catch (notifError) {
                 console.error('[SubscriptionPaymentService] Failed to create renewal notification:', notifError);
             }
@@ -518,16 +521,18 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                     console.error('[SubscriptionPaymentService] Failed to initialize credit account:', creditError);
                 }
 
-                // Create notification for new subscription
+                // Create notification + FCM push for new subscription activation
                 try {
-                    await UserNotificationCreate({
-                        account_id: payment.account_id,
-                        notification_title: '🎉 Subscription Activated',
-                        notification_description: `Welcome to TaxLah Premium! Your subscription payment of ${payment.currency} ${payment.amount} has been processed and your subscription is now active.`,
-                        read_status: 'No',
-                        archive_status: 'No',
-                        status: 'Active'
-                    });
+                    await NotificationService.sendUserNotification(
+                        payment.account_id,
+                        '🎉 Subscription Activated',
+                        `Welcome to TaxLah Premium! Your payment of ${payment.currency} ${payment.amount} has been processed and your subscription is now active.`,
+                        {
+                            type:        'SubscriptionActivated',
+                            payment_ref: paymentRef,
+                            amount:      String(payment.amount)
+                        }
+                    );
                 } catch (notifError) {
                     console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
                 }

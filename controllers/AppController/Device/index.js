@@ -1,8 +1,30 @@
 const express = require('express')
 const { auth } = require('../../../configs/auth')
-const { DEFAULT_API_RESPONSE, INTERNAL_SERVER_ERROR_API_RESPONSE, CHECK_EMPTY, BAD_REQUEST_API_RESPONSE, SUCCESS_API_RESPONSE, FORBIDDEN_API_RESPONSE } = require('../../../configs/helper')
-const { DeviceCreate, DeviceUpdate } = require('../../../models/AppModel/Device')
+const { DEFAULT_API_RESPONSE, INTERNAL_SERVER_ERROR_API_RESPONSE, CHECK_EMPTY, BAD_REQUEST_API_RESPONSE, SUCCESS_API_RESPONSE, FORBIDDEN_API_RESPONSE, NOT_FOUND_API_RESPONSE } = require('../../../configs/helper')
+const { DeviceUser, DeviceGetByUUID, DeviceCreate, DeviceUpdate, DeviceDeactivate } = require('../../../models/AppModel/Device')
 const router = express.Router()
+
+router.get("/", auth(), async(req, res) => {
+    let response = DEFAULT_API_RESPONSE
+    let user     = req.user
+
+    try {
+        let account_id    = user.account_id
+        let device_list   = await DeviceUser(account_id)
+        if(device_list.status) {
+            response      = SUCCESS_API_RESPONSE
+            response.data = device_list.data
+        } else {
+            response      = SUCCESS_API_RESPONSE
+            response.data = []
+        }
+    } catch (e) {
+        response      = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response.data = null
+    } finally {
+        return res.status(response.status_code).json(response)
+    }
+})
 
 router.post("/", auth(), async(req , res) => {
     let response    = DEFAULT_API_RESPONSE
@@ -41,26 +63,53 @@ router.post("/", auth(), async(req , res) => {
             response.message = "Error. Parameter device enable push notification is undefined or empty."
         } else {
             let account_id = user.account_id
-            let json = {
-                account_id,
-                device_uuid,
-                device_name,
-                device_os,
-                device_enable_fcm,
-                device_fcm_token
-            }
-            let create_device = await DeviceCreate(json)
-            if(create_device.status) {
-                response = SUCCESS_API_RESPONSE
-                response.data = create_device.data
+
+            // Upsert: check if this device UUID already exists for the account
+            let existing = await DeviceGetByUUID(account_id, device_uuid)
+
+            if(existing.status) {
+                // Device exists — update FCM token, name, and re-activate if inactive
+                let json = {
+                    device_name,
+                    device_os,
+                    device_enable_fcm,
+                    device_fcm_token,
+                    device_status: 'Active'
+                }
+                let update_device = await DeviceUpdate({ ...json, account_id, device_id: existing.data.device_id })
+                if(update_device.status) {
+                    response         = SUCCESS_API_RESPONSE
+                    response.message = "Device registered successfully."
+                    response.data    = { device_id: existing.data.device_id, is_new: false }
+                } else {
+                    response         = FORBIDDEN_API_RESPONSE
+                    response.message = "Error. Unable to update device registration."
+                    response.data    = null
+                }
             } else {
-                response = FORBIDDEN_API_RESPONSE
-                response.message = "Error. Unable to create device account. Please make sure all required field is not empty or undefined."
-                response.data = null
+                // New device — insert
+                let json = {
+                    account_id,
+                    device_uuid,
+                    device_name,
+                    device_os,
+                    device_enable_fcm,
+                    device_fcm_token
+                }
+                let create_device = await DeviceCreate(json)
+                if(create_device.status) {
+                    response         = SUCCESS_API_RESPONSE
+                    response.message = "Device registered successfully."
+                    response.data    = { device_id: create_device.data, is_new: true }
+                } else {
+                    response         = FORBIDDEN_API_RESPONSE
+                    response.message = "Error. Unable to register device. Please make sure all required fields are not empty."
+                    response.data    = null
+                }
             }
         }
     } catch (e) {
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response      = INTERNAL_SERVER_ERROR_API_RESPONSE
         response.data = null
     } finally {
         return res.status(response.status_code).json(response)
@@ -134,4 +183,35 @@ router.patch("/:device_id", auth(), async(req , res) => {
         return res.status(response.status_code).json(response)
     }
 })
+
+router.delete("/:device_id", auth(), async(req, res) => {
+    let response = DEFAULT_API_RESPONSE
+    let user     = req.user
+    let device_id = req.params.device_id
+
+    try {
+        if(CHECK_EMPTY(device_id)) {
+            response         = BAD_REQUEST_API_RESPONSE
+            response.message = "Error. Parameter device id is undefined or empty."
+        } else {
+            let account_id      = user.account_id
+            let deactivate      = await DeviceDeactivate(account_id, device_id)
+            if(deactivate.status) {
+                response         = SUCCESS_API_RESPONSE
+                response.message = "Device deregistered successfully."
+                response.data    = null
+            } else {
+                response         = NOT_FOUND_API_RESPONSE
+                response.message = "Error. Device not found or does not belong to this account."
+                response.data    = null
+            }
+        }
+    } catch (e) {
+        response      = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response.data = null
+    } finally {
+        return res.status(response.status_code).json(response)
+    }
+})
+
 module.exports = router
