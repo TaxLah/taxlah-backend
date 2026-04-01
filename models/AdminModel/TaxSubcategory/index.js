@@ -28,14 +28,21 @@ async function AdminGetTaxSubcategoriesList(params = {}) {
 
         // Status filter
         if (status && status !== 'All') {
-            whereConditions.push(`status = ?`)
+            whereConditions.push(`ts.status = ?`)
             queryParams.push(status)
+        }
+
+        // Filter by parent tax category
+        const tax_id = params.tax_id || ''
+        if (tax_id) {
+            whereConditions.push(`ts.tax_id = ?`)
+            queryParams.push(tax_id)
         }
 
         const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
 
-        // Get total count
-        const countSql = `SELECT COUNT(*) as total FROM tax_subcategory ${whereClause}`
+        // Get total count — use ts. alias prefix since we're joining
+        const countSql = `SELECT COUNT(*) as total FROM tax_subcategory ts LEFT JOIN tax_category tc ON ts.tax_id = tc.tax_id ${whereClause}`
         const countResult = await db.raw(countSql, queryParams)
         const total = countResult[0].total
 
@@ -257,6 +264,32 @@ async function AdminGetTaxSubcategoryStats() {
     }
 }
 
+/**
+ * Check if a taxsub_code already exists under the same tax_id (duplicate guard)
+ * @param {string} taxsub_code
+ * @param {number} tax_id
+ * @param {number|null} exclude_taxsub_id - Exclude this ID when checking (for updates)
+ */
+async function AdminCheckTaxSubcategoryDuplicate(taxsub_code, tax_id, exclude_taxsub_id = null) {
+    let result = null
+    try {
+        let sql = `SELECT taxsub_id FROM tax_subcategory WHERE taxsub_code = ? AND tax_id = ? AND status != 'Deleted'`
+        let params = [taxsub_code, tax_id]
+        if (exclude_taxsub_id) {
+            sql += ` AND taxsub_id != ?`
+            params.push(exclude_taxsub_id)
+        }
+        sql += ' LIMIT 1'
+        const data = await db.raw(sql, params)
+        result = { status: true, exists: data.length > 0, data: data[0] || null }
+    } catch (e) {
+        console.log('Error AdminCheckTaxSubcategoryDuplicate: ', e)
+        result = { status: false, exists: false, data: null }
+    } finally {
+        return result
+    }
+}
+
 module.exports = {
     AdminGetTaxSubcategoriesList,
     AdminGetTaxSubcategoryDetails,
@@ -264,5 +297,6 @@ module.exports = {
     AdminUpdateTaxSubcategory,
     AdminUpdateTaxSubcategoryStatus,
     AdminDeleteTaxSubcategory,
-    AdminGetTaxSubcategoryStats
+    AdminGetTaxSubcategoryStats,
+    AdminCheckTaxSubcategoryDuplicate
 }

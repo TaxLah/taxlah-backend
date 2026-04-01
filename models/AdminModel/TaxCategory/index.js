@@ -32,6 +32,13 @@ async function AdminGetTaxCategoriesList(params = {}) {
             queryParams.push(status)
         }
 
+        // Year filter
+        const tax_year = params.tax_year || params.year || ''
+        if (tax_year) {
+            whereConditions.push(`tax_year = ?`)
+            queryParams.push(tax_year)
+        }
+
         const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
 
         // Get total count
@@ -44,7 +51,7 @@ async function AdminGetTaxCategoriesList(params = {}) {
         const validSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_date'
         const validSortOrder = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC'
 
-        const sql = `SELECT tax_id, tax_title, tax_description, tax_max_claim, tax_content, status, created_date, last_modified FROM tax_category ${whereClause} ORDER BY ${validSortBy} ${validSortOrder} LIMIT ${limit} OFFSET ${offset}`
+        const sql = `SELECT tax_id, tax_code, tax_title, tax_description, tax_max_claim, tax_content, status, created_date, last_modified FROM tax_category ${whereClause} ORDER BY ${validSortBy} ${validSortOrder} LIMIT ${limit} OFFSET ${offset}`
         const categories = await db.raw(sql, queryParams)
 
         const totalPages = Math.ceil(total / limit)
@@ -222,6 +229,32 @@ async function AdminGetTaxCategoryStats() {
     }
 }
 
+/**
+ * Check if a tax_code already exists for the given tax_year (duplicate guard)
+ * @param {string} tax_code
+ * @param {number} tax_year
+ * @param {number|null} exclude_tax_id - Exclude this ID when checking (for updates)
+ */
+async function AdminCheckTaxCategoryDuplicate(tax_code, tax_year, exclude_tax_id = null) {
+    let result = null
+    try {
+        let sql = `SELECT tax_id FROM tax_category WHERE tax_code = ? AND tax_year = ? AND status != 'Deleted'`
+        let params = [tax_code, tax_year]
+        if (exclude_tax_id) {
+            sql += ` AND tax_id != ?`
+            params.push(exclude_tax_id)
+        }
+        sql += ' LIMIT 1'
+        const data = await db.raw(sql, params)
+        result = { status: true, exists: data.length > 0, data: data[0] || null }
+    } catch (e) {
+        console.log('Error AdminCheckTaxCategoryDuplicate: ', e)
+        result = { status: false, exists: false, data: null }
+    } finally {
+        return result
+    }
+}
+
 module.exports = {
     AdminGetTaxCategoriesList,
     AdminGetTaxCategoryDetails,
@@ -229,5 +262,6 @@ module.exports = {
     AdminUpdateTaxCategory,
     AdminUpdateTaxCategoryStatus,
     AdminDeleteTaxCategory,
-    AdminGetTaxCategoryStats
+    AdminGetTaxCategoryStats,
+    AdminCheckTaxCategoryDuplicate
 }

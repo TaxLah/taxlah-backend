@@ -84,7 +84,7 @@ async function AdminGetUserDetails(account_id) {
                 a.account_email, a.account_contact, a.account_address_1, a.account_address_2, 
                 a.account_address_3, a.account_address_postcode, a.account_address_city, 
                 a.account_address_state, a.account_profile_image, a.account_status, 
-                a.created_date, a.last_modified,
+                a.created_date, a.last_modified, a.account_ic, a.account_gender, a.account_dob, a.account_age, a.account_nationality, a.account_salary_range,
                 auth.auth_id, auth.auth_username, auth.auth_usermail, auth.auth_role, 
                 auth.auth_is_verified, auth.auth_status as auth_status
             FROM account a

@@ -40,6 +40,7 @@ app.get("/", (req, res) => {
 app.use("/api", require("./routers/AppRouter"))
 app.use("/api/test", require("./routers/TestRouter"))
 app.use("/admin", require("./routers/AdminRouter"))
+app.use("/superadmin", require("./routers/SuperAdminRouter"))
 app.use("/file-uploader", require("./routers/FileUploader"))
 
 // 404 handler (path not found)
