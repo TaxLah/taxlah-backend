@@ -81,7 +81,9 @@ jobs:
               --exclude '.env' \
               --exclude 'logs' \
               --exclude 'file' \
+              --exclude 'asset' \
               --exclude 'assets' \
+              --exlude 'taxlah-react-native-firebasesdk.json' \
               -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
               ./ $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/
           done
@@ -101,7 +103,9 @@ jobs:
             --exclude '.env' \
             --exclude 'logs' \
             --exclude 'file' \
+            --exclude 'asset' \
             --exclude 'assets' \
+            --exlude 'taxlah-react-native-firebasesdk.json' \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             ./ $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/
 
