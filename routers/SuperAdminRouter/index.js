@@ -10,7 +10,8 @@ router.use('/transactions',  require('../../controllers/AdminController/Transact
 router.use('/subscriptions',      require('../../controllers/AdminController/Subscription'))
 router.use('/dashboard',          require('../../controllers/AdminController/Dashboard'))
 router.use('/reports',            require('../../controllers/AdminController/Report'))
-router.use('/tax-categories',     require('../../controllers/AdminController/TaxCategory'))
-router.use('/tax-subcategories',  require('../../controllers/AdminController/TaxSubCategory'))
+router.use('/tax-categories',        require('../../controllers/AdminController/TaxCategory'))
+router.use('/tax-subcategories',     require('../../controllers/AdminController/TaxSubCategory'))
+router.use('/analytics/expenses',    require('../../controllers/AdminController/ExpenseAnalytics'))
 
 module.exports = router
