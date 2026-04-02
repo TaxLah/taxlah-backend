@@ -21,6 +21,8 @@ const ReportRouter          = require("../../controllers/AppController/Report")
 const CreditRouter          = require("../../controllers/AppController/Credit")
 const SubscriptionRouter    = require("../../controllers/AppController/Subscription")
 const InquiryRouter         = require("../../controllers/AppController/Inquiry")
+const BillRouter            = require("../../controllers/AppController/Bill")
+const BillingTransactionRouter = require("../../controllers/AppController/BillingTransaction")
 const { auth }              = require('../../configs/auth')
 
 router.use("/auth", AuthRouter)
@@ -38,6 +40,9 @@ router.use("/dependant", auth(), DependantRouter);      // /api/dependant/*
 router.use("/tax", auth(), TaxClaimRouter);             // /api/tax/*
 router.use("/report", auth(), ReportRouter);  
 router.use("/subscription", SubscriptionRouter);        // /api/subscription/*  
+
+router.use("/billing/bills",        BillRouter);               // /api/billing/bills/*
+router.use("/billing/transactions", BillingTransactionRouter); // /api/billing/transactions/*
 
 router.use("/public/inquiry", InquiryRouter);           // /api/public/inquiry/* (public, no auth)
 
@@ -124,5 +129,102 @@ router.post("/credit/webhook", express.raw({ type: 'application/json' }), async 
 });
 
 router.use("/credit", auth(), CreditRouter); 
+
+// ============================================================================
+// BILLING WEBHOOK (CHIP CALLBACK for bill payments)
+// POST /api/billing/webhook
+// Called by CHIP after the user pays (or fails to pay) a bill via the
+// /api/billing/bills/:id/pay checkout URL.
+// Must be registered BEFORE body-json middleware (uses raw body for sig check).
+// ============================================================================
+router.post("/billing/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
+    try {
+        const signature = req.headers['x-signature'];
+        const rawBody   = req.body.toString('utf8');
+
+        console.log('[BillingWebhook] Received');
+
+        const verifyResult = ChipPaymentService.verifyWebhookSignature(rawBody, signature);
+        if (!verifyResult) {
+            console.error('[BillingWebhook] Invalid signature');
+            return res.status(200).json({ success: true });
+        }
+
+        const webhookData = JSON.parse(rawBody);
+        const parseResult = ChipPaymentService.ParseWebhookPayload(webhookData);
+
+        if (!parseResult.status) {
+            console.error('[BillingWebhook] Failed to parse payload');
+            return res.status(200).json({ success: true });
+        }
+
+        const data = parseResult.data;
+        console.log('[BillingWebhook] purchase_id:', data.purchase_id, '| status:', data.payment_status, '| is_paid:', data.is_paid);
+
+        const {
+            BillingGetBillByChipPurchaseId,
+            BillingMarkBillPaid,
+            BillingUpdateBillStatus,
+            BillingCreateTransaction,
+        } = require('../models/AppModel/BillingService');
+
+        const billResult = await BillingGetBillByChipPurchaseId(data.purchase_id);
+        if (!billResult.success || !billResult.data) {
+            console.error('[BillingWebhook] No bill found for purchase_id:', data.purchase_id);
+            return res.status(200).json({ success: true });
+        }
+
+        const bill    = billResult.data;
+        const now     = new Date();
+        const txnBase = {
+            billId:            bill.bill_id,
+            accountId:         bill.account_id,
+            subscriptionId:    bill.subscription_id || null,
+            billYear:          bill.billing_year,
+            billMonth:         bill.billing_month,
+            paymentGateway:    'Chip',
+            gatewayPurchaseId: data.purchase_id,
+            gatewayRef:        data.reference    || null,
+            gatewayEventType:  data.event_type   || null,
+            gatewayStatusRaw:  data.payment_status || null,
+            paymentMethod:     data.payment_method || null,
+            bankName:          data.bank_name     || null,
+            amount:            parseFloat(bill.total_amount),
+            currency:          bill.currency || 'MYR',
+            clientEmail:       data.client_email  || null,
+            clientName:        data.client_name   || null,
+            checkoutUrl:       bill.checkout_url  || null,
+            chipCallback:      webhookData,
+            isTest:            data.is_test ? 1 : 0,
+        };
+
+        if (data.is_paid && data.payment_status === 'paid') {
+            const paidAt = data.paid_at ? new Date(data.paid_at) : now;
+            await BillingMarkBillPaid(bill.bill_id, paidAt).catch(e =>
+                console.error('[BillingWebhook] BillingMarkBillPaid failed:', e)
+            );
+            await BillingCreateTransaction({ ...txnBase, status: 'Success', paidAt }).catch(e =>
+                console.error('[BillingWebhook] BillingCreateTransaction failed:', e)
+            );
+            console.log('[BillingWebhook] Bill', bill.bill_no, 'marked Paid');
+        } else if (['failed', 'cancelled'].includes(data.payment_status)) {
+            await BillingUpdateBillStatus(bill.bill_id, 'Overdue').catch(e =>
+                console.error('[BillingWebhook] BillingUpdateBillStatus failed:', e)
+            );
+            await BillingCreateTransaction({
+                ...txnBase,
+                status:        'Failed',
+                failedAt:      now,
+                failureReason: data.failure_reason || data.payment_status || 'Payment failed',
+            }).catch(e => console.error('[BillingWebhook] BillingCreateTransaction failed:', e));
+            console.log('[BillingWebhook] Bill', bill.bill_no, 'marked Overdue');
+        }
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('[BillingWebhook] Error:', error);
+        return res.status(200).json({ success: true }); // Always 200 to stop CHIP retries
+    }
+});
 
 module.exports = router

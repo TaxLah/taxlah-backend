@@ -206,6 +206,53 @@ const initCronJobs = () => {
 		}
 	});
 
+	// Mark Pending bills as Overdue daily at 1:30 AM (after subscription expiry check)
+	scheduler.schedule("billing-mark-overdue", "30 1 * * *", async () => {
+		const { BillingMarkOverdueBills } = require("../models/AppModel/BillingService");
+		try {
+			const result = await BillingMarkOverdueBills();
+			console.log("[Cron] billing-mark-overdue completed:", result);
+		} catch (error) {
+			console.error("[Cron] billing-mark-overdue failed:", error);
+		}
+	});
+
+	// Send billing payment reminders daily at 9:05 AM
+	scheduler.schedule("billing-payment-reminders", "5 9 * * *", async () => {
+		const { BillingGetBillsForReminder, BillingRecordReminderSent } = require("../models/AppModel/BillingService");
+		const NotificationService = require("../services/NotificationService");
+		try {
+			const bills = await BillingGetBillsForReminder({ maxReminderCount: 3 });
+			if (!bills.length) {
+				console.log("[Cron] billing-payment-reminders: no bills to remind.");
+				return;
+			}
+			let sent = 0;
+			for (const bill of bills) {
+				try {
+					await NotificationService.sendUserNotification(
+						bill.account_id,
+						`Payment Reminder: ${bill.bill_no}`,
+						`Your bill of RM ${parseFloat(bill.total_amount).toFixed(2)} is due. Tap to pay now.`,
+						{
+							type:         'BillReminder',
+							bill_id:      String(bill.bill_id),
+							bill_no:      bill.bill_no,
+							checkout_url: bill.checkout_url || '',
+						}
+					);
+					await BillingRecordReminderSent(bill.bill_id);
+					sent++;
+				} catch (e) {
+					console.error(`[Cron] billing-payment-reminders: bill ${bill.bill_id} failed:`, e);
+				}
+			}
+			console.log(`[Cron] billing-payment-reminders: ${sent}/${bills.length} reminders sent.`);
+		} catch (error) {
+			console.error("[Cron] billing-payment-reminders failed:", error);
+		}
+	});
+
 	console.log(`[Cron] Initialized ${scheduledTasks.size} cron jobs`);
 };
 

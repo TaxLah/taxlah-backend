@@ -273,6 +273,16 @@ router.post("/subscribe", auth(), async (req, res) => {
                 return res.status(response.status_code).json(response);
             }
 
+            // Link the CHIP purchase back to the bill so the webhook can find it
+            if (paymentResult.data.bill_id && paymentGatewayResult.data.purchase_id) {
+                const { BillingSetCheckoutUrl } = require('../../../models/AppModel/BillingService');
+                await BillingSetCheckoutUrl(
+                    paymentResult.data.bill_id,
+                    paymentGatewayResult.data.purchase_id,
+                    paymentGatewayResult.data.payment_url
+                ).catch(e => console.error('[Subscription/subscribe] BillingSetCheckoutUrl failed:', e));
+            }
+
             response = SUCCESS_API_RESPONSE;
             response.message = "Please complete payment to activate subscription.";
             response.data = {

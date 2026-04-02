@@ -14,5 +14,7 @@ router.use('/tax-categories',        require('../../controllers/AdminController/
 router.use('/tax-subcategories',     require('../../controllers/AdminController/TaxSubCategory'))
 router.use('/analytics/expenses',    require('../../controllers/AdminController/ExpenseAnalytics'))
 router.use('/payment-gateways',      require('../../controllers/AdminController/PaymentGateway'))
+router.use('/bills',                 require('../../controllers/AdminController/Bill'))
+router.use('/billing-transactions',  require('../../controllers/AdminController/BillingTransaction'))
 
 module.exports = router

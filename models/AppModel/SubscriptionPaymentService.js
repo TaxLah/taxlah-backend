@@ -9,6 +9,14 @@ const crypto                        = require('crypto');
 const { UserNotificationCreate }    = require('./Notification');
 const CreditService                 = require('./CreditService');
 const NotificationService           = require('../../services/NotificationService');
+const {
+    BillingCreateBill,
+    BillingMarkBillPaid,
+    BillingUpdateBillStatus,
+    BillingCreateTransaction,
+    BillingUpdateTransactionStatus,
+    BillingGetBillByChipPurchaseId,
+}                                   = require('./BillingService');
 
 /**
  * Create subscription payment record
@@ -20,7 +28,10 @@ const NotificationService           = require('../../services/NotificationServic
  * @param {string} gateway - Payment gateway
  * @returns {Object} - Payment record
  */
-async function createPaymentRecord(subscriptionId, accountId, amount, periodStart, periodEnd, gateway = 'Chip') {
+async function createPaymentRecord(
+    subscriptionId, accountId, amount, periodStart, periodEnd, gateway = 'Chip',
+    { billType = 'Subscription', billDescription = null, dueInDays = 3, chipPurchaseId = null, checkoutUrl = null, subPackageId = null } = {}
+) {
     try {
         const paymentRef = `SUBPAY-${Date.now()}-${crypto.randomUUID().substring(0, 8).toUpperCase()}`;
 
@@ -57,6 +68,40 @@ async function createPaymentRecord(subscriptionId, accountId, amount, periodStar
             WHERE payment_ref = ?
         `;
         const [payment] = await db.raw(getPaymentSql, [paymentRef]);
+
+        // ── Create bill record ──────────────────────────────────────
+        try {
+            const periodDate  = periodStart ? new Date(periodStart) : new Date();
+            const billingYear = periodDate.getFullYear();
+            const billingMonth = periodDate.getMonth() + 1;
+
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + dueInDays);
+
+            const billResult = await BillingCreateBill({
+                accountId,
+                subscriptionId:     subscriptionId || null,
+                subPackageId:       subPackageId   || null,
+                billType,
+                billDescription:    billDescription || `${gateway} Subscription`,
+                billingYear,
+                billingMonth,
+                billingPeriodStart: periodStart || null,
+                billingPeriodEnd:   periodEnd   || null,
+                subtotal:           parseFloat(amount),
+                dueDate,
+                chipPurchaseId,
+                checkoutUrl,
+            });
+
+            if (billResult.success) {
+                payment.bill_id  = billResult.data.bill_id;
+                payment.bill_no  = billResult.data.bill_no;
+            }
+        } catch (billError) {
+            // Non-fatal — log and continue so subscription flow is not blocked
+            console.error('[SubscriptionPaymentService] createPaymentRecord bill creation failed:', billError);
+        }
 
         return {
             success: true,
@@ -225,6 +270,52 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
 
         // Update payment status
         await updatePaymentStatus(paymentRef, 'Paid', gatewayTransactionId, gatewayResponse);
+
+        // ── Mark bill paid + record billing transaction ─────────────
+        try {
+            const chipData = gatewayResponse || {};
+            const paidAt   = new Date();
+
+            // Locate the bill linked to this CHIP purchase
+            let billId = null;
+            if (chipData.purchase_id || gatewayTransactionId) {
+                const billLookup = await BillingGetBillByChipPurchaseId(
+                    chipData.purchase_id || gatewayTransactionId
+                );
+                if (billLookup.success) {
+                    billId = billLookup.data.bill_id;
+                    await BillingMarkBillPaid(billId, paidAt);
+                }
+            }
+
+            if (billId) {
+                const periodDate = payment.period_start ? new Date(payment.period_start) : new Date();
+                await BillingCreateTransaction({
+                    billId,
+                    accountId:         payment.account_id,
+                    subscriptionId:    payment.subscription_id || null,
+                    billYear:          periodDate.getFullYear(),
+                    billMonth:         periodDate.getMonth() + 1,
+                    paymentGateway:    payment.payment_gateway || 'Chip',
+                    gatewayPurchaseId: chipData.purchase_id    || gatewayTransactionId || null,
+                    gatewayRef:        chipData.reference      || paymentRef,
+                    gatewayEventType:  chipData.event_type     || 'purchase.paid',
+                    gatewayStatusRaw:  chipData.payment_status || 'paid',
+                    paymentMethod:     chipData.payment_method || null,
+                    amount:            parseFloat(payment.amount),
+                    currency:          payment.currency || 'MYR',
+                    clientEmail:       chipData.client_email   || null,
+                    clientName:        chipData.client_name    || null,
+                    chipCallback:      gatewayResponse         || null,
+                    status:            'Success',
+                    paidAt,
+                    isTest:            chipData.is_test        ? 1 : 0,
+                });
+            }
+        } catch (billingError) {
+            // Non-fatal — log and continue so subscription activation is not blocked
+            console.error('[SubscriptionPaymentService] processSuccessfulPayment billing record failed:', billingError);
+        }
 
         const SubscriptionService = require('./SubscriptionService');
 
@@ -573,6 +664,43 @@ async function processFailedPayment(paymentRef, reason = null) {
 
         // Update payment status
         await updatePaymentStatus(paymentRef, 'Failed', null, { reason });
+
+        // ── Mark bill overdue + record failed billing transaction ───
+        try {
+            if (payment.gateway_transaction_id || (payment.gateway_response && payment.gateway_response.purchase_id)) {
+                const purchaseId = payment.gateway_transaction_id ||
+                    (typeof payment.gateway_response === 'string'
+                        ? JSON.parse(payment.gateway_response).purchase_id
+                        : payment.gateway_response?.purchase_id);
+
+                const billLookup = await BillingGetBillByChipPurchaseId(purchaseId);
+                if (billLookup.success) {
+                    const billId = billLookup.data.bill_id;
+                    await BillingUpdateBillStatus(billId, 'Overdue');
+
+                    const periodDate = payment.period_start ? new Date(payment.period_start) : new Date();
+                    await BillingCreateTransaction({
+                        billId,
+                        accountId:         payment.account_id,
+                        subscriptionId:    payment.subscription_id || null,
+                        billYear:          periodDate.getFullYear(),
+                        billMonth:         periodDate.getMonth() + 1,
+                        paymentGateway:    payment.payment_gateway || 'Chip',
+                        gatewayPurchaseId: purchaseId,
+                        gatewayRef:        paymentRef,
+                        gatewayEventType:  'purchase.failed',
+                        gatewayStatusRaw:  'failed',
+                        amount:            parseFloat(payment.amount),
+                        currency:          payment.currency || 'MYR',
+                        status:            'Failed',
+                        failedAt:          new Date(),
+                        failureReason:     reason || null,
+                    });
+                }
+            }
+        } catch (billingError) {
+            console.error('[SubscriptionPaymentService] processFailedPayment billing record failed:', billingError);
+        }
 
         // Update subscription to Past_Due
         const updateSubSql = `
