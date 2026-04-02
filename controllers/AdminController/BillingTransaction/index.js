@@ -25,9 +25,7 @@ router.get('/', superauth(), async (req, res) => {
     let response = DEFAULT_API_RESPONSE
     try {
         const result = await AdminGetBillingTransactionsList(req.query)
-        response = result.status
-            ? { ...SUCCESS_API_RESPONSE, ...result.data }
-            : INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = result.status ? { ...SUCCESS_API_RESPONSE, ...result.data } : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/BillingTransaction] List:', e)
         response = INTERNAL_SERVER_ERROR_API_RESPONSE

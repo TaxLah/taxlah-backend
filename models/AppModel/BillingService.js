@@ -434,7 +434,7 @@ async function BillingGetBillById(billId) {
             FROM bill b
             JOIN  account a             ON a.account_id      = b.account_id
             LEFT JOIN account_subscription s   ON s.subscription_id = b.subscription_id
-            LEFT JOIN subscription_package pkg ON pkg.sub_package_id = s.sub_package_id
+            LEFT JOIN subscription_package pkg ON pkg.sub_package_id = COALESCE(b.sub_package_id, s.sub_package_id)
             WHERE b.bill_id = ?
             LIMIT 1
         `,
@@ -457,8 +457,8 @@ async function BillingGetBillByChipPurchaseId(chipPurchaseId) {
 	try {
 		const rows = await db.raw(
 			`SELECT bill_id, bill_no, account_id, subscription_id,
-                    billing_year, billing_month, amount, total_amount,
-                    status, checkout_url
+                    billing_year, billing_month, total_amount, currency,
+                    checkout_url, status
              FROM bill WHERE chip_purchase_id = ? LIMIT 1`,
 			[chipPurchaseId],
 		);
