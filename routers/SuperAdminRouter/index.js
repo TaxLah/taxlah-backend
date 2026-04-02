@@ -13,5 +13,6 @@ router.use('/reports',            require('../../controllers/AdminController/Rep
 router.use('/tax-categories',        require('../../controllers/AdminController/TaxCategory'))
 router.use('/tax-subcategories',     require('../../controllers/AdminController/TaxSubCategory'))
 router.use('/analytics/expenses',    require('../../controllers/AdminController/ExpenseAnalytics'))
+router.use('/payment-gateways',      require('../../controllers/AdminController/PaymentGateway'))
 
 module.exports = router
