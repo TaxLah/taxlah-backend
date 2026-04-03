@@ -118,6 +118,82 @@ async function AuthDeleteAccount(account_id) {
     }
 }
 
+async function AuthGetByEmail(email) {
+    let result = null
+    try {
+        let data = await db.raw(
+            `SELECT auth_id, auth_username, auth_usermail, account_id
+             FROM auth_access
+             WHERE auth_usermail = ? AND auth_status = 'Active'
+             LIMIT 1`,
+            [email]
+        )
+        result = data.length ? { status: true, data: data[0] } : { status: false, data: null }
+    } catch (e) {
+        console.log('AuthGetByEmail error:', e)
+        result = { status: false, data: null }
+    } finally {
+        return result
+    }
+}
+
+async function AuthSetOtp(auth_id, otp) {
+    let result = null
+    try {
+        await db.raw(
+            `UPDATE auth_access SET auth_otp = ?, last_modified = NOW() WHERE auth_id = ?`,
+            [otp, auth_id]
+        )
+        result = { status: true }
+    } catch (e) {
+        console.log('AuthSetOtp error:', e)
+        result = { status: false }
+    } finally {
+        return result
+    }
+}
+
+async function AuthVerifyOtp(email, otp) {
+    let result = null
+    try {
+        let data = await db.raw(
+            `SELECT auth_id, auth_otp
+             FROM auth_access
+             WHERE auth_usermail = ? AND auth_status = 'Active'
+             LIMIT 1`,
+            [email]
+        )
+        if (!data.length) {
+            result = { status: false, message: 'Account not found.' }
+        } else if (data[0].auth_otp !== otp) {
+            result = { status: false, message: 'Invalid OTP.' }
+        } else {
+            result = { status: true, auth_id: data[0].auth_id }
+        }
+    } catch (e) {
+        console.log('AuthVerifyOtp error:', e)
+        result = { status: false, message: 'Server error.' }
+    } finally {
+        return result
+    }
+}
+
+async function AuthResetPassword(auth_id, hashedPassword) {
+    let result = null
+    try {
+        await db.raw(
+            `UPDATE auth_access SET auth_password = ?, auth_otp = NULL, last_modified = NOW() WHERE auth_id = ?`,
+            [hashedPassword, auth_id]
+        )
+        result = { status: true }
+    } catch (e) {
+        console.log('AuthResetPassword error:', e)
+        result = { status: false }
+    } finally {
+        return result
+    }
+}
+
 module.exports = {
     AuthCheckExistingUsername,
     AuthCheckExistingEmail,
@@ -125,5 +201,9 @@ module.exports = {
     AuthCreateAccessAccount,
     AuthUpdateAccessAccount,
     AuthLogin,
-    AuthDeleteAccount
+    AuthDeleteAccount,
+    AuthGetByEmail,
+    AuthSetOtp,
+    AuthVerifyOtp,
+    AuthResetPassword,
 }
