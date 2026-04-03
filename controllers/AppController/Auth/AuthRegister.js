@@ -80,6 +80,8 @@ router.post("/", async(req , res) => {
                     account_contact: sanitize(account_phone)
                 }
 
+                console.log("Log Sanitized Params : ", account)
+
                 let profile = await AccountCreate(account)
                 console.log("Log Function Create Account Profile : ", profile)
                 
@@ -108,40 +110,25 @@ router.post("/", async(req , res) => {
                         response.message    = "Congratulation! Your account has been created successfully."
                         response.data       = null
 
-                        // Auto-subscribe to freemium package
+                        // Auto-assign freemium subscription on registration
                         try {
-                            // Get freemium package (adjust package_code based on your database)
-                            const packagesResult = await SubscriptionService.getSubscriptionPackages();
-                            if (packagesResult.success && packagesResult.data.length > 0) {
-                                // Find FREE or FREEMIUM package, or use the first package with price 0
-                                const freemiumPackage = packagesResult.data.find(pkg => 
-                                    pkg.package_code === 'FREE' || 
-                                    pkg.package_code === 'FREEMIUM' ||
-                                    pkg.package_code === 'BASIC' ||
-                                    pkg.price_amount === 0
-                                );
+                            const FREEMIUM_PACKAGE_ID = 3 // sub_package_id for the free package
 
-                                if (freemiumPackage) {
-                                    // Create freemium subscription automatically (skipPayment=true for free packages)
-                                    const subscriptionResult = await SubscriptionService.createSubscription(
-                                        account_id,
-                                        freemiumPackage.sub_package_id,
-                                        'Free',
-                                        true // skipPayment - no payment required for freemium
-                                    );
+                            const subscriptionResult = await SubscriptionService.createSubscription(
+                                account_id,
+                                FREEMIUM_PACKAGE_ID,
+                                'Free',
+                                true // skipPayment — no payment required for freemium
+                            )
 
-                                    if (subscriptionResult.success) {
-                                        console.log(`[Registration] Auto-subscribed account ${account_id} to ${freemiumPackage.package_name}`);
-                                    } else {
-                                        console.error(`[Registration] Failed to auto-subscribe account ${account_id}:`, subscriptionResult.error);
-                                    }
-                                } else {
-                                    console.warn('[Registration] No freemium package found for auto-subscription');
-                                }
+                            if (subscriptionResult.success) {
+                                console.log(`[Registration] Freemium subscription assigned to account ${account_id}`)
+                            } else {
+                                console.error(`[Registration] Failed to assign freemium subscription to account ${account_id}:`, subscriptionResult.error)
                             }
                         } catch (subError) {
-                            // Don't fail registration if subscription fails
-                            console.error('[Registration] Error during auto-subscription:', subError);
+                            // Non-fatal — registration succeeds even if subscription assignment fails
+                            console.error('[Registration] Error during auto-subscription:', subError)
                         }
 
                         let { subject, text, html } = OnboardingEmail(account_fullname, account_email)
@@ -169,6 +156,8 @@ router.post("/", async(req , res) => {
                         let email_html      = OnboardingEmail(account_fullname || auth_username )
                         let send_email      = await SEND_EMAIL_NOTIFICATION(account_email, email_title, email_body, email_html)
 
+
+                        
                     } else {
                         let delete_account  = await AccountDelete(profile.account_id)
                         response            = FORBIDDEN_API_RESPONSE
