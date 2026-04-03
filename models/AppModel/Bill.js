@@ -48,17 +48,18 @@ async function AppGetBillsList(accountId, params = {}) {
                 SUM(CASE WHEN b.status IN ('Pending','Overdue') THEN 1 ELSE 0 END) AS unpaid_count,
                 IFNULL(SUM(CASE WHEN b.status IN ('Pending','Overdue') THEN b.total_amount END), 0) AS unpaid_amount
             FROM bill b
-            -- WHERE b.account_id = ?
-        `, [])
+            WHERE b.account_id = ?
+        `, [accountId])
 
         // ── Year tabs ──
         const yearTabs = await db.raw(`
             SELECT billing_year, COUNT(*) AS count
             FROM bill
             WHERE billing_year = ${year}
+            AND account_id = ?
             GROUP BY billing_year
             ORDER BY billing_year DESC
-        `, [])
+        `, [accountId])
 
         console.log("Log Clause : ", clause)
 
