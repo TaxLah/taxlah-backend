@@ -237,7 +237,8 @@ router.post("/subscribe", auth(), async (req, res) => {
                 pkg.price_amount,
                 now,
                 periodEnd,
-                payment_method || 'Chip'
+                payment_method || 'Chip',
+                { subPackageId: package_id }
             );
 
             if (!paymentResult.success) {

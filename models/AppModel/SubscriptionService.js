@@ -1049,7 +1049,8 @@ async function renewSubscription(accountId, packageId = null, paymentMethod = 'C
             pkg.price_amount,
             periodStart,
             periodEnd,
-            paymentMethod
+            paymentMethod,
+            { subPackageId: renewPackageId }
         );
 
         if (!paymentResult.success) {
@@ -1089,6 +1090,20 @@ async function renewSubscription(accountId, packageId = null, paymentMethod = 'C
                 success: false,
                 error: 'Failed to create payment gateway URL.'
             };
+        }
+
+        // Link CHIP purchase to bill so the webhook can locate it
+        if (paymentResult.data.bill_id && paymentGatewayResult.data.purchase_id) {
+            try {
+                const { BillingSetCheckoutUrl } = require('./BillingService');
+                await BillingSetCheckoutUrl(
+                    paymentResult.data.bill_id,
+                    paymentGatewayResult.data.purchase_id,
+                    paymentGatewayResult.data.payment_url
+                );
+            } catch (e) {
+                console.error('[SubscriptionService] renewSubscription BillingSetCheckoutUrl failed:', e);
+            }
         }
 
         return {
