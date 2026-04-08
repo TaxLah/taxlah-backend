@@ -198,7 +198,16 @@ router.post("/billing/webhook", express.raw({ type: 'application/json' }), async
             isTest:            data.is_test ? 1 : 0,
         };
 
-        if (data.is_paid && data.payment_status === 'paid') {
+        // Route by event_type — CHIP's status field is unreliable.
+        // e.g. purchase.payment_failure arrives with status: 'created', not 'failed'.
+        const chipEventType     = data.event_type || '';
+        const isBillSuccess     = chipEventType === 'purchase.paid' || (data.is_paid && data.payment_status === 'paid');
+        const isBillFailure     = chipEventType === 'purchase.payment_failure' ||
+                                chipEventType === 'purchase.cancelled'        ||
+                                chipEventType === 'purchase.overdue'          ||
+                                ['failed', 'cancelled'].includes(data.payment_status);
+
+        if (isBillSuccess) {
             const paidAt = data.paid_at ? new Date(data.paid_at) : now;
             await BillingMarkBillPaid(bill.bill_id, paidAt).catch(e =>
                 console.error('[BillingWebhook] BillingMarkBillPaid failed:', e)
@@ -207,7 +216,7 @@ router.post("/billing/webhook", express.raw({ type: 'application/json' }), async
                 console.error('[BillingWebhook] BillingCreateTransaction failed:', e)
             );
             console.log('[BillingWebhook] Bill', bill.bill_no, 'marked Paid');
-        } else if (['failed', 'cancelled'].includes(data.payment_status)) {
+        } else if (isBillFailure) {
             await BillingUpdateBillStatus(bill.bill_id, 'Overdue').catch(e =>
                 console.error('[BillingWebhook] BillingUpdateBillStatus failed:', e)
             );
@@ -215,9 +224,11 @@ router.post("/billing/webhook", express.raw({ type: 'application/json' }), async
                 ...txnBase,
                 status:        'Failed',
                 failedAt:      now,
-                failureReason: data.failure_reason || data.payment_status || 'Payment failed',
+                failureReason: data.failure_reason || chipEventType || 'Payment failed',
             }).catch(e => console.error('[BillingWebhook] BillingCreateTransaction failed:', e));
             console.log('[BillingWebhook] Bill', bill.bill_no, 'marked Overdue');
+        } else {
+            console.log('[BillingWebhook] Unhandled event type (ignoring):', chipEventType);
         }
 
         return res.status(200).json({ success: true });

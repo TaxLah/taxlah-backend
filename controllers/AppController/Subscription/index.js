@@ -703,24 +703,31 @@ router.post("/webhook", async (req, res) => {
 
         console.log('[Subscription Webhook] Resolved paymentRef:', paymentRef);
 
-        // Handle based on payment status
-        if (data.is_paid && data.payment_status === 'paid') {
-            // Process successful payment
+        // Route by event_type — CHIP's status field is unreliable.
+        // e.g. purchase.payment_failure arrives with status: 'created', not 'failed'.
+        const chipEventType = data.event_type || '';
+        const isSuccess     = chipEventType === 'purchase.paid' || (data.is_paid && data.payment_status === 'paid');
+        const isFailure     = chipEventType === 'purchase.payment_failure' ||
+                            chipEventType === 'purchase.cancelled'        ||
+                            chipEventType === 'purchase.overdue'          ||
+                            data.payment_status === 'failed'              ||
+                            data.payment_status === 'cancelled';
+
+        if (isSuccess) {
             const result = await SubscriptionPaymentService.processSuccessfulPayment(
                 paymentRef,
-                data.transaction_id || data.id,
+                data.transaction_id || data.purchase_id,
                 webhookData
             );
-
             console.log('[Subscription Webhook] Payment processed:', result);
-        } else if (data.payment_status === 'failed' || data.payment_status === 'cancelled') {
-            // Process failed payment
+        } else if (isFailure) {
             const result = await SubscriptionPaymentService.processFailedPayment(
                 paymentRef,
-                data.failure_reason || 'Payment failed'
+                data.failure_reason || chipEventType || 'Payment failed'
             );
-
             console.log('[Subscription Webhook] Payment failed:', result);
+        } else {
+            console.log('[Subscription Webhook] Unhandled event type (ignoring):', chipEventType);
         }
 
         // Always return 200 to prevent webhook retries
