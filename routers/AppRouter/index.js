@@ -202,10 +202,7 @@ router.post("/billing/webhook", express.raw({ type: 'application/json' }), async
         // e.g. purchase.payment_failure arrives with status: 'created', not 'failed'.
         const chipEventType     = data.event_type || '';
         const isBillSuccess     = chipEventType === 'purchase.paid' || (data.is_paid && data.payment_status === 'paid');
-        const isBillFailure     = chipEventType === 'purchase.payment_failure' ||
-                                chipEventType === 'purchase.cancelled'        ||
-                                chipEventType === 'purchase.overdue'          ||
-                                ['failed', 'cancelled'].includes(data.payment_status);
+        const isBillFailure     = chipEventType === 'purchase.payment_failure' || chipEventType === 'purchase.cancelled' || chipEventType === 'purchase.overdue' || ['failed', 'cancelled'].includes(data.payment_status);
 
         if (isBillSuccess) {
             const paidAt = data.paid_at ? new Date(data.paid_at) : now;

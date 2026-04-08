@@ -707,11 +707,7 @@ router.post("/webhook", async (req, res) => {
         // e.g. purchase.payment_failure arrives with status: 'created', not 'failed'.
         const chipEventType = data.event_type || '';
         const isSuccess     = chipEventType === 'purchase.paid' || (data.is_paid && data.payment_status === 'paid');
-        const isFailure     = chipEventType === 'purchase.payment_failure' ||
-                            chipEventType === 'purchase.cancelled'        ||
-                            chipEventType === 'purchase.overdue'          ||
-                            data.payment_status === 'failed'              ||
-                            data.payment_status === 'cancelled';
+        const isFailure     = chipEventType === 'purchase.payment_failure' || chipEventType === 'purchase.cancelled' || chipEventType === 'purchase.overdue' || data.payment_status === 'failed' || data.payment_status === 'cancelled';
 
         if (isSuccess) {
             const result = await SubscriptionPaymentService.processSuccessfulPayment(
