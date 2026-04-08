@@ -55,8 +55,7 @@ async function AppGetBillsList(accountId, params = {}) {
         const yearTabs = await db.raw(`
             SELECT billing_year, COUNT(*) AS count
             FROM bill
-            WHERE billing_year = ${year}
-            AND account_id = ?
+            WHERE account_id = ?
             GROUP BY billing_year
             ORDER BY billing_year DESC
         `, [accountId])

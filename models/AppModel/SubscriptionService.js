@@ -1074,13 +1074,15 @@ async function renewSubscription(accountId, packageId = null, paymentMethod = 'C
             paymentResult.data.payment_ref
         ]);
 
-        // Create payment gateway URL
+        // Create payment gateway URL — amount must include 6% SST
+        const SST_RATE = 0.06;
+        const chipAmount = parseFloat((parseFloat(pkg.price_amount) * (1 + SST_RATE)).toFixed(2));
         const ChipPaymentService = require('../../services/ChipPaymentService');
         const paymentGatewayResult = await ChipPaymentService.createSubscriptionPayment({
             payment_ref: paymentResult.data.payment_ref,
             account_id: accountId,
-            amount: pkg.price_amount,
-            description: `${pkg.package_name} - ${pkg.billing_period} Renewal`,
+            amount: chipAmount,
+            description: `${pkg.package_name} - ${pkg.billing_period} Renewal (incl. 6% SST)`,
             customer_email: userDetails.account_email || '',
             customer_name: userDetails.account_name || userDetails.account_fullname || ''
         });
@@ -1131,6 +1133,207 @@ async function renewSubscription(accountId, packageId = null, paymentMethod = 'C
     }
 }
 
+/**
+ * Process auto-renewal billing for subscriptions expiring today (called by cron job daily).
+ * Finds Active subscriptions with auto_renew = 'Yes' expiring today, creates a CHIP
+ * payment for each, then notifies the user with the payment link.
+ * @returns {Object} - Processing result with count of renewals initiated
+ */
+async function processAutoRenewal() {
+    try {
+        console.log('[SubscriptionService] Starting auto-renewal processing...');
+
+        // Find Active paid subscriptions with auto_renew = 'Yes' expiring today
+        // Exclude any that already have a Pending renewal payment created today
+        const sql = `
+            SELECT
+                s.subscription_id,
+                s.subscription_ref,
+                s.account_id,
+                s.sub_package_id,
+                s.billing_period,
+                a.account_email,
+                a.account_name,
+                a.account_fullname,
+                p.package_name,
+                p.package_code,
+                p.price_amount,
+                p.currency,
+                p.billing_period AS pkg_billing_period
+            FROM account_subscription s
+            JOIN account a ON s.account_id = a.account_id
+            JOIN subscription_package p ON s.sub_package_id = p.sub_package_id
+            WHERE s.auto_renew = 'Yes'
+              AND s.status = 'Active'
+              AND DATE(s.current_period_end) = CURDATE()
+              AND CAST(p.price_amount AS DECIMAL(10,2)) > 0
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM subscription_payment sp
+                  WHERE sp.account_id = s.account_id
+                    AND sp.payment_status = 'Pending'
+                    AND DATE(sp.created_date) = CURDATE()
+              )
+        `;
+
+        const renewals = await db.raw(sql);
+
+        if (renewals.length === 0) {
+            console.log('[SubscriptionService] No auto-renewal subscriptions found for today');
+            return { success: true, message: 'No auto-renewals to process', count: 0 };
+        }
+
+        console.log(`[SubscriptionService] Found ${renewals.length} subscription(s) for auto-renewal`);
+
+        const SubscriptionPaymentService = require('./SubscriptionPaymentService');
+        const ChipPaymentService = require('../../services/ChipPaymentService');
+        const { BillingSetCheckoutUrl } = require('./BillingService');
+        const SST_RATE = 0.06;
+
+        let processedCount = 0;
+        let failedCount = 0;
+
+        for (const sub of renewals) {
+            try {
+                const now = new Date();
+                const periodStart = now;
+                const periodEnd = new Date(now);
+                if (sub.pkg_billing_period === 'Monthly') {
+                    periodEnd.setMonth(periodEnd.getMonth() + 1);
+                } else {
+                    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+                }
+
+                // 1. Create payment record
+                const paymentResult = await SubscriptionPaymentService.createPaymentRecord(
+                    null,
+                    sub.account_id,
+                    sub.price_amount,
+                    periodStart,
+                    periodEnd,
+                    'Chip',
+                    { subPackageId: sub.sub_package_id }
+                );
+
+                if (!paymentResult.success) {
+                    throw new Error('Failed to create payment record');
+                }
+
+                // 2. Store gateway metadata for webhook to use when confirming subscription
+                await db.raw(
+                    `UPDATE subscription_payment SET gateway_response = ? WHERE payment_ref = ?`,
+                    [
+                        JSON.stringify({ package_id: sub.sub_package_id, is_renewal: true }),
+                        paymentResult.data.payment_ref
+                    ]
+                );
+
+                // 3. Charge SST-inclusive amount via CHIP
+                const chipAmount = parseFloat((parseFloat(sub.price_amount) * (1 + SST_RATE)).toFixed(2));
+                const gatewayResult = await ChipPaymentService.createSubscriptionPayment({
+                    payment_ref: paymentResult.data.payment_ref,
+                    account_id: sub.account_id,
+                    amount: chipAmount,
+                    description: `${sub.package_name} - ${sub.pkg_billing_period} Auto-Renewal (incl. 6% SST)`,
+                    customer_email: sub.account_email || '',
+                    customer_name: sub.account_name || sub.account_fullname || ''
+                });
+
+                if (!gatewayResult.success) {
+                    throw new Error('Failed to create CHIP payment');
+                }
+
+                // 4. Link CHIP purchase to the bill
+                if (paymentResult.data.bill_id && gatewayResult.data.purchase_id) {
+                    try {
+                        await BillingSetCheckoutUrl(
+                            paymentResult.data.bill_id,
+                            gatewayResult.data.purchase_id,
+                            gatewayResult.data.payment_url
+                        );
+                    } catch (e) {
+                        console.error('[SubscriptionService] processAutoRenewal BillingSetCheckoutUrl failed:', e);
+                    }
+                }
+
+                // 5. Notify user with payment link
+                await NotificationService.sendUserNotification(
+                    sub.account_id,
+                    '🔄 Subscription Renewal Ready',
+                    `Your ${sub.package_name} subscription is expiring today. Tap to complete your renewal payment.`,
+                    {
+                        type:        'SubscriptionAutoRenewal',
+                        payment_url: gatewayResult.data.payment_url,
+                        payment_ref: paymentResult.data.payment_ref
+                    }
+                );
+
+                // 6. Queue email with payment link
+                try {
+                    const queues = require('../../queue');
+                    await queues.email.add('send', {
+                        to: sub.account_email,
+                        subject: `Action Required - Renew Your TaxLah ${sub.package_name} Subscription`,
+                        html: `
+                            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                                <h2 style="color: #1a5f7a;">🔄 Subscription Renewal</h2>
+                                <p>Hi ${sub.account_name || sub.account_fullname},</p>
+                                <p>Your <strong>${sub.package_name}</strong> subscription is expiring today. To continue enjoying premium features, please complete your renewal payment.</p>
+                                <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                    <strong>Renewal Details:</strong><br>
+                                    Plan: ${sub.package_name}<br>
+                                    Billing Period: ${sub.pkg_billing_period}<br>
+                                    Amount: RM ${chipAmount.toFixed(2)} (incl. 6% SST)
+                                </div>
+                                <div style="text-align: center; margin: 30px 0;">
+                                    <a href="${gatewayResult.data.payment_url}"
+                                        style="background-color: #1a5f7a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                                        Pay Now
+                                    </a>
+                                </div>
+                                <p style="color: #666; font-size: 13px;">If you did not request this renewal, you can ignore this email.</p>
+                                <p>Best regards,<br>The TaxLah Team</p>
+                            </div>
+                        `
+                    }, { priority: 2 });
+                } catch (emailError) {
+                    console.error(`[SubscriptionService] processAutoRenewal email failed for ${sub.account_email}:`, emailError);
+                }
+
+                await logSubscriptionHistory(
+                    sub.subscription_id,
+                    sub.account_id,
+                    'Renewal',
+                    `Auto-renewal bill generated - payment_ref: ${paymentResult.data.payment_ref}`,
+                    null, null
+                );
+
+                processedCount++;
+                console.log(`[SubscriptionService] Auto-renewal initiated for ${sub.subscription_ref} (account ${sub.account_id})`);
+
+            } catch (subError) {
+                failedCount++;
+                console.error(`[SubscriptionService] processAutoRenewal failed for subscription ${sub.subscription_ref}:`, subError);
+            }
+        }
+
+        const result = {
+            success: true,
+            message: `Auto-renewal initiated for ${processedCount} subscription(s)`,
+            count: processedCount,
+            failed: failedCount,
+            total: renewals.length
+        };
+
+        console.log('[SubscriptionService] Auto-renewal processing completed:', result);
+        return result;
+
+    } catch (error) {
+        console.error('[SubscriptionService] processAutoRenewal error:', error);
+        return { success: false, error: error.message, count: 0 };
+    }
+}
+
 module.exports = {
     getSubscriptionPackages,
     getPackageById,
@@ -1144,5 +1347,6 @@ module.exports = {
     logSubscriptionHistory,
     getSubscriptionEvents,
     processExpiredSubscriptions,
-    sendExpiryReminders
+    sendExpiryReminders,
+    processAutoRenewal
 };

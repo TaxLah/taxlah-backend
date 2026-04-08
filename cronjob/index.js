@@ -158,10 +158,16 @@ const initCronJobs = () => {
 		console.log("Checked pending payments");
 	});
 
-	// Example: Monthly subscription renewal on 1st of each month
-	scheduler.schedule("subscription-renewal", "0 0 1 * *", async () => {
-		// Handle subscription renewals
-		console.log("Processing subscription renewals");
+	// Auto-renewal: daily at 00:30 AM — generate CHIP payment bills for subscriptions
+	// expiring today that have auto_renew = 'Yes'. Runs BEFORE expire-subscriptions (1 AM).
+	scheduler.schedule("subscription-renewal", "30 0 * * *", async () => {
+		const SubscriptionService = require("../models/AppModel/SubscriptionService");
+		try {
+			const result = await SubscriptionService.processAutoRenewal();
+			console.log("[Cron] subscription-renewal completed:", result);
+		} catch (err) {
+			console.error("[Cron] subscription-renewal error:", err);
+		}
 	});
 
 	// Example: Cleanup old logs every Sunday at 2 AM

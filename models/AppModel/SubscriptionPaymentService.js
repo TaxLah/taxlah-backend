@@ -161,7 +161,7 @@ async function getPaymentHistory(accountId, limit = 10) {
             SELECT 
                 sp.payment_id,
                 sp.payment_ref,
-                sp.amount,
+                COALESCE(sp.amount * 1.06, 0) as amount,
                 sp.currency,
                 sp.period_start,
                 sp.period_end,
