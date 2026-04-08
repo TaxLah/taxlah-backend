@@ -203,112 +203,101 @@ router.post("/subscribe", auth(), async (req, res) => {
         }
 
         const pkg = packageResult.data;
-        const hasTrial = pkg.trial_days > 0;
 
-        // Try to create subscription (will only create if trial, otherwise returns requires_payment)
-        const subResult = await SubscriptionService.createSubscription(
-            user.account_id,
-            package_id,
-            payment_method || 'Chip',
-        );
-
-        if (!subResult.success) {
-            response = BAD_REQUEST_API_RESPONSE;
-            response.message = subResult.error;
+        // ── Free package (price = 0): activate immediately, no payment needed ──────
+        if (parseFloat(pkg.price_amount) === 0) {
+            const subResult = await SubscriptionService.createSubscription(
+                user.account_id, package_id, 'Free', true
+            );
+            if (!subResult.success) {
+                response = BAD_REQUEST_API_RESPONSE;
+                response.message = subResult.error;
+                return res.status(response.status_code).json(response);
+            }
+            response = SUCCESS_API_RESPONSE;
+            response.message = "Free subscription activated.";
+            response.data = subResult.data;
             return res.status(response.status_code).json(response);
         }
 
-        // Check if payment is required (non-trial packages)
-        if (subResult.requires_payment) {
-            // Calculate period dates for payment record
-            const now = new Date();
-            const periodEnd = new Date(now);
-            
-            if (pkg.billing_period === 'Monthly') {
-                periodEnd.setMonth(periodEnd.getMonth() + 1);
-            } else {
-                periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-            }
+        // ── Paid package: create bill + CHIP purchase; subscription created ONLY after payment ──
+        // Do NOT create a subscription record here. The webhook (POST /subscription/webhook)
+        // will call processSuccessfulPayment() which creates it once CHIP confirms the payment.
+        const now = new Date();
+        const periodEnd = new Date(now);
 
-            // Create payment record WITHOUT subscription_id (will be added after payment succeeds)
-            const paymentResult = await SubscriptionPaymentService.createPaymentRecord(
-                null, // subscription_id is null - will be created after payment
-                user.account_id,
-                pkg.price_amount,
-                now,
-                periodEnd,
-                payment_method || 'Chip',
-                { subPackageId: package_id }
-            );
-
-            if (!paymentResult.success) {
-                response = INTERNAL_SERVER_ERROR_API_RESPONSE;
-                response.message = "Failed to create payment record.";
-                return res.status(response.status_code).json(response);
-            }
-
-            // Store package_id in payment metadata for later subscription creation
-            const updateMetadataSql = `
-                UPDATE subscription_payment
-                SET gateway_response = ?
-                WHERE payment_ref = ?
-            `;
-            await require('../../../utils/sqlbuilder').raw(updateMetadataSql, [
-                JSON.stringify({ package_id: package_id }),
-                paymentResult.data.payment_ref
-            ]);
-
-            // Create payment gateway URL
-            const paymentGatewayResult = await ChipPaymentService.createSubscriptionPayment({
-                payment_ref: paymentResult.data.payment_ref,
-                account_id: user.account_id,
-                amount: pkg.price_amount,
-                description: `${pkg.package_name} - ${pkg.billing_period} Subscription`,
-                customer_email: user.account_email || '',
-                customer_name: user.account_name || user.account_fullname || ''
-            });
-
-            if (!paymentGatewayResult.success) {
-                response = INTERNAL_SERVER_ERROR_API_RESPONSE;
-                response.message = "Failed to create payment gateway URL.";
-                return res.status(response.status_code).json(response);
-            }
-
-            // Link the CHIP purchase back to the bill so the webhook can find it
-            if (paymentResult.data.bill_id && paymentGatewayResult.data.purchase_id) {
-                const { BillingSetCheckoutUrl } = require('../../../models/AppModel/BillingService');
-                await BillingSetCheckoutUrl(
-                    paymentResult.data.bill_id,
-                    paymentGatewayResult.data.purchase_id,
-                    paymentGatewayResult.data.payment_url
-                ).catch(e => console.error('[Subscription/subscribe] BillingSetCheckoutUrl failed:', e));
-            }
-
-            response = SUCCESS_API_RESPONSE;
-            response.message = "Please complete payment to activate subscription.";
-            response.data = {
-                package_name: pkg.package_name,
-                amount: pkg.price_amount,
-                billing_period: pkg.billing_period,
-                payment_url: paymentGatewayResult.data.payment_url,
-                payment_ref: paymentResult.data.payment_ref
-            };
+        if (pkg.billing_period === 'Monthly') {
+            periodEnd.setMonth(periodEnd.getMonth() + 1);
+        } else if (pkg.billing_period === 'Yearly') {
+            periodEnd.setFullYear(periodEnd.getFullYear() + 1);
         } else {
-            // Trial subscription - created immediately
-            const subscription = subResult.data;
-            
-            response = SUCCESS_API_RESPONSE;
-            response.message = "Subscription activated with trial period.";
-            response.data = {
-                subscription_id: subscription.subscription_id,
-                subscription_ref: subscription.subscription_ref,
-                status: 'Trial',
-                trial_end_date: subscription.trial_end_date,
-                current_period_end: subscription.current_period_end
-            };
+            periodEnd.setMonth(periodEnd.getMonth() + 1);
         }
 
-        res.status(response.status_code).json(response);
+        // Create subscription_payment record + bill
+        const paymentResult = await SubscriptionPaymentService.createPaymentRecord(
+            null, // subscription_id assigned by webhook after payment
+            user.account_id,
+            pkg.price_amount,
+            now,
+            periodEnd,
+            payment_method || 'Chip',
+            { subPackageId: package_id }
+        );
+
+        if (!paymentResult.success) {
+            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response.message = "Failed to create payment record.";
+            return res.status(response.status_code).json(response);
+        }
+
+        // Store package_id in metadata so the webhook knows which package to activate
+        const updateMetadataSql = `
+            UPDATE subscription_payment
+            SET gateway_response = ?
+            WHERE payment_ref = ?
+        `;
+        await require('../../../utils/sqlbuilder').raw(updateMetadataSql, [
+            JSON.stringify({ package_id }),
+            paymentResult.data.payment_ref
+        ]);
+
+        // Create CHIP payment URL
+        const paymentGatewayResult = await ChipPaymentService.createSubscriptionPayment({
+            payment_ref:    paymentResult.data.payment_ref,
+            account_id:     user.account_id,
+            amount:         pkg.price_amount,
+            description:    `${pkg.package_name} - ${pkg.billing_period} Subscription`,
+            customer_email: user.account_email || '',
+            customer_name:  user.account_name || user.account_fullname || ''
+        });
+
+        if (!paymentGatewayResult.success) {
+            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response.message = "Failed to create payment gateway URL.";
+            return res.status(response.status_code).json(response);
+        }
+
+        // Link CHIP purchase to bill so the webhook can locate it by chip_purchase_id
+        if (paymentResult.data.bill_id && paymentGatewayResult.data.purchase_id) {
+            const { BillingSetCheckoutUrl } = require('../../../models/AppModel/BillingService');
+            await BillingSetCheckoutUrl(
+                paymentResult.data.bill_id,
+                paymentGatewayResult.data.purchase_id,
+                paymentGatewayResult.data.payment_url
+            ).catch(e => console.error('[Subscription/subscribe] BillingSetCheckoutUrl failed:', e));
+        }
+
+        response = SUCCESS_API_RESPONSE;
+        response.message = "Please complete payment to activate subscription.";
+        response.data = {
+            package_name:   pkg.package_name,
+            amount:         pkg.price_amount,
+            billing_period: pkg.billing_period,
+            payment_url:    paymentGatewayResult.data.payment_url,
+            payment_ref:    paymentResult.data.payment_ref
+        };
+        return res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Subscribe:", error);
         response = INTERNAL_SERVER_ERROR_API_RESPONSE;
@@ -698,13 +687,21 @@ router.post("/webhook", async (req, res) => {
         console.log('Is Paid:', data.is_paid);
         console.log('============================');
 
-        // Get payment reference from purchase_id or reference
-        const paymentRef = data.reference || data.purchase_id;
+        // Resolve our payment_ref from metadata first (most reliable).
+        // CHIP's data.reference is CHIP's own reference, not our SUBPAY-... string.
+        // Our payment_ref is stored in the purchase metadata under payment_ref / order_id.
+        const paymentRef =
+            data.metadata?.payment_ref ||
+            data.metadata?.order_id   ||
+            data.reference            ||
+            data.purchase_id;
 
         if (!paymentRef) {
             console.error('[Subscription Webhook] No payment reference found');
             return res.status(200).json({ success: true });
         }
+
+        console.log('[Subscription Webhook] Resolved paymentRef:', paymentRef);
 
         // Handle based on payment status
         if (data.is_paid && data.payment_status === 'paid') {

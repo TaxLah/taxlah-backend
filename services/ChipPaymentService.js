@@ -213,6 +213,9 @@ function ParseWebhookPayload(payload) {
         const data = typeof payload === 'string' ? JSON.parse(payload) : payload
         if (!data.id) throw new Error('Invalid webhook payload')
 
+        // CHIP stores our metadata inside purchase.metadata, not at top-level data.metadata
+        const purchaseMetadata = data.purchase?.metadata || data.metadata || {};
+
         result = {
             status: true,
             data: {
@@ -228,7 +231,7 @@ function ParseWebhookPayload(payload) {
                 paid_at: data.paid_on || null,
                 client_email: data.client?.email || null,
                 client_name: data.client?.full_name || null,
-                metadata: data.metadata || {},
+                metadata: purchaseMetadata,
                 raw_payload: data
             }
         }

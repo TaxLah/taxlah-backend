@@ -465,78 +465,76 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
             const existingSub = await SubscriptionService.getActiveSubscription(payment.account_id);
             
             if (existingSub.has_subscription) {
-                // Subscription exists - just update status if needed
-                const updateSubSql = `
-                    UPDATE account_subscription
-                    SET status = 'Active',
-                        payment_method = ?,
-                        last_modified = NOW()
-                    WHERE subscription_id = ?
-                    AND status IN ('Trial', 'Past_Due')
-                `;
-                await db.raw(updateSubSql, [payment.payment_gateway, payment.subscription_id]);
+                const existingSubData = existingSub.data;
+                const isSamePackage   = packageId && existingSubData.sub_package_id === packageId;
+                const isActivatable   = ['Trial', 'Past_Due'].includes(existingSubData.status);
 
-                await SubscriptionService.logSubscriptionHistory(
-                    payment.subscription_id,
-                    payment.account_id,
-                    'Payment_Succeeded',
-                    `Payment of ${payment.currency} ${payment.amount} completed successfully`,
-                    null,
-                    'Active'
-                );
+                if (isSamePackage && isActivatable) {
+                    // Same package, just flip Trial/Past_Due → Active
+                    await db.raw(
+                        `UPDATE account_subscription
+                         SET status = 'Active', payment_method = ?, last_modified = NOW()
+                         WHERE subscription_id = ? AND status IN ('Trial', 'Past_Due')`,
+                        [payment.payment_gateway, existingSubData.subscription_id]
+                    );
+                    await SubscriptionService.logSubscriptionHistory(
+                        existingSubData.subscription_id, payment.account_id,
+                        'Payment_Succeeded',
+                        `Payment of ${payment.currency} ${payment.amount} completed successfully`,
+                        null, 'Active'
+                    );
+                } else {
+                    // Different package or upgrading from Active free plan — expire old, create new
+                    await db.raw(
+                        `UPDATE account_subscription
+                         SET status = 'Expired', ended_at = NOW(), last_modified = NOW()
+                         WHERE subscription_id = ?`,
+                        [existingSubData.subscription_id]
+                    );
+                    await SubscriptionService.logSubscriptionHistory(
+                        existingSubData.subscription_id, payment.account_id,
+                        'Expired', 'Plan replaced by new subscription',
+                        existingSubData.status, 'Expired'
+                    );
 
-                // Initialize/update credit account with free_receipts_limit based on package
+                    const createResult = await SubscriptionService.createSubscription(
+                        payment.account_id, packageId, payment.payment_gateway, true
+                    );
+                    if (createResult.success) {
+                        await db.raw(
+                            `UPDATE subscription_payment SET subscription_id = ? WHERE payment_ref = ?`,
+                            [createResult.data.subscription_id, paymentRef]
+                        );
+                    }
+                }
+
+                // Update credit account limits for the activated package
                 try {
-                    const packageResult = await SubscriptionService.getPackageById(existingSub.data.sub_package_id);
-                    
+                    const pkgId = packageId || existingSubData.sub_package_id;
+                    const packageResult = await SubscriptionService.getPackageById(pkgId);
                     if (packageResult.success) {
                         const packageCode = packageResult.data.package_code;
                         let freeReceiptsLimit = 0;
-                        
-                        if (packageCode === 'PRO') {
-                            freeReceiptsLimit = 20;
-                        } else if (packageCode === 'PREMIUM') {
-                            freeReceiptsLimit = 50;
-                        }
-                        
-                        // Ensure credit account exists
+                        if (packageCode === 'PRO')     freeReceiptsLimit = 20;
+                        if (packageCode === 'PREMIUM') freeReceiptsLimit = 50;
                         await CreditService.getOrCreateCreditAccount(payment.account_id);
-                        
-                        // Update free_receipts_limit
-                        const updateCreditSql = `
-                            UPDATE account_credit
-                            SET free_receipts_limit = ?
-                            WHERE account_id = ?
-                        `;
-                        await db.raw(updateCreditSql, [freeReceiptsLimit, payment.account_id]);
-                        
-                        console.log(`[SubscriptionPaymentService] Credit account updated for account ${payment.account_id}: free_receipts_limit set to ${freeReceiptsLimit} (${packageCode})`);
+                        await db.raw(
+                            `UPDATE account_credit SET free_receipts_limit = ? WHERE account_id = ?`,
+                            [freeReceiptsLimit, payment.account_id]
+                        );
                     }
                 } catch (creditError) {
                     console.error('[SubscriptionPaymentService] Failed to update credit account:', creditError);
                 }
 
-                // Create notification for successful subscription payment
+                // Push + in-app notification
                 try {
-                    await UserNotificationCreate({
-                        account_id: payment.account_id,
-                        notification_title: '✅ Subscription Payment Successful',
-                        notification_description: `Your subscription payment of ${payment.currency} ${payment.amount} has been processed successfully! Your subscription is now active.`,
-                        read_status: 'No',
-                        archive_status: 'No',
-                        status: 'Active'
-                    });
-
-                    await queues.notification.add('pushSingle', {
-                        token: existingSub.data.fcm_token,
-                        title: '✅ Subscription Payment Successful',
-                        body: `Your subscription payment of ${payment.currency} ${payment.amount} has been processed successfully! Your subscription is now active.`,
-                        data: {
-                            type: 'SubscriptionPayment',
-                            subscription_id: payment.subscription_id
-                        }
-                    }, { priority: 5 });
-
+                    await NotificationService.sendUserNotification(
+                        payment.account_id,
+                        '🎉 Subscription Activated',
+                        `Your payment of ${payment.currency} ${payment.amount} has been processed and your subscription is now active.`,
+                        { type: 'SubscriptionActivated', payment_ref: paymentRef, amount: String(payment.amount) }
+                    );
                 } catch (notifError) {
                     console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
                 }
@@ -545,9 +543,9 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                     success: true,
                     message: 'Payment processed and subscription activated',
                     data: {
-                        payment_ref: paymentRef,
+                        payment_ref:     paymentRef,
                         subscription_id: payment.subscription_id,
-                        amount: payment.amount
+                        amount:          payment.amount
                     }
                 };
             } else {
