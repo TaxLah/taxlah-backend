@@ -1,3 +1,6 @@
+const _d = new Date();
+const _date = `${_d.getFullYear()}${String(_d.getMonth() + 1).padStart(2, '0')}${String(_d.getDate()).padStart(2, '0')}`;
+
 module.exports = {
     apps: [
         {
@@ -19,8 +22,8 @@ module.exports = {
                 CHIP_CALLBACK_URL: process.env.CHIP_CALLBACK_URL,
                 BASE_URL: process.env.BASE_URL || 'https://dev.taxlah.com'
             },
-            error_file: './logs/dev-error.log',
-            out_file: './logs/dev-out.log',
+            error_file: `./logs/${_date}dev-error.log`,
+            out_file: `./logs/${_date}dev-out.log`,
             log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
             merge_logs: true,
             autorestart: true,
@@ -45,8 +48,8 @@ module.exports = {
                 CHIP_CALLBACK_URL: process.env.CHIP_CALLBACK_URL,
                 BASE_URL: process.env.BASE_URL || 'https://staging.taxlah.com'
             },
-            error_file: './logs/staging-error.log',
-            out_file: './logs/staging-out.log',
+            error_file: `./logs/${_date}staging-error.log`,
+            out_file: `./logs/${_date}staging-out.log`,
             log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
             merge_logs: true,
             autorestart: true,
@@ -71,8 +74,8 @@ module.exports = {
                 CHIP_CALLBACK_URL: process.env.CHIP_CALLBACK_URL,
                 BASE_URL: process.env.BASE_URL || 'https://taxlah.com'
             },
-            error_file: './logs/prod-error.log',
-            out_file: './logs/prod-out.log',
+            error_file: `./logs/${_date}prod-error.log`,
+            out_file: `./logs/${_date}prod-out.log`,
             log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
             merge_logs: true,
             autorestart: true,
