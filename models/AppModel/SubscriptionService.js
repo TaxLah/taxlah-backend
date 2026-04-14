@@ -78,7 +78,7 @@ async function getPackageById(packageId) {
                 package_color,
                 trial_days
             FROM subscription_package
-            WHERE sub_package_id = ? AND status = 'Active'
+            WHERE sub_package_id = ? LIMIT 1
         `;
         
         const result = await db.raw(sql, [packageId]);

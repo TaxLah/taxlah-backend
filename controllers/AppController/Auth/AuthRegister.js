@@ -106,9 +106,6 @@ router.post("/", async(req , res) => {
                     console.log("Log Function Create Auth Access Account : ", auth_access)
 
                     if(auth_access.status) {
-                        response            = SUCCESS_API_RESPONSE
-                        response.message    = "Congratulation! Your account has been created successfully."
-                        response.data       = null
 
                         // Auto-assign freemium subscription on registration
                         try {
@@ -156,26 +153,33 @@ router.post("/", async(req , res) => {
                         let email_html      = OnboardingEmail(account_fullname || auth_username )
                         let send_email      = await SEND_EMAIL_NOTIFICATION(account_email, email_title, email_body, email_html)
 
+                        response            = SUCCESS_API_RESPONSE
+                        response.message    = "Congratulation! Your account has been created successfully."
+                        response.data       = null
 
+                        return res.status(response.status_code).json(response)
                         
                     } else {
                         let delete_account  = await AccountDelete(profile.account_id)
                         response            = FORBIDDEN_API_RESPONSE
                         response.message    = "System Error! We're sorry that we could not create your account. Please make sure all required information are not left empty."
                         response.data       = null
+
+                        return res.status(response.status_code).json(response)
                     }
 
                 } else {
                     response            = INTERNAL_SERVER_ERROR_API_RESPONSE
                     response.message    = "Error. Unable to create account profile. Please make sure all required field is not empty or format is correct."
                     response.data       = null
+
+                    return res.status(response.status_code).json(response)
                 }
             }
         }
     } catch (e) {
         response = INTERNAL_SERVER_ERROR_API_RESPONSE
         response.message = "Error! Please contact our support for more information."
-    } finally {
         return res.status(response.status_code).json(response)
     }
 })
