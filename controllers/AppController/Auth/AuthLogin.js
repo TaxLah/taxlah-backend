@@ -78,8 +78,9 @@ router.post("/", async(req , res) => {
                             status: 'Active'
                         })
 
-                        response = SUCCESS_API_RESPONSE
-                        response.message = "Login Successful."
+                        response                = SUCCESS_API_RESPONSE
+                        response.status_code    = 200
+                        response.message        = "Login Successful."
                         response.data = {
                             profile: profile,
                             access_token,

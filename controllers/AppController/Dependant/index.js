@@ -274,7 +274,6 @@ router.post("/", async (req, res) => {
 
 		if (result.status) {
 			response = SUCCESS_API_RESPONSE;
-			response.status_code = 201;
 			response.message = "Dependant created successfully.";
 			response.data = {
 				dependant_id: result.data,
