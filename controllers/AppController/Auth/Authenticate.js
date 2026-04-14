@@ -1,6 +1,7 @@
 const express = require('express')
 const { SUCCESS_API_RESPONSE, INTERNAL_SERVER_ERROR_API_RESPONSE, CHECK_EMPTY, UNAUTHORIZED_API_RESPONSE, ERROR_UNAUTHENTICATED, CREATE_ACCESS_TOKEN, CREATE_REFRESH_TOKEN } = require('../../../configs/helper')
 const { auth } = require('../../../configs/auth')
+const { AuthCheckActiveStatus } = require('../../../models/AppModel/Auth')
 const router = express.Router()
 
 router.get("/", auth(), async(req , res) => {
@@ -14,6 +15,14 @@ router.get("/", auth(), async(req , res) => {
             response.message    = ERROR_UNAUTHENTICATED
             response.data       = null
         } else {
+
+            let active_check = await AuthCheckActiveStatus(user.account_id)
+            if (!active_check.status) {
+                response            = UNAUTHORIZED_API_RESPONSE
+                response.message    = ERROR_UNAUTHENTICATED
+                response.data       = null
+                return res.status(response.status_code).json(response)
+            }
 
             let profile         = { 
                 uid: user.uid, 

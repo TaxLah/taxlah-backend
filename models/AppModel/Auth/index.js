@@ -106,10 +106,38 @@ async function AuthLogin(account_id) {
     }
 }
 
+async function AuthCheckActiveStatus(account_id) {
+    let result = null
+    try {
+        let data = await db.raw(
+            `SELECT a.auth_status, acc.account_status
+            FROM auth_access a
+            INNER JOIN account acc ON acc.account_id = a.account_id
+            WHERE a.account_id = ? AND acc.account_status = 'Active' AND a.auth_status = 'Active' LIMIT 1`,
+            [account_id]
+        )
+        if (data.length && data[0].auth_status === 'Active' && data[0].account_status === 'Active') {
+            result = { status: true }
+        } else {
+            result = { status: false }
+        }
+    } catch (e) {
+        console.log("Syntax error at AuthCheckActiveStatus : ", e)
+        result = { status: false }
+    } finally {
+        return result
+    }
+}
+
 async function AuthDeleteAccount(account_id) {
     let result = null
     try {
         let sql = await db.update("auth_access", { auth_status: 'Suspended' }, { account_id })
+        if(sql) {
+            result = { status: true }
+        } else {
+            result = { status: false }
+        }
     } catch (e) {
         console.log("Syntax error at delete auth account : ", e)
         result = { status: false }
@@ -123,9 +151,9 @@ async function AuthGetByEmail(email) {
     try {
         let data = await db.raw(
             `SELECT auth_id, auth_username, auth_usermail, account_id
-             FROM auth_access
-             WHERE auth_usermail = ? AND auth_status = 'Active'
-             LIMIT 1`,
+            FROM auth_access
+            WHERE auth_usermail = ? AND auth_status = 'Active'
+            LIMIT 1`,
             [email]
         )
         result = data.length ? { status: true, data: data[0] } : { status: false, data: null }
@@ -206,4 +234,5 @@ module.exports = {
     AuthSetOtp,
     AuthVerifyOtp,
     AuthResetPassword,
+    AuthCheckActiveStatus,
 }

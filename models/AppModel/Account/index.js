@@ -59,7 +59,7 @@ async function AccountDelete(account_id) {
     let result = null
     try {
         let deleteData = await db.update('account', { account_status: 'Suspended' },  { account_id })
-        if(deleteData.affectedRows) {
+        if(deleteData) {
             let update_access = await AuthDeleteAccount(account_id)
             console.log("Log Function Delete Access : ", update_access)
             

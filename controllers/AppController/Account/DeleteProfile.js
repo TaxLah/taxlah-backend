@@ -10,12 +10,12 @@ router.delete("/", async(req , res) => {
     try {
         
         let delete_profile = await AccountDelete(user.account_id)
-        if(delete_profile.status) {
-            response = SUCCESS_API_RESPONSE
-            response.message = "Your account and access has been deleted successfully."
+        console.log("Log Delete Account : ", delete_profile)
+
+        if(delete_profile && delete_profile.status) {
+            response = { ...SUCCESS_API_RESPONSE, message: "Your account and access has been deleted successfully." }
         } else {
-            response = FORBIDDEN_API_RESPONSE
-            response.message = ERROR_TECHNICAL_ERROR
+            response = { ...FORBIDDEN_API_RESPONSE, message: ERROR_TECHNICAL_ERROR }
         }
         return res.status(response.status_code).json(response)
     } catch (e) {
