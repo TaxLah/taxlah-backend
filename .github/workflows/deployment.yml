@@ -1,263 +1,195 @@
 name: Deploy to Server
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment'
-        required: true
-        type: choice
-        options:
-          - development
-          - staging
-          - production
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+        inputs:
+            environment:
+                description: "Deployment environment"
+                required: true
+                type: choice
+                options:
+                    - development
+                    - staging
+                    - production
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+    prepare:
+        runs-on: ubuntu-latest
+        outputs:
+            environments: ${{ steps.set-envs.outputs.environments }}
+        steps:
+            - name: Set environments to deploy
+              id: set-envs
+              run: |
+                  if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                    echo 'environments=["${{ github.event.inputs.environment }}"]' >> $GITHUB_OUTPUT
+                  else
+                    echo 'environments=["development", "staging", "production"]' >> $GITHUB_OUTPUT
+                  fi
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22'
-          cache: 'npm'
+    deploy:
+        needs: prepare
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                environment: ${{ fromJson(needs.prepare.outputs.environments) }}
+            fail-fast: false
 
-      - name: Install dependencies
-        run: npm install
+        # Pulls secrets from the matching GitHub Environment
+        environment: ${{ matrix.environment }}
 
-      - name: Set deployment environment
-        id: env
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            ENV="${{ github.event.inputs.environment }}"
-            echo "deploy_mode=single" >> $GITHUB_OUTPUT
-          else
-            ENV="all"
-            echo "deploy_mode=all" >> $GITHUB_OUTPUT
-          fi
-          
-          echo "environment=$ENV" >> $GITHUB_OUTPUT
-          
-          if [ "$ENV" = "production" ]; then
-            echo "pm2_app=taxlah-production-api" >> $GITHUB_OUTPUT
-            echo "deploy_path=/home/taxlah/api/production" >> $GITHUB_OUTPUT
-          elif [ "$ENV" = "staging" ]; then
-            echo "pm2_app=taxlah-staging-api" >> $GITHUB_OUTPUT
-            echo "deploy_path=/home/taxlah/api/staging" >> $GITHUB_OUTPUT
-          elif [ "$ENV" = "development" ]; then
-            echo "pm2_app=taxlah-development-api" >> $GITHUB_OUTPUT
-            echo "deploy_path=/home/taxlah/api/development" >> $GITHUB_OUTPUT
-          fi
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
 
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+            - name: Setup Node.js
+              uses: actions/setup-node@v3
+              with:
+                  node-version: "22"
+                  cache: "npm"
 
-      - name: Deploy to all environments
-        if: steps.env.outputs.deploy_mode == 'all'
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        run: |
-          for ENV in development staging production; do
-            echo "Deploying to $ENV environment..."
-            DEPLOY_PATH="/home/taxlah/api/$ENV"
-            
-            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
-            
-            rsync -avz --delete \
-              --exclude 'node_modules' \
-              --exclude '.git' \
-              --exclude '.env' \
-              --exclude 'env.yaml' \
-              --exclude 'logs' \
-              --exclude 'file' \
-              --exclude 'asset' \
-              --exclude 'assets' \
-              --exclude 'taxlah-react-native-firebasesdk.json' \
-              -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-              ./ $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/
-          done
+            - name: Install dependencies
+              run: npm install
 
-      - name: Install dependencies and restart PM2 (all environments)
-        if: steps.env.outputs.deploy_mode == 'all'
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          # Development secrets
-          DEV_DB_HOST: ${{ secrets.DEV_DB_HOST }}
-          DEV_DB_USERNAME: ${{ secrets.DEV_DB_USERNAME }}
-          DEV_DB_PASSWORD: ${{ secrets.DEV_DB_PASSWORD }}
-          DEV_DB_DATABASE: ${{ secrets.DEV_DB_DATABASE }}
-          DEV_APP_SECRET: ${{ secrets.DEV_APP_SECRET }}
-          DEV_ADMIN_SECRET: ${{ secrets.DEV_ADMIN_SECRET }}
-          DEV_CHIP_BRAND_ID: ${{ secrets.DEV_CHIP_BRAND_ID }}
-          DEV_CHIP_API_KEY: ${{ secrets.DEV_CHIP_API_KEY }}
-          DEV_CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.DEV_CHIP_WEBHOOK_PUBLIC_KEY }}
-          DEV_CHIP_CALLBACK_URL: ${{ secrets.DEV_CHIP_CALLBACK_URL }}
+            - name: Set deployment variables
+              id: vars
+              run: |
+                  ENV="${{ matrix.environment }}"
 
-          # Staging secrets
-          STAGING_DB_HOST: ${{ secrets.STAGING_DB_HOST }}
-          STAGING_DB_USERNAME: ${{ secrets.STAGING_DB_USERNAME }}
-          STAGING_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
-          STAGING_DB_DATABASE: ${{ secrets.STAGING_DB_DATABASE }}
-          STAGING_APP_SECRET: ${{ secrets.STAGING_APP_SECRET }}
-          STAGING_ADMIN_SECRET: ${{ secrets.STAGING_ADMIN_SECRET }}
-          STAGING_CHIP_BRAND_ID: ${{ secrets.STAGING_CHIP_BRAND_ID }}
-          STAGING_CHIP_API_KEY: ${{ secrets.STAGING_CHIP_API_KEY }}
-          STAGING_CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.STAGING_CHIP_WEBHOOK_PUBLIC_KEY }}
-          STAGING_CHIP_CALLBACK_URL: ${{ secrets.STAGING_CHIP_CALLBACK_URL }}
+                  if [ "$ENV" = "production" ]; then
+                    echo "pm2_app=taxlah-production-api" >> $GITHUB_OUTPUT
+                    echo "deploy_path=/home/taxlah/api/production" >> $GITHUB_OUTPUT
+                    echo "port=4000" >> $GITHUB_OUTPUT
+                    echo "base_url=https://taxlah.com" >> $GITHUB_OUTPUT
+                  elif [ "$ENV" = "staging" ]; then
+                    echo "pm2_app=taxlah-staging-api" >> $GITHUB_OUTPUT
+                    echo "deploy_path=/home/taxlah/api/staging" >> $GITHUB_OUTPUT
+                    echo "port=3001" >> $GITHUB_OUTPUT
+                    echo "base_url=https://staging.taxlah.com" >> $GITHUB_OUTPUT
+                  else
+                    echo "pm2_app=taxlah-development-api" >> $GITHUB_OUTPUT
+                    echo "deploy_path=/home/taxlah/api/development" >> $GITHUB_OUTPUT
+                    echo "port=3000" >> $GITHUB_OUTPUT
+                    echo "base_url=https://dev.taxlah.com" >> $GITHUB_OUTPUT
+                  fi
 
-          # Production secrets
-          PROD_DB_HOST: ${{ secrets.PROD_DB_HOST }}
-          PROD_DB_USERNAME: ${{ secrets.PROD_DB_USERNAME }}
-          PROD_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
-          PROD_DB_DATABASE: ${{ secrets.PROD_DB_DATABASE }}
-          PROD_APP_SECRET: ${{ secrets.PROD_APP_SECRET }}
-          PROD_ADMIN_SECRET: ${{ secrets.PROD_ADMIN_SECRET }}
-          PROD_CHIP_BRAND_ID: ${{ secrets.PROD_CHIP_BRAND_ID }}
-          PROD_CHIP_API_KEY: ${{ secrets.PROD_CHIP_API_KEY }}
-          PROD_CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.PROD_CHIP_WEBHOOK_PUBLIC_KEY }}
-          PROD_CHIP_CALLBACK_URL: ${{ secrets.PROD_CHIP_CALLBACK_URL }}
+            - name: Setup SSH key
+              run: |
+                  mkdir -p ~/.ssh
+                  echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+                  chmod 600 ~/.ssh/deploy_key
+                  ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          # Deploy to development
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
-          export NVM_DIR="\$HOME/.nvm"
-          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
-          
-          cd /home/taxlah/api/development
-          
-          {
-          echo "development:"
-          echo "  PORT: 3000"
-          echo "  SECRET: \"development\""
-          echo "  DB_HOST: \"${DEV_DB_HOST}\""
-          echo "  DB_USERNAME: \"${DEV_DB_USERNAME}\""
-          echo "  DB_PASSWORD: \"${DEV_DB_PASSWORD}\""
-          echo "  DB_DATABASE: \"${DEV_DB_DATABASE}\""
-          echo "  APP_SECRET: \"${DEV_APP_SECRET}\""
-          echo "  ADMIN_SECRET: \"${DEV_ADMIN_SECRET}\""
-          echo "  CHIP_BRAND_ID: \"${DEV_CHIP_BRAND_ID}\""
-          echo "  CHIP_API_KEY: \"${DEV_CHIP_API_KEY}\""
-          echo "  CHIP_WEBHOOK_PUBLIC_KEY: |"
-          printf '%s\n' "${DEV_CHIP_WEBHOOK_PUBLIC_KEY}" | sed 's/^/    /'
-          echo "  CHIP_CALLBACK_URL: \"${DEV_CHIP_CALLBACK_URL}\""
-          echo "  BASE_URL: \"https://dev.taxlah.com\""
-          echo "  CHIP_API_URL: \"https://gate.chip-in.asia/api/v1\""
-          echo "  OPENAI_API_KEY: \"${OPENAI_API_KEY}\""
-          } > env.yaml
-          
-          npm install
-          mkdir -p logs file assets
-          
-          if pm2 describe taxlah-development-api > /dev/null 2>&1; then
-            pm2 restart ecosystem.config.js --only taxlah-development-api --update-env
-          else
-            pm2 start ecosystem.config.js --only taxlah-development-api
-          fi
-          EOF
-          
-          # Deploy to staging
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
-          export NVM_DIR="\$HOME/.nvm"
-          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
-          
-          cd /home/taxlah/api/staging
-          
-          {
-          echo "staging:"
-          echo "  PORT: 3100"
-          echo "  SECRET: \"staging\""
-          echo "  DB_HOST: \"${STAGING_DB_HOST}\""
-          echo "  DB_USERNAME: \"${STAGING_DB_USERNAME}\""
-          echo "  DB_PASSWORD: \"${STAGING_DB_PASSWORD}\""
-          echo "  DB_DATABASE: \"${STAGING_DB_DATABASE}\""
-          echo "  APP_SECRET: \"${STAGING_APP_SECRET}\""
-          echo "  ADMIN_SECRET: \"${STAGING_ADMIN_SECRET}\""
-          echo "  CHIP_BRAND_ID: \"${STAGING_CHIP_BRAND_ID}\""
-          echo "  CHIP_API_KEY: \"${STAGING_CHIP_API_KEY}\""
-          echo "  CHIP_WEBHOOK_PUBLIC_KEY: |"
-          printf '%s\n' "${STAGING_CHIP_WEBHOOK_PUBLIC_KEY}" | sed 's/^/    /'
-          echo "  CHIP_CALLBACK_URL: \"${STAGING_CHIP_CALLBACK_URL}\""
-          echo "  BASE_URL: \"https://staging.taxlah.com\""
-          echo "  CHIP_API_URL: \"https://gate.chip-in.asia/api/v1\""
-          echo "  OPENAI_API_KEY: \"${OPENAI_API_KEY}\""
-          } > env.yaml
-          
-          npm install
-          mkdir -p logs file assets
-          
-          if pm2 describe taxlah-staging-api > /dev/null 2>&1; then
-            pm2 restart ecosystem.config.js --only taxlah-staging-api --update-env
-          else
-            pm2 start ecosystem.config.js --only taxlah-staging-api
-          fi
-          EOF
-          
-          # Deploy to production
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
-          export NVM_DIR="\$HOME/.nvm"
-          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
-          
-          cd /home/taxlah/api/production
-          
-          {
-          echo "production:"
-          echo "  PORT: 4000"
-          echo "  SECRET: \"production\""
-          echo "  DB_HOST: \"${PROD_DB_HOST}\""
-          echo "  DB_USERNAME: \"${PROD_DB_USERNAME}\""
-          echo "  DB_PASSWORD: \"${PROD_DB_PASSWORD}\""
-          echo "  DB_DATABASE: \"${PROD_DB_DATABASE}\""
-          echo "  APP_SECRET: \"${PROD_APP_SECRET}\""
-          echo "  ADMIN_SECRET: \"${PROD_ADMIN_SECRET}\""
-          echo "  CHIP_BRAND_ID: \"${PROD_CHIP_BRAND_ID}\""
-          echo "  CHIP_API_KEY: \"${PROD_CHIP_API_KEY}\""
-          echo "  CHIP_WEBHOOK_PUBLIC_KEY: |"
-          printf '%s\n' "${PROD_CHIP_WEBHOOK_PUBLIC_KEY}" | sed 's/^/    /'
-          echo "  CHIP_CALLBACK_URL: \"${PROD_CHIP_CALLBACK_URL}\""
-          echo "  BASE_URL: \"https://taxlah.com\""
-          echo "  CHIP_API_URL: \"https://gate.chip-in.asia/api/v1\""
-          echo "  OPENAI_API_KEY: \"${OPENAI_API_KEY}\""
-          } > env.yaml
-          
-          npm install
-          mkdir -p logs file assets
-          
-          if pm2 describe taxlah-production-api > /dev/null 2>&1; then
-            pm2 restart ecosystem.config.js --only taxlah-production-api --update-env
-          else
-            pm2 start ecosystem.config.js --only taxlah-production-api
-          fi
-          
-          pm2 save
-          EOF
+            - name: Deploy files to server
+              env:
+                  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+                  SERVER_HOST: ${{ secrets.SERVER_HOST }}
+                  DEPLOY_PATH: ${{ steps.vars.outputs.deploy_path }}
+              run: |
+                  echo "Deploying to ${{ matrix.environment }} environment..."
 
-      - name: Verify deployment (all environments)
-        if: steps.env.outputs.deploy_mode == 'all'
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
-          export NVM_DIR="\$HOME/.nvm"
-          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
-          pm2 status
-          EOF
+                  ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
 
-      - name: Cleanup SSH key
-        if: always()
-        run: |
-          rm -f ~/.ssh/deploy_key
+                  rsync -avz --delete \
+                    --exclude 'node_modules' \
+                    --exclude '.git' \
+                    --exclude '.env' \
+                    --exclude 'env.yaml' \
+                    --exclude 'logs' \
+                    --exclude 'file' \
+                    --exclude 'asset' \
+                    --exclude 'assets' \
+                    --exclude 'taxlah-react-native-firebasesdk.json' \
+                    -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+                    ./ $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/
+
+            - name: Create env.yaml on server
+              env:
+                  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+                  SERVER_HOST: ${{ secrets.SERVER_HOST }}
+                  DEPLOY_PATH: ${{ steps.vars.outputs.deploy_path }}
+                  ENV_NAME: ${{ matrix.environment }}
+                  PORT: ${{ steps.vars.outputs.port }}
+                  BASE_URL: ${{ steps.vars.outputs.base_url }}
+                  DB_HOST: ${{ secrets.DB_HOST }}
+                  DB_USERNAME: ${{ secrets.DB_USERNAME }}
+                  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+                  DB_DATABASE: ${{ secrets.DB_DATABASE }}
+                  APP_SECRET: ${{ secrets.APP_SECRET }}
+                  ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+                  CHIP_BRAND_ID: ${{ secrets.CHIP_BRAND_ID }}
+                  CHIP_API_KEY: ${{ secrets.CHIP_API_KEY }}
+                  CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.CHIP_WEBHOOK_PUBLIC_KEY }}
+                  CHIP_CALLBACK_URL: ${{ secrets.CHIP_CALLBACK_URL }}
+                  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+              run: |
+                  # Build env.yaml locally on the runner, then SCP it to the server
+                  {
+                    echo "${ENV_NAME}:"
+                    echo "  PORT: ${PORT}"
+                    echo "  SECRET: \"${ENV_NAME}\""
+                    echo "  DB_HOST: \"${DB_HOST}\""
+                    echo "  DB_USERNAME: \"${DB_USERNAME}\""
+                    echo "  DB_PASSWORD: \"${DB_PASSWORD}\""
+                    echo "  DB_DATABASE: \"${DB_DATABASE}\""
+                    echo "  APP_SECRET: \"${APP_SECRET}\""
+                    echo "  ADMIN_SECRET: \"${ADMIN_SECRET}\""
+                    echo "  CHIP_BRAND_ID: \"${CHIP_BRAND_ID}\""
+                    echo "  CHIP_API_KEY: \"${CHIP_API_KEY}\""
+                    echo "  CHIP_WEBHOOK_PUBLIC_KEY: |"
+                    printf '%s\n' "${CHIP_WEBHOOK_PUBLIC_KEY}" | sed 's/^/    /'
+                    echo "  CHIP_CALLBACK_URL: \"${CHIP_CALLBACK_URL}\""
+                    echo "  BASE_URL: \"${BASE_URL}\""
+                    echo "  CHIP_API_URL: \"https://gate.chip-in.asia/api/v1\""
+                    echo "  OPENAI_API_KEY: \"${OPENAI_API_KEY}\""
+                  } > /tmp/env.yaml
+
+                  scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no /tmp/env.yaml $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/env.yaml
+                  rm -f /tmp/env.yaml
+
+            - name: Install dependencies and restart PM2
+              env:
+                  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+                  SERVER_HOST: ${{ secrets.SERVER_HOST }}
+                  DEPLOY_PATH: ${{ steps.vars.outputs.deploy_path }}
+                  PM2_APP: ${{ steps.vars.outputs.pm2_app }}
+              run: |
+                  ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
+                    export NVM_DIR="\$HOME/.nvm"
+                    [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
+
+                    cd $DEPLOY_PATH
+
+                    npm install
+                    mkdir -p logs file asset assets
+
+                    if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
+                      echo "Reloading existing PM2 app: $PM2_APP"
+                      pm2 restart ecosystem.config.js --only "$PM2_APP" --update-env
+                    else
+                      echo "Starting new PM2 app: $PM2_APP"
+                      pm2 start ecosystem.config.js --only "$PM2_APP"
+                    fi
+
+                    pm2 save
+                  EOF
+
+            - name: Verify deployment
+              env:
+                  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+                  SERVER_HOST: ${{ secrets.SERVER_HOST }}
+              run: |
+                  ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << 'EOF'
+                    export PATH=$PATH:/usr/local/bin:/usr/bin
+                    export NVM_DIR="$HOME/.nvm"
+                    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+                    pm2 status
+                  EOF
+
+            - name: Cleanup SSH key
+              if: always()
+              run: |
+                  rm -f ~/.ssh/deploy_key
