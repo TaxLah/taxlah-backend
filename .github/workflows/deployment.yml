@@ -89,28 +89,6 @@ jobs:
               ./ $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/
           done
 
-      - name: Deploy to single environment
-        if: steps.env.outputs.deploy_mode == 'single'
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          DEPLOY_PATH: ${{ steps.env.outputs.deploy_path }}
-        run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH"
-          
-          rsync -avz --delete \
-            --exclude 'node_modules' \
-            --exclude '.git' \
-            --exclude '.env' \
-            --exclude 'env.yaml' \
-            --exclude 'logs' \
-            --exclude 'file' \
-            --exclude 'asset' \
-            --exclude 'assets' \
-            --exclude 'taxlah-react-native-firebasesdk.json' \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            ./ $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/
-
       - name: Install dependencies and restart PM2 (all environments)
         if: steps.env.outputs.deploy_mode == 'all'
         env:
