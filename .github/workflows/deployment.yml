@@ -97,7 +97,6 @@ jobs:
                     --exclude 'node_modules' \
                     --exclude '.git' \
                     --exclude '.env' \
-                    --exclude 'env.yaml' \
                     --exclude 'logs' \
                     --exclude 'file' \
                     --exclude 'asset' \
