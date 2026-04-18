@@ -12,6 +12,7 @@ const emailQueue        = new Queue("email", { redis: redisConfig });
 const notificationQueue = new Queue("notification", { redis: redisConfig });
 const paymentQueue      = new Queue("payment", { redis: redisConfig });
 const defaultQueue      = new Queue("default", { redis: redisConfig });
+const aiReceiptQueue    = new Queue("ai-receipt", { redis: redisConfig });
 
 // Queue event handlers
 const setupQueueEvents = (queue, name) => {
@@ -32,12 +33,14 @@ setupQueueEvents(emailQueue, "Email");
 setupQueueEvents(notificationQueue, "Notification");
 setupQueueEvents(paymentQueue, "Payment");
 setupQueueEvents(defaultQueue, "Default");
+setupQueueEvents(aiReceiptQueue, "AI-Receipt");
 
 const queues = {
 	email: emailQueue,
 	notification: notificationQueue,
 	payment: paymentQueue,
 	default: defaultQueue,
+	"ai-receipt": aiReceiptQueue,
 
 	/**
 	 * Add job to a queue

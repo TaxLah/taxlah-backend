@@ -138,10 +138,8 @@ const createExpenseItems = async (expenses_id, items) => {
  * Create expense with NLP-enhanced categorization
  * Uses NLP to determine category, then calls stored procedure for proper status
  * Now supports receipt file attachment
- * @param {object} expenseData
- * @param {boolean} useAI - If true, skip NLP and dispatch AI queue job instead
  */
-const createExpenseEnhanced = async (expenseData, useAI = false) => {
+const createExpenseEnhanced = async (expenseData) => {
     try {
         const {
             account_id,
@@ -182,20 +180,17 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
             }
         }
 
-        // Step 1: Use NLP to categorize (only when not using AI queue)
-        let categorization = { tax_id: null, taxsub_id: null, confidence: 50, tax_code: null, tax_title: null, taxsub_title: null, matched_keywords: [] };
+        // Step 1: Use NLP to categorize
+        const receiptData = {
+            receipt_id: receipt_id, // Link to receipt if file was uploaded
+            MerchantName: expenses_merchant_name,
+            Items: [] // Can be enhanced with item details if available
+        };
 
         const taxYear = new Date(expenses_date).getFullYear();
+        const categorization = await categorizeReceiptFull(receiptData, taxYear);
 
-        if (!useAI) {
-            const receiptData = {
-                receipt_id: receipt_id,
-                MerchantName: expenses_merchant_name,
-                Items: []
-            };
-            categorization = await categorizeReceiptFull(receiptData, taxYear);
-            console.log('[ExpensesModel] NLP Categorization:', categorization);
-        }
+        console.log('[ExpensesModel] NLP Categorization:', categorization);
 
         // Step 2: Check if official mapping exists
         const mappingCheck = await checkOfficialMappingExists(taxYear);
@@ -223,8 +218,7 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
             expenses_mapping_version: mappingVersion,
             expenses_original_tax_category: categorization.tax_id || null,
             expenses_mapping_date: new Date(),
-            expenses_tax_eligible: useAI ? 'No' : 'Yes',
-            ai_processing_status: useAI ? 'Queued' : 'None',
+            expenses_tax_eligible: 'Yes',
             expenses_for,
             dependant_id,
             status: 'Active',
@@ -436,10 +430,10 @@ const getExpenseById = async (account_id, expenses_id) => {
                 ad.dependant_name,
                 ad.dependant_type,
                 (SELECT COUNT(*) FROM account_expenses_mapping_history 
-                WHERE expenses_id = ae.expenses_id) as change_count,
+                 WHERE expenses_id = ae.expenses_id) as change_count,
                 (SELECT changed_date FROM account_expenses_mapping_history 
-                WHERE expenses_id = ae.expenses_id 
-                ORDER BY changed_date DESC LIMIT 1) as last_change_date
+                 WHERE expenses_id = ae.expenses_id 
+                 ORDER BY changed_date DESC LIMIT 1) as last_change_date
             FROM account_expenses ae
             LEFT JOIN tax_category tc ON ae.expenses_tax_category = tc.tax_id
             LEFT JOIN tax_subcategory ts ON ae.expenses_tax_subcategory = ts.taxsub_id
@@ -773,43 +767,10 @@ const getExpenseItems = async (expenses_id) => {
     }
 };
 
-/**
- * Dispatch an AI receipt analysis job to the queue.
- * Should be called after createExpenseEnhanced when useAI = true.
- * @param {number} expenses_id
- * @param {number} account_id
- * @param {string} file_path - Absolute path to the uploaded file on disk
- * @param {string} mime_type - File mime type (e.g. image/jpeg, application/pdf)
- */
-const dispatchAIReceiptAnalysis = async (expenses_id, account_id, receiptData) => {
-    try {
-        const queues = require('../../../queue');
-        const job = await queues['ai-receipt'].add('analyseReceipt', {
-            expenses_id,
-            account_id,
-            merchant:     receiptData.merchant     ?? null,
-            date:         receiptData.date          ?? null,
-            total_amount: receiptData.total_amount  ?? 0,
-            items:        receiptData.items         || []
-        }, {
-            attempts: 2,
-            backoff: { type: 'fixed', delay: 5000 },
-            removeOnComplete: true,
-            removeOnFail: false
-        });
-        console.log(`[ExpensesModel] AI receipt job queued: job_id=${job.id}, expenses_id=${expenses_id}`);
-        return { status: true, job_id: job.id };
-    } catch (error) {
-        console.error('[ExpensesModel] dispatchAIReceiptAnalysis error:', error);
-        return { status: false };
-    }
-};
-
 module.exports = {
     // Smart creation methods
     createExpenseEnhanced,
     uploadExpenseWithMapping,
-    dispatchAIReceiptAnalysis,
     
     // CRUD operations
     getAllExpenses,

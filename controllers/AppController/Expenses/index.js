@@ -6,6 +6,7 @@
  * @date 2026-03-02
  * 
  * Routes:
+ * - POST   /api/expenses/extract-receipt    - (Premium) OCR receipt preview before saving
  * - POST   /api/expenses/create            - Create new expense with AI categorization
  * - GET    /api/expenses/list              - Get expenses list with filtering
  * - GET    /api/expenses/details/:id       - Get single expense details
@@ -23,19 +24,21 @@ const express = require('express');
 const router = express.Router();
 
 // Import controllers
-const CreateExpense = require('./CreateExpense');
-const GetExpensesList = require('./GetExpensesList');
-const GetExpenseDetails = require('./GetExpenseDetails');
-const GetExpenseItems = require('./GetExpenseItems');
-const UpdateExpense = require('./UpdateExpense');
-const DeleteExpense = require('./DeleteExpense');
-const OverrideTaxCategory = require('./OverrideTaxCategory');
-const GetRequiringReview = require('./GetRequiringReview');
-const GetMappingDashboard = require('./GetMappingDashboard');
-const GetExpenseStats = require('./GetExpenseStats');
-const GetDashboardSummary = require('./GetDashboardSummary');
+const ExtractReceipt     = require('./ExtractReceipt');
+const CreateExpense      = require('./CreateExpense');
+const GetExpensesList    = require('./GetExpensesList');
+const GetExpenseDetails  = require('./GetExpenseDetails');
+const GetExpenseItems    = require('./GetExpenseItems');
+const UpdateExpense      = require('./UpdateExpense');
+const DeleteExpense      = require('./DeleteExpense');
+const OverrideTaxCategory    = require('./OverrideTaxCategory');
+const GetRequiringReview     = require('./GetRequiringReview');
+const GetMappingDashboard    = require('./GetMappingDashboard');
+const GetExpenseStats        = require('./GetExpenseStats');
+const GetDashboardSummary    = require('./GetDashboardSummary');
 
 // Mount routes
+router.use('/extract-receipt', ExtractReceipt);
 router.use('/create', CreateExpense);
 router.use('/list', GetExpensesList);
 router.use('/details', GetExpenseDetails);

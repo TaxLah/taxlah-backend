@@ -17,7 +17,6 @@ const {
     INTERNAL_SERVER_ERROR_API_RESPONSE,
     BAD_REQUEST_API_RESPONSE,
     UNAUTHORIZED_API_RESPONSE,
-    FORBIDDEN_API_RESPONSE,
     ERROR_UNAUTHENTICATED,
     CHECK_EMPTY,
     sanitize
@@ -25,7 +24,6 @@ const {
 const ExpensesModel = require('../../../models/AppModel/Expenses');
 const { upload, getFileUrl } = require('../../../configs/fileUpload');
 const NotificationService = require('../../../services/NotificationService');
-const { checkSubscriptionAccess } = require('../../../models/AppModel/SubscriptionService');
 
 /**
  * POST /api/expenses/create
@@ -64,21 +62,21 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
     }
 
     try {
-        const params        = req.body;
-        const account_id    = user.account_id;
-        const uploadedFile  = req.file; // Get uploaded file if any
+        const params = req.body;
+        const account_id = user.account_id;
+        const uploadedFile = req.file; // Get uploaded file if any
 
         console.log('[CreateExpense] Request:', { 
             account_id, 
             params,
             hasFile: !!uploadedFile,
-            fileName: uploadedFile?.originalname
+            fileName: uploadedFile?.originalname 
         });
 
         // Required fields
-        const expenses_date             = params.expenses_date;
-        const expenses_merchant_name    = params.expenses_merchant_name;
-        const expenses_total_amount     = params.expenses_total_amount;
+        const expenses_date = params.expenses_date;
+        const expenses_merchant_name = params.expenses_merchant_name;
+        const expenses_total_amount = params.expenses_total_amount;
 
         // Validation
         if (CHECK_EMPTY(expenses_date)) {
@@ -151,11 +149,12 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
         // Process uploaded receipt file
         let receipt_file_url = null;
         let receipt_metadata = null;
-        let useAI = false;
         
         if (uploadedFile) {
-            // File uploaded directly — store it
+            // Generate public URL for the file
             receipt_file_url = getFileUrl(uploadedFile.path);
+            
+            // Store file metadata
             receipt_metadata = {
                 original_name: uploadedFile.originalname,
                 mimetype: uploadedFile.mimetype,
@@ -168,25 +167,6 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
                 size: uploadedFile.size,
                 type: uploadedFile.mimetype
             });
-        } else if (params.receipt_file_url) {
-            // File already uploaded at extract-receipt step — use the stored URL
-            receipt_file_url = params.receipt_file_url;
-        }
-
-        // AI gate: triggered when extracted_receipt_data is provided (from extract-receipt preview step)
-        // Quota was already consumed at the extract step, so we only check subscription here.
-        if (params.extracted_receipt_data) {
-            const subscriptionResult = await checkSubscriptionAccess(account_id);
-            const hasAIFeature = subscriptionResult.success
-                && subscriptionResult.has_access
-                && subscriptionResult.features?.ai_categorization;
-
-            if (hasAIFeature) {
-                useAI = true;
-                console.log('[CreateExpense] AI tax classification will be queued for this expense');
-            } else {
-                console.log('[CreateExpense] AI skipped: no active subscription or ai_categorization not enabled');
-            }
         }
 
         // Prepare expense data
@@ -201,78 +181,68 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
             expenses_for: params.expenses_for || 'Self',
             dependant_id: params.dependant_id ? parseInt(params.dependant_id) : null,
             items: items,
+            // Receipt file data
             receipt_file_url: receipt_file_url,
             receipt_metadata: receipt_metadata
         };
 
-        // Create expense (NLP path if no AI, or insert with ai_processing_status='Queued' if AI)
-        const result = await ExpensesModel.createExpenseEnhanced(expenseData, useAI);
+        // Create expense with enhanced categorization
+        const result = await ExpensesModel.createExpenseEnhanced(expenseData);
 
         if (!result.status) {
-            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE, message: result.message || 'Failed to create expense', data: null };
+            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response.message = result.message || 'Failed to create expense';
+            response.data = null;
             return res.status(response.status_code).json(response);
         }
 
-        // If AI was enabled, dispatch the tax eligibility queue job (fire-and-forget)
-        if (useAI) {
-            ExpensesModel.dispatchAIReceiptAnalysis(
-                result.data.expenses_id,
-                account_id,
-                {
-                    merchant:     expenses_merchant_name,
-                    date:         expenses_date,
-                    total_amount: parseFloat(expenses_total_amount),
-                    items:        items
+        // Success response
+        response.status_code = 201;
+        response.status = 'success';
+        response.message = 'Expense created successfully';
+        response.data = {
+            expense: result.data,
+            ui_message: {
+                title: result.data.mapping_info.is_official 
+                    ? '✅ Expense Categorized' 
+                    : '⏳ Expense Saved (Estimated Category)',
+                description: result.data.mapping_info.message,
+                badge: {
+                    status: result.data.mapping_info.status,
+                    color: result.data.mapping_info.is_official ? '#10b981' : '#f59e0b',
+                    text: result.data.mapping_info.is_official ? 'Confirmed' : 'Estimated'
                 }
-            ).catch(err => console.error('[CreateExpense] Failed to dispatch AI job:', err));
-        }
-
-        // Build response
-        const aiQueued = useAI;
-        response = {
-            status_code: 201,
-            status: 'success',
-            message: aiQueued
-                ? 'Expense saved. AI receipt analysis has been queued — you will be notified once complete.'
-                : 'Expense created successfully',
-            data: {
-                expense: result.data,
-                ai_analysis: {
-                    queued: aiQueued,
-                    status: aiQueued ? 'Queued' : 'None'
-                },
-                ui_message: aiQueued
-                    ? {
-                        title: '⏳ Analysing Receipt…',
-                        description: 'Our AI is reviewing your receipt. Tax category and eligibility will be updated shortly.',
-                        badge: { status: 'Queued', color: '#6366f1', text: 'AI Processing' }
-                    }
-                    : {
-                        title: result.data?.mapping_info?.is_official ? '✅ Expense Categorized' : '⏳ Expense Saved (Estimated Category)',
-                        description: result.data?.mapping_info?.message || '',
-                        badge: {
-                            status: result.data?.mapping_info?.status,
-                            color: result.data?.mapping_info?.is_official ? '#10b981' : '#f59e0b',
-                            text: result.data?.mapping_info?.is_official ? 'Confirmed' : 'Estimated'
-                        }
-                    }
             }
         };
 
         console.log('[CreateExpense] Success:', {
             expenses_id: result.data.expenses_id,
-            ai_queued: aiQueued,
             mapping_status: result.data.expenses_mapping_status,
             confidence: result.data.expenses_mapping_confidence,
             items_count: result.data.items_count || 0,
             receipt_id: result.data.receipt_id || null
         });
 
+        // Fire-and-forget push + in-app notification
+        // NotificationService.sendUserNotification(
+        //     account_id,
+        //     '🧾 New Expense Recorded',
+        //     `RM ${parseFloat(expenses_total_amount).toFixed(2)} at ${expenses_merchant_name} has been saved.`,
+        //     {
+        //         type:        'NewExpense',
+        //         expenses_id: String(result.data.expenses_id),
+        //         amount:      String(expenses_total_amount),
+        //         merchant:    expenses_merchant_name
+        //     }
+        // ).catch(err => console.error('[CreateExpense] Notification error:', err));
+
         return res.status(response.status_code).json(response);
 
     } catch (error) {
         console.error('[CreateExpense] Error:', error);
-        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE, message: 'An error occurred while creating expense', data: { error: error.message } };
+        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response.message = 'An error occurred while creating expense';
+        response.data = { error: error.message };
         return res.status(response.status_code).json(response);
     }
 });

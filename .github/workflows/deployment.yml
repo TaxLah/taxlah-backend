@@ -125,6 +125,7 @@ jobs:
           DEV_CHIP_API_KEY: ${{ secrets.DEV_CHIP_API_KEY }}
           DEV_CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.DEV_CHIP_WEBHOOK_PUBLIC_KEY }}
           DEV_CHIP_CALLBACK_URL: ${{ secrets.DEV_CHIP_CALLBACK_URL }}
+
           # Staging secrets
           STAGING_DB_HOST: ${{ secrets.STAGING_DB_HOST }}
           STAGING_DB_USERNAME: ${{ secrets.STAGING_DB_USERNAME }}
@@ -136,6 +137,7 @@ jobs:
           STAGING_CHIP_API_KEY: ${{ secrets.STAGING_CHIP_API_KEY }}
           STAGING_CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.STAGING_CHIP_WEBHOOK_PUBLIC_KEY }}
           STAGING_CHIP_CALLBACK_URL: ${{ secrets.STAGING_CHIP_CALLBACK_URL }}
+
           # Production secrets
           PROD_DB_HOST: ${{ secrets.PROD_DB_HOST }}
           PROD_DB_USERNAME: ${{ secrets.PROD_DB_USERNAME }}
@@ -147,6 +149,8 @@ jobs:
           PROD_CHIP_API_KEY: ${{ secrets.PROD_CHIP_API_KEY }}
           PROD_CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.PROD_CHIP_WEBHOOK_PUBLIC_KEY }}
           PROD_CHIP_CALLBACK_URL: ${{ secrets.PROD_CHIP_CALLBACK_URL }}
+
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           # Deploy to development
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST << EOF
@@ -287,6 +291,8 @@ jobs:
           PROD_CHIP_API_KEY: ${{ secrets.PROD_CHIP_API_KEY }}
           PROD_CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.PROD_CHIP_WEBHOOK_PUBLIC_KEY }}
           PROD_CHIP_CALLBACK_URL: ${{ secrets.PROD_CHIP_CALLBACK_URL }}
+
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           # Determine environment-specific variables
           if [ "$ENVIRONMENT" = "production" ]; then

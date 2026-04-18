@@ -16,6 +16,7 @@ const emailQueue 		= new Queue("email", { redis: redisConfig });
 const notificationQueue = new Queue("notification", { redis: redisConfig });
 const paymentQueue 		= new Queue("payment", { redis: redisConfig });
 const defaultQueue 		= new Queue("default", { redis: redisConfig });
+const aiReceiptQueue	= new Queue("ai-receipt", { redis: redisConfig });
 
 // Email queue processor
 emailQueue.process("send", async (job) => {
@@ -116,6 +117,127 @@ defaultQueue.process("*", async (job) => {
 	return { processed: true, jobName: job.name };
 });
 
+// AI Receipt queue processor
+// Job data: { expenses_id, account_id, merchant, date, total_amount, items }
+// Text-only — receipt was already OCR'd at extract step, no image re-upload needed.
+aiReceiptQueue.process("analyseReceipt", async (job) => {
+	const { expenses_id, account_id, merchant, date, total_amount, items } = job.data;
+	console.log(`[AI-Receipt Worker] Processing job ${job.id}: expenses_id=${expenses_id}`);
+
+	const db                           = require("../utils/sqlbuilder");
+	const { classifyTaxEligibility }   = require("../services/TaxEligibilityService");
+	const NotificationService          = require("../services/NotificationService");
+
+	try {
+		// Mark as Processing
+		await db.raw(
+			`UPDATE account_expenses SET ai_processing_status = 'Processing', last_modified = NOW() WHERE expenses_id = ?`,
+			[expenses_id]
+		);
+
+		// Text-only AI call (fast ~1–3s) — classifies tax category from extracted data
+		const aiResult = await classifyTaxEligibility({ merchant, date, total_amount, items });
+		console.log(`[AI-Receipt Worker] AI result for expenses_id=${expenses_id}:`, aiResult);
+
+		// Map AI tax_category code → tax_id in DB
+		let tax_id      = null;
+		let taxsub_id   = null;
+		let taxEligible = 'No';
+
+		if (aiResult.tax_category && aiResult.tax_category !== 'NOT_ELIGIBLE') {
+			const taxRow = await db.raw(
+				`SELECT tax_id FROM tax_category WHERE tax_code = ? AND status = 'Active' LIMIT 1`,
+				[aiResult.tax_category]
+			);
+			if (taxRow.length) {
+				tax_id      = taxRow[0].tax_id;
+				taxEligible = (aiResult.confidence === 'high' || aiResult.confidence === 'medium') ? 'Yes' : 'No';
+			}
+		}
+
+		// Determine mapping status based on confidence
+		const confidenceScore = aiResult.confidence === 'high' ? 90 : aiResult.confidence === 'medium' ? 65 : 30;
+
+		// Update expense with AI result
+		await db.raw(
+			`UPDATE account_expenses SET
+				expenses_tax_category      = ?,
+				expenses_tax_subcategory   = ?,
+				expenses_tax_eligible      = ?,
+				expenses_mapping_status    = 'Estimated',
+				expenses_mapping_confidence = ?,
+				expenses_mapping_date      = NOW(),
+				ai_processing_status       = 'Completed',
+				ai_processing_result       = ?,
+				last_modified              = NOW()
+			WHERE expenses_id = ?`,
+			[
+				tax_id,
+				taxsub_id,
+				taxEligible,
+				confidenceScore,
+				JSON.stringify(aiResult),
+				expenses_id
+			]
+		);
+
+		// Log to mapping history
+		await db.insert('account_expenses_mapping_history', {
+			expenses_id,
+			new_tax_category:       tax_id,
+			new_tax_subcategory:    taxsub_id,
+			change_reason:          'AI Tax Classification',
+			confidence_after:       confidenceScore,
+			mapping_version_after:  'AI-Estimated',
+			changed_by:             'AI',
+			changed_date:           new Date()
+		});
+
+		// Notify user via FCM + in-app
+		const categoryLabel = aiResult.tax_category_label || 'Uncategorised';
+		const eligibleText  = taxEligible === 'Yes' ? `Tax eligible (${categoryLabel})` : 'Not tax eligible';
+
+		await NotificationService.sendUserNotification(
+			account_id,
+			'Receipt Analysis Complete',
+			`Your receipt has been analysed. ${eligibleText}. Confidence: ${aiResult.confidence}.`,
+			{
+				type:        'AIReceiptAnalysis',
+				expenses_id: String(expenses_id),
+				tax_eligible: taxEligible,
+				tax_category: aiResult.tax_category || 'NOT_ELIGIBLE',
+				confidence:  aiResult.confidence || 'low'
+			}
+		);
+
+		console.log(`[AI-Receipt Worker] Completed expenses_id=${expenses_id}`);
+		return { success: true, expenses_id };
+
+	} catch (err) {
+		console.error(`[AI-Receipt Worker] Failed expenses_id=${expenses_id}:`, err.message);
+
+		// Mark as Failed in DB
+		await db.raw(
+			`UPDATE account_expenses SET ai_processing_status = 'Failed', last_modified = NOW() WHERE expenses_id = ?`,
+			[expenses_id]
+		).catch(() => {});
+
+		// Notify user of failure
+		const NotificationService = require("../services/NotificationService");
+		await NotificationService.sendUserNotification(
+			account_id,
+			'Receipt Analysis Failed',
+			'We could not analyse your receipt automatically. Please categorise it manually.',
+			{
+				type:        'AIReceiptAnalysisFailed',
+				expenses_id: String(expenses_id)
+			}
+		).catch(() => {});
+
+		throw err; // Let Bull handle retry
+	}
+});
+
 // Worker event handlers
 const setupWorkerEvents = (queue, name) => {
 	queue.on("completed", (job, result) => {
@@ -139,9 +261,11 @@ setupWorkerEvents(emailQueue, "Email");
 setupWorkerEvents(notificationQueue, "Notification");
 setupWorkerEvents(paymentQueue, "Payment");
 setupWorkerEvents(defaultQueue, "Default");
+setupWorkerEvents(aiReceiptQueue, "AI-Receipt");
 
 console.log("🚀 Worker started and listening for jobs...");
 console.log("   - Email queue");
 console.log("   - Notification queue");
 console.log("   - Payment queue");
 console.log("   - Default queue");
+console.log("   - AI Receipt queue");
