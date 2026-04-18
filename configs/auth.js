@@ -5,12 +5,13 @@ const verifyUser = (payload) => {
 	return true;
 };
 
-const auth = (secret = process.env.APP_SECRET) => {
+const auth = (secret) => {
 	return (req, res, next) => {
+		const _secret = secret || process.env.APP_SECRET;
 		try {
 			if (req.headers.authorization) {
 				const token 	= req.headers.authorization.split(" ")[1];
-				const payload 	= jwt.verify(token, secret);
+				const payload 	= jwt.verify(token, _secret);
 				if (verifyUser(payload)) {
 					req.payload = payload;
 					req.user 	= payload;
@@ -33,12 +34,13 @@ const auth = (secret = process.env.APP_SECRET) => {
 	};
 };
 
-const superauth = (secret = process.env.ADMIN_SECRET) => {
+const superauth = (secret) => {
 	return (req, res, next) => {
+		const _secret = secret || process.env.ADMIN_SECRET;
 		try {
 			if (req.headers.authorization) {
 				const token 	= req.headers.authorization.split(" ")[1];
-				const payload 	= jwt.verify(token, secret);
+				const payload 	= jwt.verify(token, _secret);
 				if (verifyUser(payload)) {
 					req.payload = payload;
 					next();
