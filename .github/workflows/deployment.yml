@@ -173,6 +173,7 @@ jobs:
           echo "BASE_URL=https://dev.taxlah.com" >> .env
           echo "CHIP_API_URL=https://gate.chip-in.asia/api/v1" >> .env
           echo "NODE_ENV=development" >> .env
+          echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> .env
           
           npm install
           mkdir -p logs file assets
@@ -205,6 +206,7 @@ jobs:
           echo "BASE_URL=https://staging.taxlah.com" >> .env
           echo "CHIP_API_URL=https://gate.chip-in.asia/api/v1" >> .env
           echo "NODE_ENV=staging" >> .env
+          echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> .env
           
           npm install
           mkdir -p logs file assets
@@ -237,6 +239,7 @@ jobs:
           echo "BASE_URL=https://taxlah.com" >> .env
           echo "CHIP_API_URL=https://gate.chip-in.asia/api/v1" >> .env
           echo "NODE_ENV=production" >> .env
+          echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> .env
           
           npm install
           mkdir -p logs file assets
