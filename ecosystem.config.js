@@ -20,7 +20,8 @@ module.exports = {
                 CHIP_API_KEY: process.env.CHIP_API_KEY,
                 CHIP_WEBHOOK_PUBLIC_KEY: process.env.CHIP_WEBHOOK_PUBLIC_KEY,
                 CHIP_CALLBACK_URL: process.env.CHIP_CALLBACK_URL,
-                BASE_URL: process.env.BASE_URL || 'https://dev.taxlah.com'
+                BASE_URL: process.env.BASE_URL || 'https://dev.taxlah.com',
+                OPENAI_API_KEY: process.env.OPENAI_API_KEY
             },
             error_file: `./logs/${_date}dev-error.log`,
             out_file: `./logs/${_date}dev-out.log`,
@@ -46,7 +47,8 @@ module.exports = {
                 CHIP_API_KEY: process.env.CHIP_API_KEY,
                 CHIP_WEBHOOK_PUBLIC_KEY: process.env.CHIP_WEBHOOK_PUBLIC_KEY,
                 CHIP_CALLBACK_URL: process.env.CHIP_CALLBACK_URL,
-                BASE_URL: process.env.BASE_URL || 'https://staging.taxlah.com'
+                BASE_URL: process.env.BASE_URL || 'https://staging.taxlah.com',
+                OPENAI_API_KEY: process.env.OPENAI_API_KEY
             },
             error_file: `./logs/${_date}staging-error.log`,
             out_file: `./logs/${_date}staging-out.log`,
@@ -72,7 +74,8 @@ module.exports = {
                 CHIP_API_KEY: process.env.CHIP_API_KEY,
                 CHIP_WEBHOOK_PUBLIC_KEY: process.env.CHIP_WEBHOOK_PUBLIC_KEY,
                 CHIP_CALLBACK_URL: process.env.CHIP_CALLBACK_URL,
-                BASE_URL: process.env.BASE_URL || 'https://taxlah.com'
+                BASE_URL: process.env.BASE_URL || 'https://taxlah.com',
+                OPENAI_API_KEY: process.env.OPENAI_API_KEY
             },
             error_file: `./logs/${_date}prod-error.log`,
             out_file: `./logs/${_date}prod-out.log`,
