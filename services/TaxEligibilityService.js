@@ -43,6 +43,12 @@ Rules:
 - If the expense clearly does not qualify under any category → NOT_ELIGIBLE
 - If you are unsure → use low confidence and NOT_ELIGIBLE, advise user to verify with LHDN
 - Be conservative — do not guess eligible amounts
+
+IMPORTANT rules when calculating eligible_amount for telco bills:
+- INCLUDE: Monthly plan/data subscription fee only
+- EXCLUDE: Voice call charges, SMS charges, roaming fees, service tax, one-time fees
+- NEVER use the total bill amount as eligible_amount
+- If itemised breakdown is available in the receipt, extract only the internet/data portion
 `;
 
 /**
