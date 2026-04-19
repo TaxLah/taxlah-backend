@@ -12,16 +12,11 @@
  */
 
 const OpenAI = require("openai");
-const MY_TAX_RELIEF_CATEGORIES = require("../configs/taxCategories");
+const { GET_TAX_CATEGORY_BY_YEAR_ASSESSMENT } = require("../configs/taxCategories");
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Build category list for the prompt
-const categoryList = Object.values(MY_TAX_RELIEF_CATEGORIES)
-    .map((c) => `- ${c.code}: ${c.label} (Max Relief: RM${c.maxRelief ?? "unlimited"}) — ${c.description}`)
-    .join("\n");
-
-const TAX_ELIGIBILITY_SYSTEM_PROMPT = `
+const buildSystemPrompt = (categoryList) => `
 You are a Malaysian personal income tax relief classification assistant specialising in LHDN regulations.
 
 Given structured receipt data (merchant name, items list, total amount), determine:
@@ -70,6 +65,15 @@ async function classifyTaxEligibility(receiptData) {
 
     console.log("[TaxEligibilityService] Classifying tax eligibility for:", merchant);
 
+    // Fetch live tax categories from DB for the current assessment year
+    const year = new Date().getFullYear();
+    const categoryResult = await GET_TAX_CATEGORY_BY_YEAR_ASSESSMENT(year);
+    const categoryRows = categoryResult.status ? (categoryResult.data[0] ?? []) : [];
+    const categoryList = categoryRows.length > 0
+        ? categoryRows.map((c) => `- ${c.tax_code}: ${c.tax_title} (Max Relief: RM${c.tax_max_claim ?? "unlimited"}) — ${c.tax_description ?? ""}`).join("\n")
+        : "(no tax categories available for this year)";
+    const TAX_ELIGIBILITY_SYSTEM_PROMPT = buildSystemPrompt(categoryList);
+
     const itemsText = items.length > 0
         ? items.map((i) => {
             const name  = i.item_name || "Unknown item";
@@ -81,15 +85,18 @@ async function classifyTaxEligibility(receiptData) {
         : "  (no itemised breakdown available)";
 
     const userMessage = `
-Please classify this expense for Malaysian tax relief:
+    Please classify this expense for Malaysian tax relief:
 
-Merchant: ${merchant ?? "Unknown"}
-Date: ${date ?? "Unknown"}
-Total Amount: RM${total_amount ?? 0}
+    Merchant: ${merchant ?? "Unknown"}
+    Date: ${date ?? "Unknown"}
+    Total Amount: RM${total_amount ?? 0}
 
-Items:
-${itemsText}
-`.trim();
+    Items:
+    ${itemsText}
+    `.trim();
+
+    console.log("Log User Message Prompt : ", userMessage)
+    console.log("Log Tax Eligibility System Prompt : ", TAX_ELIGIBILITY_SYSTEM_PROMPT)
 
     const response = await openai.chat.completions.create({
         model: "gpt-5-nano",
@@ -118,10 +125,8 @@ ${itemsText}
 
     const parsed = JSON.parse(rawContent);
 
-    // Enrich with local category metadata
-    const categoryMeta = Object.values(MY_TAX_RELIEF_CATEGORIES).find(
-        (c) => c.code === parsed.tax_category
-    );
+    // Enrich with DB category metadata
+    const categoryMeta = categoryRows.find((c) => c.tax_code === parsed.tax_category);
 
     return {
         tax_category:       parsed.tax_category       ?? "NOT_ELIGIBLE",
@@ -130,7 +135,7 @@ ${itemsText}
         confidence:         parsed.confidence          ?? "low",
         reason:             parsed.reason              ?? null,
         notes:              parsed.notes               ?? null,
-        max_relief_limit:   categoryMeta?.maxRelief    ?? 0,
+        max_relief_limit:   categoryMeta?.tax_max_claim ?? 0,
         tokens_used:        response.usage.total_tokens
     };
 }
