@@ -150,15 +150,17 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 		let tax_id      = null;
 		let taxsub_id   = null;
 		let taxEligible = 'No';
+		let taxMaxClaim = 0;
 
 		if (aiResult.tax_category && aiResult.tax_category !== 'NOT_ELIGIBLE') {
 			const taxRow = await db.raw(
-				`SELECT tax_id FROM tax_category WHERE tax_code = ? AND status = 'Active' LIMIT 1`,
+				`SELECT tax_id, tax_max_claim FROM tax_category WHERE tax_code = ? AND status = 'Active' LIMIT 1`,
 				[aiResult.tax_category]
 			);
 			if (taxRow.length) {
-				tax_id      = taxRow[0].tax_id;
-				taxEligible = (aiResult.confidence === 'high' || aiResult.confidence === 'medium') ? 'Yes' : 'No';
+				tax_id        = taxRow[0].tax_id;
+				taxMaxClaim   = taxRow[0].tax_max_claim || 0;
+				taxEligible   = (aiResult.confidence === 'high' || aiResult.confidence === 'medium') ? 'Yes' : 'No';
 			}
 		}
 
@@ -190,11 +192,23 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 
 
 
-		// Upsert account_tax_claim if expense is tax eligible
+		// Upsert account_tax_claim if expense is tax eligible (Self claim for that year)
 		if (taxEligible === 'Yes' && tax_id) {
-			const claimYear      = date ? new Date(date).getFullYear() : new Date().getFullYear();
-			const eligibleAmount = aiResult.eligible_amount || 0;
-			const maxClaimable   = aiResult.max_relief_limit || 0;
+			const claimYear = date ? new Date(date).getFullYear() : new Date().getFullYear();
+
+			// Sum all eligible expenses for this account/tax category/year from DB (source of truth)
+			const sumResult = await db.raw(
+				`SELECT COALESCE(SUM(total_amount), 0) AS total_claimed
+				 FROM account_expenses
+				 WHERE account_id = ?
+				   AND expenses_tax_category = ?
+				   AND expenses_tax_eligible = 'Yes'
+				   AND YEAR(expenses_date) = ?
+				   AND ai_processing_status = 'Completed'`,
+				[account_id, tax_id, claimYear]
+			);
+			const totalClaimed    = Number(sumResult[0]?.total_claimed) || 0;
+			const claimedAmount   = Math.min(totalClaimed, Number(taxMaxClaim));
 
 			await db.raw(
 				`INSERT INTO account_tax_claim
@@ -202,12 +216,15 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 				VALUES
 					(?, ?, ?, ?, ?, ?, 'Self', 'Draft', 'Active')
 				ON DUPLICATE KEY UPDATE
-					claimed_amount = LEAST(claimed_amount + VALUES(claimed_amount), max_claimable),
+					claimed_amount = ?,
+					max_claimable  = VALUES(max_claimable),
 					last_modified  = NOW()`,
-				[account_id, claimYear, tax_id, taxsub_id, eligibleAmount, maxClaimable]
+				[account_id, claimYear, tax_id, taxsub_id, claimedAmount, taxMaxClaim, claimedAmount]
 			);
-			console.log(`[AI-Receipt Worker] Tax claim upserted: account_id=${account_id}, tax_id=${tax_id}, year=${claimYear}, amount=${eligibleAmount}`);
+			console.log(`[AI-Receipt Worker] Tax claim upserted: account_id=${account_id}, tax_id=${tax_id}, year=${claimYear}, claimed=${claimedAmount}/${taxMaxClaim}`);
 		}
+
+
 
 		// Log to mapping history
 		await db.insert('account_expenses_mapping_history', {
