@@ -188,6 +188,27 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 			]
 		);
 
+
+
+		// Upsert account_tax_claim if expense is tax eligible
+		if (taxEligible === 'Yes' && tax_id) {
+			const claimYear      = date ? new Date(date).getFullYear() : new Date().getFullYear();
+			const eligibleAmount = aiResult.eligible_amount || 0;
+			const maxClaimable   = aiResult.max_relief_limit || 0;
+
+			await db.raw(
+				`INSERT INTO account_tax_claim
+					(account_id, tax_year, tax_id, taxsub_id, claimed_amount, max_claimable, claim_for, claim_status, status)
+				VALUES
+					(?, ?, ?, ?, ?, ?, 'Self', 'Draft', 'Active')
+				ON DUPLICATE KEY UPDATE
+					claimed_amount = LEAST(claimed_amount + VALUES(claimed_amount), max_claimable),
+					last_modified  = NOW()`,
+				[account_id, claimYear, tax_id, taxsub_id, eligibleAmount, maxClaimable]
+			);
+			console.log(`[AI-Receipt Worker] Tax claim upserted: account_id=${account_id}, tax_id=${tax_id}, year=${claimYear}, amount=${eligibleAmount}`);
+		}
+
 		// Log to mapping history
 		await db.insert('account_expenses_mapping_history', {
 			expenses_id,
