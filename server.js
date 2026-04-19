@@ -87,8 +87,6 @@ app.listen(PORT, async () => {
 	╚════════════════════════════════════════════╝
 	`);
 
-	console.log("Log ENV : ", process.env)
-
 	if(!fs.existsSync("./asset")) {
 		fs.mkdirSync("./asset")
 	}

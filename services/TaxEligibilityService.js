@@ -104,7 +104,7 @@ async function classifyTaxEligibility(receiptData) {
 
     const response = await openai.chat.completions.create({
         model: "gpt-5-nano",
-        max_completion_tokens: 800,
+        max_completion_tokens: 5000,
         messages: [
             {
                 role: "system",

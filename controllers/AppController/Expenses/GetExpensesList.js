@@ -56,7 +56,7 @@ router.get('/', async (req, res) => {
             mapping_status: req.query.mapping_status || null,
             tax_category: req.query.tax_category ? parseInt(req.query.tax_category) : null,
             min_confidence: req.query.min_confidence ? parseFloat(req.query.min_confidence) : null,
-            sort_by: req.query.sort_by || 'expenses_date',
+            sort_by: req.query.sort_by || 'created_date',
             sort_order: (req.query.sort_order || 'DESC').toUpperCase()
         };
 

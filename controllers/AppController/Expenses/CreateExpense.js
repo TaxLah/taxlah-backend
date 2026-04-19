@@ -153,6 +153,7 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
         let receipt_metadata = null;
         let useAI = false;
         
+        console.log("Processing uploading file...")
         if (uploadedFile) {
             // File uploaded directly — store it
             receipt_file_url = getFileUrl(uploadedFile.path);
@@ -173,22 +174,34 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
             receipt_file_url = params.receipt_file_url;
         }
 
+        console.log("Checking active subscription...")
         // AI gate: triggered when extracted_receipt_data is provided (from extract-receipt preview step)
         // Quota was already consumed at the extract step, so we only check subscription here.
-        if (params.extracted_receipt_data) {
-            const subscriptionResult = await checkSubscriptionAccess(account_id);
-            const hasAIFeature = subscriptionResult.success
-                && subscriptionResult.has_access
-                && subscriptionResult.features?.ai_categorization;
+        // if (params.extracted_receipt_data) {
+        //     const subscriptionResult = await checkSubscriptionAccess(account_id);
+        //     const hasAIFeature = subscriptionResult.success
+        //         && subscriptionResult.has_access
+        //         && subscriptionResult.features?.ai_categorization;
 
-            if (hasAIFeature) {
-                useAI = true;
-                console.log('[CreateExpense] AI tax classification will be queued for this expense');
-            } else {
-                console.log('[CreateExpense] AI skipped: no active subscription or ai_categorization not enabled');
-            }
+        //     if (hasAIFeature) {
+        //         useAI = true;
+        //         console.log('[CreateExpense] AI tax classification will be queued for this expense');
+        //     } else {
+        //         console.log('[CreateExpense] AI skipped: no active subscription or ai_categorization not enabled');
+        //     }
+        // }
+        const subscriptionResult = await checkSubscriptionAccess(account_id);
+        console.log("Log Check Subscription Result : ", subscriptionResult)
+        
+        const hasAIFeature = subscriptionResult.success && subscriptionResult.has_access && subscriptionResult.features?.ai_categorization;
+        if (hasAIFeature) {
+            useAI = true;
+            console.log('[CreateExpense] AI tax classification will be queued for this expense');
+        } else {
+            console.log('[CreateExpense] AI skipped: no active subscription or ai_categorization not enabled');
         }
 
+        console.log("Preparing data to create new expense record...")
         // Prepare expense data
         const expenseData = {
             account_id: parseInt(account_id),
@@ -204,17 +217,22 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
             receipt_file_url: receipt_file_url,
             receipt_metadata: receipt_metadata
         };
+        console.log("Expense Data : ", expenseData)
 
+        console.log("Processing to create new expense record...")
         // Create expense (NLP path if no AI, or insert with ai_processing_status='Queued' if AI)
         const result = await ExpensesModel.createExpenseEnhanced(expenseData, useAI);
+        console.log("Log create new expense record result : ", result)
 
         if (!result.status) {
             response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE, message: result.message || 'Failed to create expense', data: null };
             return res.status(response.status_code).json(response);
         }
 
+        console.log("Preparing for processing AI to identify tax category...")
         // If AI was enabled, dispatch the tax eligibility queue job (fire-and-forget)
         if (useAI) {
+            console.log("Processing receipt for tax category identification...")
             ExpensesModel.dispatchAIReceiptAnalysis(
                 result.data.expenses_id,
                 account_id,
