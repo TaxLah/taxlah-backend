@@ -124,6 +124,13 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 	const { expenses_id, account_id, merchant, date, total_amount, items } = job.data;
 	console.log(`[AI-Receipt Worker] Processing job ${job.id}: expenses_id=${expenses_id}`);
 
+	console.log("Expenses ID : ", expenses_id)
+	console.log("Account ID : ", account_id)
+	console.log("Merchant Name : ", merchant)
+	console.log("Receipt Date : ", date)
+	console.log("Total Amount (RM) : ", total_amount)
+	console.log("Items : ", items)
+
 	const db                           = require("../utils/sqlbuilder");
 	const { classifyTaxEligibility }   = require("../services/TaxEligibilityService");
 	const NotificationService          = require("../services/NotificationService");
@@ -186,7 +193,7 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 			expenses_id,
 			new_tax_category:       tax_id,
 			new_tax_subcategory:    taxsub_id,
-			change_reason:          'AI Tax Classification',
+			change_reason:          'AI_Refinement',
 			confidence_after:       confidenceScore,
 			mapping_version_after:  'AI-Estimated',
 			changed_by:             'AI',
