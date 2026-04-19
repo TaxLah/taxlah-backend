@@ -66,9 +66,13 @@ async function classifyTaxEligibility(receiptData) {
     console.log("[TaxEligibilityService] Classifying tax eligibility for:", merchant);
 
     // Fetch live tax categories from DB for the current assessment year
-    const year = new Date().getFullYear();
-    const categoryResult = await GET_TAX_CATEGORY_BY_YEAR_ASSESSMENT(year);
-    const categoryRows = categoryResult.status ? (categoryResult.data[0] ?? []) : [];
+    const year              = new Date().getFullYear();
+    console.log("Log Year : ", year)
+
+    const categoryResult    = await GET_TAX_CATEGORY_BY_YEAR_ASSESSMENT(year);
+    console.log("Log Category Result : ", categoryResult)
+
+    const categoryRows = categoryResult.status ? (categoryResult.data ?? []) : [];
     const categoryList = categoryRows.length > 0
         ? categoryRows.map((c) => `- ${c.tax_code}: ${c.tax_title} (Max Relief: RM${c.tax_max_claim ?? "unlimited"}) — ${c.tax_description ?? ""}`).join("\n")
         : "(no tax categories available for this year)";
