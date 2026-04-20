@@ -190,7 +190,9 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 			]
 		);
 
-
+		console.log("Log Tax ID : ", tax_id)
+		console.log("Log Tax Eligible : ", taxEligible)
+		console.log("Log Confidence Score : ", confidenceScore)
 
 		// Upsert account_tax_claim if expense is tax eligible (Self claim for that year)
 		if (taxEligible === 'Yes' && tax_id) {
@@ -199,12 +201,12 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 			// Sum all eligible expenses for this account/tax category/year from DB (source of truth)
 			const sumResult = await db.raw(
 				`SELECT COALESCE(SUM(total_amount), 0) AS total_claimed
-				 FROM account_expenses
-				 WHERE account_id = ?
-				   AND expenses_tax_category = ?
-				   AND expenses_tax_eligible = 'Yes'
-				   AND YEAR(expenses_date) = ?
-				   AND ai_processing_status = 'Completed'`,
+				FROM account_expenses
+				WHERE account_id = ?
+					AND expenses_tax_category = ?
+					AND expenses_tax_eligible = 'Yes'
+					AND YEAR(expenses_date) = ?
+					AND ai_processing_status = 'Completed'`,
 				[account_id, tax_id, claimYear]
 			);
 			const totalClaimed    = Number(sumResult[0]?.total_claimed) || 0;
