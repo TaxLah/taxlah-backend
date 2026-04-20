@@ -6,6 +6,7 @@ const bcrypt    = require('bcrypt');
 const moment = require('moment');
 const { UserNotificationCreate } = require('../../../models/AppModel/Notification');
 const { AccountGetInfo } = require('../../../models/AppModel/Account');
+const { addAutoClaimReliefs } = require('../../../models/AppModel/TaxClaimServices');
 
 router.post("/", async(req , res) => {
     let response        = DEFAULT_API_RESPONSE
@@ -77,6 +78,11 @@ router.post("/", async(req , res) => {
                             archive_status: 'No',
                             status: 'Active'
                         })
+
+                        // Trigger tax claim initialisation for current year (non-blocking)
+                        const currentYear = new Date().getFullYear();
+                        addAutoClaimReliefs(login.data.account_id, currentYear)
+                            .catch(err => console.error('[AuthLogin] Tax init error:', err.message));
 
                         response                = SUCCESS_API_RESPONSE
                         response.status_code    = 200
