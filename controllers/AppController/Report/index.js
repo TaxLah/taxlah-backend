@@ -150,6 +150,22 @@ router.post("/generate", async (req, res) => {
 
         const creditsRequired = REPORT_CONFIG[reportType].credits;
 
+        // Check report limit: max 5 reports stored at one time
+        const REPORT_LIMIT = 5;
+        const documentDir = path.join(__dirname, '../../../assets/document');
+        const existingReports = fs.readdirSync(documentDir)
+            .filter(f => f.startsWith('tax_report_') && f.includes(`_${user.account_id}_`) && f.endsWith('.pdf'));
+
+        if (existingReports.length >= REPORT_LIMIT) {
+            response = BAD_REQUEST_API_RESPONSE;
+            response.message = `You have reached the maximum of ${REPORT_LIMIT} saved reports. Please delete some reports before generating a new one.`;
+            response.data = {
+                current_count: existingReports.length,
+                limit: REPORT_LIMIT
+            };
+            return res.status(response.status_code).json(response);
+        }
+
         // TODO: Check user credits balance
         // const userCredits = await getUserCredits(user.account_id);
         // if (userCredits < creditsRequired) {
