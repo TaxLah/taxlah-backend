@@ -119,11 +119,12 @@ async function extractReceiptData(filePath, mimeType) {
     }
 
     const parsed = JSON.parse(rawContent);
+    console.log('Log Parsed : ', parsed)
 
     return {
         merchant:      parsed.merchant      ?? null,
         date:          parsed.date          ?? null,
-        total_amount:  parsed.total_amount  ?? null,
+        total_amount:  parsed.total_amount  ?? 0.00,
         currency:      parsed.currency      ?? "MYR",
         items:         Array.isArray(parsed.items) ? parsed.items : [],
         notes:         parsed.notes         ?? null,
