@@ -39,17 +39,17 @@ Return ONLY valid JSON with this exact structure:
 
 Rules:
 - Laptop, smartphone, tablet → MY_LIFESTYLE
-- Mixed receipts with some non-eligible items → only include the eligible amount, not the full total
-- If the expense clearly does not qualify under any category → NOT_ELIGIBLE
-- If you are unsure → use low confidence and NOT_ELIGIBLE, advise user to verify with LHDN
-- Be conservative — do not guess eligible amounts
-
-IMPORTANT rules when calculating eligible_amount for telco bills & internet services bills:
-- EXCLUDE: Voice call charges, SMS charges, roaming fees, service tax, one-time fees
-- NEVER use the total bill amount as eligible_amount
-- if dispute take the total charges or current chargers
-
 `;
+
+// - Mixed receipts with some non-eligible items → only include the eligible amount, not the full total
+// - If the expense clearly does not qualify under any category → NOT_ELIGIBLE
+// - If you are unsure → use low confidence and NOT_ELIGIBLE, advise user to verify with LHDN
+// - Be conservative — do not guess eligible amounts
+
+// IMPORTANT rules when calculating eligible_amount for telco bills & internet services bills:
+// - EXCLUDE: Voice call charges, SMS charges, roaming fees, service tax, one-time fees
+// - NEVER use the total bill amount as eligible_amount
+// - if dispute take the total charges or current chargers
 
 /**
  * Determine tax category and eligibility from extracted receipt data.
