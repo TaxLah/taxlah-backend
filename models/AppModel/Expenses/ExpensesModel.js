@@ -21,7 +21,7 @@ const checkOfficialMappingExists = async (taxYear) => {
         const sql = `CALL sp_check_official_mapping_exists(?, @exists, @published_date)`;
         await db.raw(sql, [taxYear]);
         
-        const result = await db.raw(`SELECT @exists as exists, @published_date as published_date`);
+        const result = await db.raw(`SELECT @exists as \`exists\`, @published_date as published_date`);
         
         return {
             status: true,
