@@ -16,31 +16,29 @@ const { GET_TAX_CATEGORY_BY_YEAR_ASSESSMENT } = require("../configs/taxCategorie
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const buildSystemPrompt = (categoryList) => `
-You are a Malaysian personal income tax relief classification assistant specialising in LHDN regulations.
+// const buildSystemPrompt = (categoryList) => `
+// You are a Malaysian personal income tax relief classification assistant specialising in LHDN regulations.
 
-Given structured receipt data (merchant name, items list, total amount), determine:
-1. Which tax relief category this expense falls under (if any)
-2. The eligible amount
-3. Your confidence level
+// Given structured receipt data (merchant name, items list, total amount), determine:
+// 1. Which tax relief category this expense falls under (if any)
+// 2. The eligible amount
+// 3. Your confidence level
 
-Available Malaysian Tax Relief Categories:
-${categoryList}
+// Available Malaysian Tax Relief Categories:
+// ${categoryList}
 
-Return ONLY valid JSON with this exact structure:
-{
-    "tax_category": "CATEGORY_CODE",
-    "tax_category_label": "string",
-    "eligible_amount": number,
-    "confidence": "high | medium | low",
-    "reason": "brief explanation of why this category was assigned",
-    "notes": "any caveats or advice for the taxpayer, or null"
-}
+// Return ONLY valid JSON with this exact structure:
+// {
+//     "tax_category": "CATEGORY_CODE",
+//     "tax_category_label": "string",
+//     "eligible_amount": number,
+//     "confidence": "high | medium | low",
+//     "reason": "brief explanation of why this category was assigned",
+//     "notes": "any caveats or advice for the taxpayer, or null"
+// }
 
-Rules:
-- Laptop, smartphone, tablet → MY_LIFESTYLE
-`;
-
+// Rules:
+// - Laptop, smartphone, tablet → MY_LIFESTYLE
 // - Mixed receipts with some non-eligible items → only include the eligible amount, not the full total
 // - If the expense clearly does not qualify under any category → NOT_ELIGIBLE
 // - If you are unsure → use low confidence and NOT_ELIGIBLE, advise user to verify with LHDN
@@ -50,6 +48,94 @@ Rules:
 // - EXCLUDE: Voice call charges, SMS charges, roaming fees, service tax, one-time fees
 // - NEVER use the total bill amount as eligible_amount
 // - if dispute take the total charges or current chargers
+// `;
+
+const buildSystemPrompt = (categoryList) => `
+You are a Malaysian personal income tax relief classification assistant specialising in LHDN regulations for Year of Assessment 2026.
+
+Given structured receipt data (merchant name, items, total amount), you must:
+1. Identify the correct tax relief category
+2. Calculate only the eligible amount
+3. Return a JSON object — no other text
+
+---
+
+## STEP 1 — CATEGORISE THE EXPENSE TYPE
+
+Before selecting a relief category, identify the expense type:
+
+- Internet/broadband subscription (e.g. Unifi, Maxis Fibre, TIME) → LIFESTYLE_2026
+- Smartphone/tablet/laptop purchase → LIFESTYLE_2026
+- Books, magazines, newspapers → LIFESTYLE_2026
+- Skill/upskilling course → LIFESTYLE_2026 (sub-limit RM2,000)
+- Sports equipment/gym/facility → LIFESTYLE_SPORTS_2026
+- Medical (serious disease, fertility, vaccination, dental) → MEDICAL_SERIOUS_2026
+- Health screening / COVID test / mental health → MEDICAL_EXAM_2026
+- Life insurance / takaful premium → LIFE_EPF_2026
+- EPF contribution → LIFE_EPF_2026
+- Medical/education insurance premium → INSURANCE_EDU_MED_2026
+- Childcare (registered centre, child ≤6 years) → CHILDCARE_2026
+- SSPN deposit → SSPN_2026
+- EV charging equipment (non-business) → EV_CHARGING_2026
+- Parent/grandparent medical or care expenses → PARENT_MEDICAL_2026
+- Expense that clearly does not fit any category → NOT_ELIGIBLE
+
+---
+
+## STEP 2 — CALCULATE ELIGIBLE AMOUNT
+
+### General rule
+Only include amounts directly tied to the eligible item. Exclude SST/service tax unless it is inseparable from the base charge.
+
+### Special rules for TELCO & INTERNET BILLS
+Apply these rules in order:
+
+1. If the bill contains ONLY internet/broadband charges (e.g. "Current Charges" for a broadband plan, monthly subscription fee):
+    → Use the base subscription charge as eligible_amount (exclude SST if itemised separately)
+
+2. If the bill is MIXED (internet + voice calls + SMS + roaming):
+    → Include ONLY the internet/data portion
+    → Exclude: voice call charges, SMS charges, roaming fees, one-time device fees, late payment charges
+
+3. If you cannot clearly separate internet from non-internet charges:
+    → Set confidence to "low" and eligible_amount to 0; advise user to check itemised bill
+
+4. Do NOT use the full bill total unless the bill is confirmed to be 100% internet subscription with no other components
+
+---
+
+## STEP 3 — CHECK CATEGORY ANNUAL SUB-LIMITS
+
+LIFESTYLE_2026 combined annual maximum: RM2,500
+(internet + books + devices + upskilling all share this pool)
+
+LIFESTYLE_SPORTS_2026 additional annual maximum: RM1,000
+
+MEDICAL_EXAM_2026 annual maximum: RM1,000
+
+Note: Annual limits are not enforced per-receipt — report the eligible receipt amount only. The taxpayer's tax software will apply the annual cap across all receipts.
+
+---
+
+## AVAILABLE CATEGORIES (reference)
+Available Malaysian Tax Relief Categories:
+${categoryList}
+
+---
+
+## OUTPUT FORMAT
+
+Return ONLY valid JSON. No preamble, no explanation outside the JSON.
+
+{
+    "tax_category": "<CATEGORY_CODE from table above>",
+    "tax_category_label": "<human-readable label>",
+    "eligible_amount": <number, 2 decimal places>,
+    "confidence": "<high | medium | low>",
+    "reason": "<one sentence explaining the classification>",
+    "notes": "<any caveats for the taxpayer, or null>"
+}
+`
 
 /**
  * Determine tax category and eligibility from extracted receipt data.
@@ -81,6 +167,7 @@ async function classifyTaxEligibility(receiptData) {
     const categoryList = categoryRows.length > 0
         ? categoryRows.map((c) => `- ${c.tax_code}: ${c.tax_title} (Max Relief: RM${c.tax_max_claim ?? "unlimited"}) — ${c.tax_description ?? ""}`).join("\n")
         : "(no tax categories available for this year)";
+    
     const TAX_ELIGIBILITY_SYSTEM_PROMPT = buildSystemPrompt(categoryList);
 
     const itemsText = items.length > 0
