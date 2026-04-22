@@ -109,7 +109,7 @@ async function classifyTaxEligibility(receiptData) {
     console.log("Log Tax Eligibility System Prompt : ", TAX_ELIGIBILITY_SYSTEM_PROMPT)
 
     const response = await openai.chat.completions.create({
-        model: "gpt-5-nano",
+        model: "gpt-5-mini",
         max_completion_tokens: 5000,
         messages: [
             {
