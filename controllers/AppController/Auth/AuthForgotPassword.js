@@ -29,6 +29,7 @@ router.post('/forgot-password', async (req, res) => {
     let response = DEFAULT_API_RESPONSE
     try {
         const email = req.body.email ? sanitize(req.body.email.trim()) : null
+        console.log("Log Email : ", email)
 
         if (CHECK_EMPTY(email)) {
             response = { ...BAD_REQUEST_API_RESPONSE }
@@ -37,6 +38,7 @@ router.post('/forgot-password', async (req, res) => {
         }
 
         const authResult = await AuthGetByEmail(email)
+        console.log("Log Check Email Exist : ", authResult)
 
         // Always respond with the same success message regardless of whether
         // the email exists — prevents account enumeration attacks.
