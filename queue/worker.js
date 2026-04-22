@@ -224,7 +224,7 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 					claimed_amount = ?,
 					max_claimable  = VALUES(max_claimable),
 					last_modified  = NOW()`,
-				[account_id, claimYear, tax_id, taxsub_id, claimedAmount, taxMaxClaim, claimedAmount]
+				[account_id, claimYear, tax_id, taxsub_id, aiResult.eligible_amount, taxMaxClaim, aiResult.eligible_amount]
 			);
 			console.log(`[AI-Receipt Worker] Tax claim upserted: account_id=${account_id}, tax_id=${tax_id}, year=${claimYear}, claimed=${claimedAmount}/${taxMaxClaim}`);
 		}
