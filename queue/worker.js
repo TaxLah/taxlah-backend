@@ -121,6 +121,9 @@ defaultQueue.process("*", async (job) => {
 // Job data: { expenses_id, account_id, merchant, date, total_amount, items }
 // Text-only — receipt was already OCR'd at extract step, no image re-upload needed.
 aiReceiptQueue.process("analyseReceipt", async (job) => {
+
+	console.log("Log Job Data : ", job.data)
+
 	const { expenses_id, account_id, merchant, date, total_amount, items } = job.data;
 	console.log(`[AI-Receipt Worker] Processing job ${job.id}: expenses_id=${expenses_id}`);
 
@@ -195,12 +198,12 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 		console.log("Log Confidence Score : ", confidenceScore)
 
 		// Upsert account_tax_claim if expense is tax eligible (Self claim for that year)
-		if (taxEligible === 'Yes' && tax_id) {
+		if (taxEligible == 'Yes' && tax_id) {
 			const claimYear = date ? new Date(date).getFullYear() : new Date().getFullYear();
 
 			// Sum all eligible expenses for this account/tax category/year from DB (source of truth)
 			const sumResult = await db.raw(
-				`SELECT COALESCE(SUM(total_amount), 0) AS total_claimed
+				`SELECT COALESCE(SUM(expenses_total_amount), 0) AS total_claimed
 				FROM account_expenses
 				WHERE account_id = ?
 					AND expenses_tax_category = ?

@@ -792,7 +792,7 @@ const dispatchAIReceiptAnalysis = async (expenses_id, account_id, receiptData) =
             total_amount: receiptData.total_amount  ?? 0,
             items:        receiptData.items         || []
         }, {
-            attempts: 2,
+            attempts: 1,
             backoff: { type: 'fixed', delay: 5000 },
             removeOnComplete: true,
             removeOnFail: false

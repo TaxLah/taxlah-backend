@@ -76,7 +76,6 @@ async function classifyTaxEligibility(receiptData) {
     console.log("Log Year : ", year)
 
     const categoryResult    = await GET_TAX_CATEGORY_BY_YEAR_ASSESSMENT(year);
-    console.log("Log Category Result : ", categoryResult)
 
     const categoryRows = categoryResult.status ? (categoryResult.data ?? []) : [];
     const categoryList = categoryRows.length > 0
@@ -134,9 +133,11 @@ async function classifyTaxEligibility(receiptData) {
     }
 
     const parsed = JSON.parse(rawContent);
+    console.log("Log Parsed JSON : ", parsed)
 
     // Enrich with DB category metadata
     const categoryMeta = categoryRows.find((c) => c.tax_code === parsed.tax_category);
+    console.log("Log Category Meta : ", categoryMeta)
 
     return {
         tax_category:       parsed.tax_category       ?? "NOT_ELIGIBLE",
