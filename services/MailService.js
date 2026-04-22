@@ -16,16 +16,33 @@ class MailService {
      */
     initializeTransporter() {
         try {
-            this.transporter = nodemailer.createTransport({
-                service: 'gmail',
+            this.transporter = nodemailer.createTransport(
+                // {
+                //     service: 'gmail',
+                //     auth: {
+                //         type: 'OAuth2',
+                //         user: 'admin@taxlah.com',
+                //         clientId: '883174192008-bc1ifscgtqskro7r571b8ju2q3gb6dhn.apps.googleusercontent.com',
+                //         clientSecret: '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',
+                //         refreshToken: '1//04i9FHDKtT_k3CgYIARAAGAQSNwF-L9IrGhvn9bJ0AXFGWqzj931DvOkPlUGcvTAON4nI03ZIZPYUMIDKguuwzfXQCcIRj6GISFs'
+                //     }
+                // }
+                {
+                host: "smtp.gmail.com",
+                port: 465,          // or 587
+                secure: true,       // true for 465, false for 587
                 auth: {
-                    type: 'OAuth2',
+                    type: "OAuth2",
                     user: 'admin@taxlah.com',
                     clientId: '883174192008-bc1ifscgtqskro7r571b8ju2q3gb6dhn.apps.googleusercontent.com',
                     clientSecret: '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',
-                    refreshToken: '1//04i9FHDKtT_k3CgYIARAAGAQSNwF-L9IrGhvn9bJ0AXFGWqzj931DvOkPlUGcvTAON4nI03ZIZPYUMIDKguuwzfXQCcIRj6GISFs'
+                    refreshToken: '1//04i9FHDKtT_k3CgYIARAAGAQSNwF-L9IrGhvn9bJ0AXFGWqzj931DvOkPlUGcvTAON4nI03ZIZPYUMIDKguuwzfXQCcIRj6GISFs',
+                },
+                connectionTimeout: 10000,   // 10s
+                greetingTimeout: 10000,
+                socketTimeout: 15000,
                 }
-            })
+            )
 
             console.log('✓ Mail service initialized successfully');
         } catch (error) {
