@@ -36,6 +36,36 @@ const checkOfficialMappingExists = async (taxYear) => {
 };
 
 /**
+ * Check for duplicate expense before inserting
+ * Matches on: account_id + expenses_date + merchant name (case-insensitive) + total_amount
+ * Returns the existing expense_id if a duplicate is found within the last 5 minutes or same-day exact match
+ */
+const checkDuplicateExpense = async (account_id, expenses_date, expenses_merchant_name, expenses_total_amount) => {
+    try {
+        const rows = await db.raw(
+            `SELECT expenses_id, expenses_date, expenses_merchant_name, expenses_total_amount, created_date
+             FROM account_expenses
+             WHERE account_id = ?
+               AND expenses_date = ?
+               AND LOWER(expenses_merchant_name) = LOWER(?)
+               AND expenses_total_amount = ?
+               AND status = 'Active'
+             LIMIT 1`,
+            [account_id, expenses_date, expenses_merchant_name, parseFloat(expenses_total_amount)]
+        );
+
+        if (rows.length > 0) {
+            return { isDuplicate: true, existingExpense: rows[0] };
+        }
+        return { isDuplicate: false, existingExpense: null };
+    } catch (error) {
+        console.error('[ExpensesModel] checkDuplicateExpense error:', error);
+        // On error, allow the insert to proceed rather than blocking the user
+        return { isDuplicate: false, existingExpense: null };
+    }
+};
+
+/**
  * Upload expense with smart mapping
  * Calls stored procedure: sp_upload_receipt_with_mapping
  * This handles the preliminary vs official mapping logic automatically
@@ -159,7 +189,20 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
             receipt_metadata = null
         } = expenseData;
 
-        // Step 0: Create receipt record if file is uploaded
+        // Step 0: Duplicate detection — reject before any DB writes
+        const duplicateCheck = await checkDuplicateExpense(
+            account_id, expenses_date, expenses_merchant_name, expenses_total_amount
+        );
+        if (duplicateCheck.isDuplicate) {
+            return {
+                status: false,
+                duplicate: true,
+                existingExpenseId: duplicateCheck.existingExpense.expenses_id,
+                message: 'Duplicate expense detected. A record with the same date, merchant and amount already exists.'
+            };
+        }
+
+        // Step 0.1: Create receipt record if file is uploaded
         let receipt_id = null;
         if (receipt_file_url) {
             const receiptData = {

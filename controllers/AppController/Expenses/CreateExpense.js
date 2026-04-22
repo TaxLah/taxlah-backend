@@ -225,6 +225,16 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
         console.log("Log create new expense record result : ", result)
 
         if (!result.status) {
+            // Duplicate detected — return 409 Conflict
+            if (result.duplicate) {
+                response = {
+                    status_code: 409,
+                    status: 'Conflict',
+                    message: result.message,
+                    data: { existing_expenses_id: result.existingExpenseId }
+                };
+                return res.status(409).json(response);
+            }
             response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE, message: result.message || 'Failed to create expense', data: null };
             return res.status(response.status_code).json(response);
         }
