@@ -82,7 +82,7 @@ async function extractReceiptData(filePath, mimeType) {
     }
 
     const response = await openai.chat.completions.create({
-        model: "gpt-5-nano",
+        model: "gpt-5-mini",
         max_completion_tokens: 5000,
         messages: [
             {
