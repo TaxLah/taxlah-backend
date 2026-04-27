@@ -165,6 +165,40 @@ const createExpenseItems = async (expenses_id, items) => {
 };
 
 /**
+ * Update expense items
+ * Replaces all existing items with new items array
+ */
+const updateExpenseItems = async (expenses_id, items) => {
+    try {
+        // First, soft delete all existing items for this expense
+        const deleteSql = `
+            UPDATE account_expenses_item 
+            SET status = 'Deleted', last_modified = NOW()
+            WHERE expenses_id = ? AND status = 'Active'
+        `;
+        await db.raw(deleteSql, [expenses_id]);
+
+        // If no new items provided, just return success
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return { 
+                status: true, 
+                count: 0, 
+                data: [], 
+                message: 'All items removed successfully' 
+            };
+        }
+
+        // Create new items
+        const itemsResult = await createExpenseItems(expenses_id, items);
+        
+        return itemsResult;
+    } catch (error) {
+        console.error('[ExpensesModel] updateExpenseItems error:', error);
+        return { status: false, count: 0, data: null, message: error.message };
+    }
+};
+
+/**
  * Create expense with NLP-enhanced categorization
  * Uses NLP to determine category, then calls stored procedure for proper status
  * Now supports receipt file attachment
@@ -859,6 +893,7 @@ module.exports = {
     getExpenseById,
     getExpenseItems,
     updateExpense,
+    updateExpenseItems,
     deleteExpense,
     
     // Mapping operations
