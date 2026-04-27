@@ -1,3 +1,4 @@
+const db = require("../utils/sqlbuilder")
 /**
  * ReceiptExtractionService.js
  *
@@ -44,6 +45,23 @@ Rules:
 - Include ALL line items found on the receipt in the items array.
 `;
 
+async function GetReceiptOCRPrompt() {
+    let result = null
+    let prompt = ``
+    try {   
+        let sql = await db.raw(`SELECT template FROM prompt_templates WHERE name = 'receipt_ocr' LIMIT 1`)
+        if(sql.length) {
+            prompt = sql[0]["template"]
+            result = prompt
+        }
+    } catch (e) {
+        console.log("Syntax error at model get receipt ocr prompt : ", e)
+        result = null
+    }
+
+    return result
+}
+
 /**
  * Convert the first page of a PDF to a base64 PNG.
  * @param {string} filePath
@@ -81,13 +99,16 @@ async function extractReceiptData(filePath, mimeType) {
         base64Image      = fileBuffer.toString("base64");
     }
 
+    let getPrompt = await GetReceiptOCRPrompt()
+    console.log("Log Prompt : ", getPrompt)
+
     const response = await openai.chat.completions.create({
         model: "gpt-5-mini",
         max_completion_tokens: 5000,
         messages: [
             {
                 role: "system",
-                content: EXTRACTION_SYSTEM_PROMPT
+                content: getPrompt
             },
             {
                 role: "user",

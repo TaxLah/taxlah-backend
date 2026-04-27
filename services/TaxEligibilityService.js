@@ -1,3 +1,5 @@
+const db = require("../utils/sqlbuilder")
+
 /**
  * TaxEligibilityService.js
  *
@@ -137,6 +139,36 @@ Return ONLY valid JSON. No preamble, no explanation outside the JSON.
 }
 `
 
+async function GetTaxIdentificationOCR(tax_category = []) {
+    let result = null
+    let prompt = ``
+    try {   
+        let sql = await db.raw(`SELECT template FROM prompt_templates WHERE name = 'tax_identification' LIMIT 1`)
+        if(sql.length) {
+            prompt = sql[0]["template"]
+
+            let currYear = new Date().getFullYear()
+            let promptVariables = {
+                year: currYear,
+                categoryList: tax_category
+            }
+
+            // APPEND TAX CATEGORY INTO PROMPT TEXT
+            // Replace all {{placeholders}}
+            const resolved = prompt.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+                return promptVariables[key] ?? `{{${key}}}`;
+            });
+
+            result = resolved
+        }
+    } catch (e) {
+        console.log("Syntax error at model get receipt ocr prompt : ", e)
+        result = null
+    }
+
+    return result
+}
+
 /**
  * Determine tax category and eligibility from extracted receipt data.
  * Text-only call — no image needed, much faster than extraction.
@@ -168,7 +200,8 @@ async function classifyTaxEligibility(receiptData) {
         ? categoryRows.map((c) => `- ${c.tax_code}: ${c.tax_title} (Max Relief: RM${c.tax_max_claim ?? "unlimited"}) — ${c.tax_description ?? ""}`).join("\n")
         : "(no tax categories available for this year)";
     
-    const TAX_ELIGIBILITY_SYSTEM_PROMPT = buildSystemPrompt(categoryList);
+    // const TAX_ELIGIBILITY_SYSTEM_PROMPT = buildSystemPrompt(categoryList);
+    const TAX_ELIGIBILITY_SYSTEM_PROMPT = await GetTaxIdentificationOCR(categoryList)
 
     const itemsText = items.length > 0
         ? items.map((i) => {
