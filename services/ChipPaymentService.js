@@ -424,8 +424,10 @@ async function createSubscriptionPayment(params) {
             customerName: customer_name,
             productName: 'TaxLah Subscription',
             productDescription: description,
-            successUrl: `${baseUrl}/subscription/success?ref=${payment_ref}`,
-            failureUrl: `${baseUrl}/subscription/failed?ref=${payment_ref}`,
+            // successUrl: `${baseUrl}/subscription/success?ref=${payment_ref}`,
+            // failureUrl: `${baseUrl}/subscription/failed?ref=${payment_ref}`,
+            successUrl: `${baseUrl}/subscription/${payment_ref}`,
+            failureUrl: `${baseUrl}/subscription/${payment_ref}`,
             callbackUrl: `${baseUrl}/api/subscription/webhook`,
             metadata: {
                 payment_ref: payment_ref,
