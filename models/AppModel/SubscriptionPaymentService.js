@@ -743,15 +743,17 @@ async function processFailedPayment(paymentRef, reason = null) {
             status: 'Active'
         });
 
-        await queues.notification.add('pushSingle', {
-            token: fcmToken,
-            title: '⚠️ Subscription Payment Failed',
-            body: `Unfortunately, your subscription payment of ${payment.currency} ${payment.amount} has failed. Please try again or contact support for assistance.`,
-            data: {
-                type: 'SubscriptionPaymentFailed',
-                subscription_id: payment.subscription_id || null
-            }
-        }, { priority: 5 });    
+        if (fcmToken) {
+            await queues.notification.add('push', {
+                token: fcmToken,
+                title: '⚠️ Subscription Payment Failed',
+                body: `Unfortunately, your subscription payment of ${payment.currency} ${payment.amount} has failed. Please try again or contact support for assistance.`,
+                data: {
+                    type: 'SubscriptionPaymentFailed',
+                    subscription_id: payment.subscription_id || null
+                }
+            }, { priority: 5 });
+        }    
 
         return {
             success: true,
