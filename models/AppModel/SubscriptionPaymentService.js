@@ -750,7 +750,7 @@ async function processFailedPayment(paymentRef, reason = null, gatewayResponse =
                 body: `Unfortunately, your subscription payment of ${payment.currency} ${payment.amount} has failed. Please try again or contact support for assistance.`,
                 data: {
                     type: 'SubscriptionPaymentFailed',
-                    subscription_id: payment.subscription_id || null
+                    subscription_id: String(payment.subscription_id || '')
                 }
             }, { priority: 5 });
         }    
