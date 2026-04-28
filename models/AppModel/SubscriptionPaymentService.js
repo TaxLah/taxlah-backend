@@ -665,10 +665,10 @@ async function processFailedPayment(paymentRef, reason = null, gatewayResponse =
 
         // ── Mark bill overdue + record failed billing transaction ───
         try {
-            if (payment.gateway_transaction_id || (payment.gateway_response && payment.gateway_response.purchase_id)) {
-                const purchaseId = payment.gateway_transaction_id ||
+            if (payment.gateway_transaction_id || (payment.gateway_response && payment.gateway_response.id)) {
+                const purchaseId = payment.gateway_response.id ||
                     (typeof payment.gateway_response === 'string'
-                        ? JSON.parse(payment.gateway_response).purchase_id
+                        ? JSON.parse(payment.gateway_response).id
                         : payment.gateway_response?.purchase_id);
 
                 const billLookup = await BillingGetBillByChipPurchaseId(purchaseId);
