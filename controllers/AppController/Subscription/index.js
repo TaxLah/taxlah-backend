@@ -1039,7 +1039,8 @@ router.post("/webhook", async (req, res) => {
         } else if (isFailure) {
             const result = await SubscriptionPaymentService.processFailedPayment(
                 paymentRef,
-                data.failure_reason || chipEventType || 'Payment failed'
+                data.failure_reason || chipEventType || 'Payment failed',
+                webhookData
             );
             console.log('[Subscription Webhook] Payment failed:', result);
         } else {

@@ -650,7 +650,7 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
  * @param {string} reason - Failure reason
  * @returns {Object} - Processing result
  */
-async function processFailedPayment(paymentRef, reason = null) {
+async function processFailedPayment(paymentRef, reason = null, gatewayResponse = null) {
     try {
         // Get payment details
         const paymentResult = await getPaymentByRef(paymentRef);
@@ -661,7 +661,7 @@ async function processFailedPayment(paymentRef, reason = null) {
         const payment = paymentResult.data;
 
         // Update payment status
-        await updatePaymentStatus(paymentRef, 'Failed', null, { reason });
+        await updatePaymentStatus(paymentRef, 'Failed', null, gatewayResponse);
 
         // ── Mark bill overdue + record failed billing transaction ───
         try {
