@@ -457,9 +457,9 @@ async function BillingGetBillByChipPurchaseId(chipPurchaseId) {
 	try {
 		const rows = await db.raw(
 			`SELECT bill_id, bill_no, account_id, subscription_id,
-                    billing_year, billing_month, total_amount, currency,
-                    checkout_url, status
-             FROM bill WHERE chip_purchase_id = ? LIMIT 1`,
+                billing_year, billing_month, total_amount, currency,
+                checkout_url, status
+            FROM bill WHERE chip_purchase_id = ? LIMIT 1`,
 			[chipPurchaseId],
 		);
 		if (!rows.length) return { success: false, data: null };

@@ -700,19 +700,32 @@ async function processFailedPayment(paymentRef, reason = null) {
             console.error('[SubscriptionPaymentService] processFailedPayment billing record failed:', billingError);
         }
 
-        // Update subscription to Past_Due
-        const updateSubSql = `
-            UPDATE account_subscription
-            SET status = 'Past_Due', last_modified = NOW()
-            WHERE subscription_id = ?
-            AND status IN ('Trial', 'Active')
-        `;
-        await db.raw(updateSubSql, [payment.subscription_id]);
-
-        // Log subscription history
         const SubscriptionService   = require('./SubscriptionService');
         const Device                = require('./Device');
 
+        // Only update subscription if it exists (null for new subscription payments before subscription creation)
+        if (payment.subscription_id) {
+            // Update subscription to Past_Due
+            const updateSubSql = `
+                UPDATE account_subscription
+                SET status = 'Past_Due', last_modified = NOW()
+                WHERE subscription_id = ?
+                AND status IN ('Trial', 'Active')
+            `;
+            await db.raw(updateSubSql, [payment.subscription_id]);
+
+            // Log subscription history
+            await SubscriptionService.logSubscriptionHistory(
+                payment.subscription_id,
+                payment.account_id,
+                'Payment_Failed',
+                `Payment failed: ${reason || 'Unknown reason'}`,
+                'Active',
+                'Past_Due'
+            );
+        }
+
+        // Get device token for notification
         const deviceResult = await Device.DeviceUser(payment.account_id);
         let fcmToken = null;
 
@@ -720,19 +733,11 @@ async function processFailedPayment(paymentRef, reason = null) {
             fcmToken = deviceResult.data[0].device_fcm_token;
         }
 
-        await SubscriptionService.logSubscriptionHistory(
-            payment.subscription_id,
-            payment.account_id,
-            'Payment_Failed',
-            `Payment failed: ${reason || 'Unknown reason'}`,
-            'Active',
-            'Past_Due'
-        );
-
+        // Send notification regardless of subscription existence
         await UserNotificationCreate({
             account_id: payment.account_id,
             notification_title: '⚠️ Subscription Payment Failed',
-            notification_description: `Unfortunately, your subscription payment of ${payment.currency} ${payment.amount} has failed. Please update your payment method to continue enjoying our services.`,
+            notification_description: `Unfortunately, your subscription payment of ${payment.currency} ${payment.amount} has failed. Please try again or contact support for assistance.`,
             read_status: 'No',
             archive_status: 'No',
             status: 'Active'
@@ -741,10 +746,10 @@ async function processFailedPayment(paymentRef, reason = null) {
         await queues.notification.add('pushSingle', {
             token: fcmToken,
             title: '⚠️ Subscription Payment Failed',
-            body: `Unfortunately, your subscription payment of ${payment.currency} ${payment.amount} has failed. Please update your payment method to continue enjoying our services.`,
+            body: `Unfortunately, your subscription payment of ${payment.currency} ${payment.amount} has failed. Please try again or contact support for assistance.`,
             data: {
                 type: 'SubscriptionPaymentFailed',
-                subscription_id: payment.subscription_id
+                subscription_id: payment.subscription_id || null
             }
         }, { priority: 5 });    
 
