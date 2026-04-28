@@ -35,27 +35,42 @@ router.post("/", async(req , res) => {
         if(CHECK_EMPTY(auth_username)) {
             response = BAD_REQUEST_API_RESPONSE
             response.message = "Error. Undefined parameter account username or field is empty."
-        } else if(CHECK_EMPTY(auth_password)) {
+            return res.status(response.status_code).json(response)
+        } 
+        else if(CHECK_EMPTY(auth_password)) {
             response = BAD_REQUEST_API_RESPONSE
             response.message = "Error. Undefined parameter account password or field is empty."
-        } else if(CHECK_EMPTY(account_name)) {
+            return res.status(response.status_code).json(response)
+        } 
+        else if(CHECK_EMPTY(account_name)) {
             response = BAD_REQUEST_API_RESPONSE
             response.message = "Error. Undefined parameter account name or field is empty."
-        } else if(CHECK_EMPTY(account_fullname)) {
+            return res.status(response.status_code).json(response)
+        } 
+        else if(CHECK_EMPTY(account_fullname)) {
             response = BAD_REQUEST_API_RESPONSE
             response.message = "Error. Undefined parameter account fullname or field is empty."
-        } else if(CHECK_EMPTY(account_email)) {
+            return res.status(response.status_code).json(response)
+        } 
+        else if(CHECK_EMPTY(account_email)) {
             response = BAD_REQUEST_API_RESPONSE
             response.message = "Error. Undefined parameter account email or field is empty."
-        } else if(CHECK_EMPTY(account_phone)) {
-            response = BAD_REQUEST_API_RESPONSE
-            response.message = "Error. Undefined parameter account contact number or field is empty."
-        } else if(!isStrongPassword(auth_password)) {
+            return res.status(response.status_code).json(response)
+        } 
+        // else if(CHECK_EMPTY(account_phone)) {
+        //     response = BAD_REQUEST_API_RESPONSE
+        //     response.message = "Error. Undefined parameter account contact number or field is empty."
+        //     return res.status(response.status_code).json(response)
+        // } 
+        else if(!isStrongPassword(auth_password)) {
             response = BAD_REQUEST_API_RESPONSE
             response.message = "Error. Password need to be at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char."
-        } else if(!isValidEmail(account_email)) {
+            return res.status(response.status_code).json(response)
+        } 
+        else if(!isValidEmail(account_email)) {
             response = BAD_REQUEST_API_RESPONSE
             response.message = "Error. Email account is not valid or invalid email format."
+            return res.status(response.status_code).json(response)
         } 
         else {
 
@@ -68,9 +83,11 @@ router.post("/", async(req , res) => {
             if(check_existing_username.status) {
                 response = FORBIDDEN_API_RESPONSE
                 response.message = "Error. Account with current username has already exist."
+                return res.status(response.status_code).json(response)
             } else if(check_existing_email.status) {
                 response = FORBIDDEN_API_RESPONSE
                 response.message = "Error. Account with current email has already exist."
+                return res.status(response.status_code).json(response)
             } else {
 
                 let account = {
@@ -126,6 +143,8 @@ router.post("/", async(req , res) => {
                         } catch (subError) {
                             // Non-fatal — registration succeeds even if subscription assignment fails
                             console.error('[Registration] Error during auto-subscription:', subError)
+                            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+                            return res.status(response.status_code).json(response)
                         }
 
                         let { subject, text, html } = OnboardingEmail(account_fullname, account_email)
@@ -180,8 +199,9 @@ router.post("/", async(req , res) => {
     } catch (e) {
         response = INTERNAL_SERVER_ERROR_API_RESPONSE
         response.message = "Error! Please contact our support for more information."
-        return res.status(response.status_code).json(response)
     }
+    
+    return res.status(response.status_code).json(response)
 })
 
 module.exports = router
