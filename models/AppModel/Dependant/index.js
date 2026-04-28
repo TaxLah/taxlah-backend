@@ -164,9 +164,9 @@ async function updateDependant(dependantId, accountId, updateData) {
     try {
         // Recalculate age if DOB is updated
         if (updateData.dependant_dob) {
-            const dob = new Date(updateData.dependant_dob);
+            const dob   = new Date(updateData.dependant_dob);
             const today = new Date();
-            let age = today.getFullYear() - dob.getFullYear();
+            let age     = today.getFullYear() - dob.getFullYear();
             const monthDiff = today.getMonth() - dob.getMonth();
             if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
                 age--;
@@ -178,8 +178,7 @@ async function updateDependant(dependantId, accountId, updateData) {
         updateData.last_modified = new Date();
 
         const updateResult = await db.update(
-            'account_dependant', 
-            updateData, 
+            'account_dependant', updateData, 
             { dependant_id: dependantId, account_id: accountId }
         );
         

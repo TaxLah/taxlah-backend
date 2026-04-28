@@ -308,8 +308,8 @@ router.put("/:id", async (req, res) => {
 	}
 
 	try {
-		const dependantId = parseInt(req.params.id);
-		const params = req.body;
+		const dependantId 	= parseInt(req.params.id);
+		const params 		= req.body;
 
 		if (isNaN(dependantId)) {
 			response = BAD_REQUEST_API_RESPONSE;
@@ -318,10 +318,7 @@ router.put("/:id", async (req, res) => {
 		}
 
 		// Check if dependant exists and belongs to user
-		const existing = await getDependantDetails(
-			dependantId,
-			user.account_id
-		);
+		const existing = await getDependantDetails(dependantId, user.account_id);
 		if (!existing.status) {
 			response = NOT_FOUND_API_RESPONSE;
 			response.message = "Dependant not found.";
@@ -331,66 +328,94 @@ router.put("/:id", async (req, res) => {
 		// Build update data (only include provided fields)
 		const updateData = {};
 
-		if (params.dependant_name !== undefined)
-			updateData.dependant_name = sanitize(params.dependant_name);
-		if (params.dependant_fullname !== undefined)
-			updateData.dependant_fullname = sanitize(params.dependant_fullname);
+		if (params.dependant_name !== undefined) {
+			const name = sanitize(params.dependant_name);
+			if (!name || name.trim() === '') {
+				response = BAD_REQUEST_API_RESPONSE;
+				response.message = "Dependant name cannot be empty.";
+				return res.status(response.status_code).json(response);
+			}
+			updateData.dependant_name = name;
+		}
+
+		if (params.dependant_fullname !== undefined) {
+			const fullname = sanitize(params.dependant_fullname);
+			if (!fullname || fullname.trim() === '') {
+				response = BAD_REQUEST_API_RESPONSE;
+				response.message = "Dependant full name cannot be empty.";
+				return res.status(response.status_code).json(response);
+			}
+			updateData.dependant_fullname = fullname;
+		}
+		
 		if (params.dependant_email !== undefined)
 			updateData.dependant_email = params.dependant_email;
+		
 		if (params.dependant_phone !== undefined)
 			updateData.dependant_phone = params.dependant_phone;
-		if (params.dependant_ic !== undefined)
+		
+		if (params.dependant_ic !== undefined) {
+			if (!params.dependant_ic || params.dependant_ic.trim() === '') {
+				response = BAD_REQUEST_API_RESPONSE;
+				response.message = "Dependant IC/ID cannot be empty.";
+				return res.status(response.status_code).json(response);
+			}
 			updateData.dependant_ic = params.dependant_ic;
-		if (params.dependant_gender !== undefined)
+		}
+		
+		if (params.dependant_gender !== undefined) {
+			if (!params.dependant_gender || params.dependant_gender.trim() === '') {
+				response = BAD_REQUEST_API_RESPONSE;
+				response.message = "Dependant gender cannot be empty.";
+				return res.status(response.status_code).json(response);
+			}
 			updateData.dependant_gender = params.dependant_gender;
+		}
+		
 		if (params.dependant_dob !== undefined)
 			updateData.dependant_dob = params.dependant_dob;
+		
 		if (params.dependant_type !== undefined) {
-			const validTypes = [
-				"Spouse",
-				"Child",
-				"Sibling",
-				"Parent",
-				"Relative",
-				"Other",
-			];
+			if (!params.dependant_type || params.dependant_type.trim() === '') {
+				response = BAD_REQUEST_API_RESPONSE;
+				response.message = "Dependant type cannot be empty.";
+				return res.status(response.status_code).json(response);
+			}
+			const validTypes = ["Spouse", "Child", "Sibling", "Parent", "Relative", "Other"];
 			if (!validTypes.includes(params.dependant_type)) {
 				response = BAD_REQUEST_API_RESPONSE;
-				response.message = `Invalid dependant type. Must be one of: ${validTypes.join(
-					", "
-				)}`;
+				response.message = `Invalid dependant type. Must be one of: ${validTypes.join(", ")}`;
 				return res.status(response.status_code).json(response);
 			}
 			updateData.dependant_type = params.dependant_type;
 		}
 		if (params.dependant_is_disabled !== undefined)
 			updateData.dependant_is_disabled = params.dependant_is_disabled;
+
 		if (params.dependant_disability_type !== undefined)
-			updateData.dependant_disability_type =
-				params.dependant_disability_type;
+			updateData.dependant_disability_type = params.dependant_disability_type;
+		
 		if (params.dependant_is_studying !== undefined)
 			updateData.dependant_is_studying = params.dependant_is_studying;
-		if (params.dependant_education_level !== undefined)
-			updateData.dependant_education_level =
-				params.dependant_education_level;
-		if (params.dependant_institution_name !== undefined)
-			updateData.dependant_institution_name =
-				params.dependant_institution_name;
-		if (params.dependant_institution_country !== undefined)
-			updateData.dependant_institution_country =
-				params.dependant_institution_country;
+		
+		if (params.dependant_edu_level !== undefined)
+			updateData.dependant_education_level = params.dependant_edu_level;
+		
+		if (params.dependant_edu_institution !== undefined)
+			updateData.dependant_institution_name = params.dependant_edu_institution;
+		
+		if (params.dependant_edu_country !== undefined)
+			updateData.dependant_institution_country = params.dependant_edu_country;
 
 		if (Object.keys(updateData).length === 0) {
-			response = BAD_REQUEST_API_RESPONSE;
-			response.message = "No valid fields to update.";
+			response 			= BAD_REQUEST_API_RESPONSE;
+			response.message 	= "No valid fields to update.";
 			return res.status(response.status_code).json(response);
 		}
 
-		const result = await updateDependant(
-			dependantId,
-			user.account_id,
-			updateData
-		);
+		console.log("Log Updated Data : ", updateData)
+
+		const result = await updateDependant(dependantId, user.account_id, updateData);
 
 		if (result.status) {
 			response = SUCCESS_API_RESPONSE;
