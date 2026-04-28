@@ -415,7 +415,7 @@ async function createSubscriptionPayment(params) {
     } = params;
 
     try {
-        const baseUrl = process.env.BASE_URL || 'https://dev.taxlah.com';
+        const baseUrl = process.env.BASE_URL || 'https://taxlah.com';
         
         const purchaseParams = {
             orderId: payment_ref,
