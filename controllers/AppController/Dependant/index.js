@@ -1,3 +1,5 @@
+const moment = require("moment")
+
 /**
  * Dependant Controller
  * API endpoints for managing user dependants (spouse, children, parents)
@@ -25,6 +27,8 @@ const {
 	getDependantStats,
 	calculateChildReliefEligibility,
 } = require("../../../models/AppModel/Dependant");
+const db = require("../../../utils/sqlbuilder");
+const { upsertTaxClaim, createLimitNotification } = require("../../../models/AppModel/TaxClaimServices");
 
 /**
  * GET /api/dependant
@@ -204,6 +208,7 @@ router.post("/", async (req, res) => {
 
 	try {
 		const params = req.body;
+		console.log("Log Dependant Params : ", params)
 
 		// Validation
 		if (CHECK_EMPTY(params.dependant_name)) {
@@ -226,11 +231,45 @@ router.post("/", async (req, res) => {
 			"Relative",
 			"Other",
 		];
+
 		if (!validTypes.includes(params.dependant_type)) {
 			response = BAD_REQUEST_API_RESPONSE;
 			response.message = `Invalid dependant type. Must be one of: ${validTypes.join(
 				", "
 			)}`;
+			return res.status(response.status_code).json(response);
+		}
+
+		const validEduLevelTypes = [
+			'Primary School',
+			'Secondary School',
+			'Pre-University (STPM)',
+			'Matriculation',
+			'Foundation',
+			'Diploma',
+			'Bachelor Degree',
+			'Master Degree',
+			'PhD',
+			'Professional Certification',
+			'Other',
+		]
+
+		const validPreUniversity = [
+			'Pre-University (STPM)',
+			'Matriculation',
+			'Foundation',
+		]
+
+		const validHigherUniversity = [
+			'Diploma',
+			'Bachelor Degree',
+			'Master Degree',
+			'PhD',
+		]
+
+		if(params.dependant_type === "Child" && params.dependant_is_studying === "Yes" && !validEduLevelTypes.includes(params.dependant_edu_level)) {
+			response = BAD_REQUEST_API_RESPONSE;
+			response.message = `Invalid dependant education level. Must be one of: ${validEduLevelTypes.join(", ")}`;
 			return res.status(response.status_code).json(response);
 		}
 
@@ -246,13 +285,14 @@ router.post("/", async (req, res) => {
 			}
 		}
 
+		let age = moment().diff(moment(params.dependant_dob, 'YYYY-MM-DD'), 'years')
+		console.log("Log Age : ", age)
+
 		// Build dependant data
 		const dependantData = {
 			account_id: user.account_id,
 			dependant_name: sanitize(params.dependant_name),
-			dependant_fullname: params.dependant_fullname
-				? sanitize(params.dependant_fullname)
-				: null,
+			dependant_fullname: params.dependant_fullname ? sanitize(params.dependant_fullname) : null,
 			dependant_email: params.dependant_email || null,
 			dependant_phone: params.dependant_phone || null,
 			dependant_ic: params.dependant_ic || null,
@@ -262,17 +302,99 @@ router.post("/", async (req, res) => {
 			dependant_is_disabled: params.dependant_is_disabled || "No",
 			dependant_disability_type: params.dependant_disability_type || null,
 			dependant_is_studying: params.dependant_is_studying || "No",
+			dependant_is_employed: params.dependant_is_employed || "No",
 			dependant_education_level: params.dependant_education_level || null,
-			dependant_institution_name:
-				params.dependant_institution_name || null,
-			dependant_institution_country: 
-                params.dependant_institution_country || "Malaysia",
+			dependant_institution_name: params.dependant_institution_name || null,
+			dependant_institution_country: params.dependant_institution_country || null,
 			status: "Active",
 		};
 
 		const result = await createDependant(dependantData);
+		console.log("Log Function Create Dependant : ", createDependant)
+
+		let tax 		= null
+		let addTaxClaim = null
+		let ya 			= moment().year()
 
 		if (result.status) {
+
+			// * * * * * ADD TAX CLAIM IF SPOUSE & UNEMPLOYED * * * * * 
+			if(params.dependant_type === "Spouse" && params.dependant_is_employed === "No") {
+				console.log("Claim For Unemployed Spouse")
+				tax = await db.raw(`SELECT tax_id, tax_max_claim FROM tax_category WHERE tax_code = 'SPOUSE_${ya}' AND tax_year = ${ya} AND status = 'Active' LIMIT 1`)
+				console.log("Log Tax Category : ", tax)
+
+				addTaxClaim = await upsertTaxClaim({
+					account_id: user.account_id,
+					tax_year: ya,
+					tax_id: tax[0]["tax_id"],
+					taxsub_id: null,
+					amount: tax[0]["tax_max_claim"],
+					claim_for: 'Self',
+					dependant_id: result.data 
+				})
+
+				await createLimitNotification(user.account_id, tax[0]["tax_id"])
+			}
+
+			// * * * * * ADD TAX CLAIM IF CHILD BELOW 18 * * * * * 
+			if(params.dependant_type === "Child" && age < 18) {
+				console.log("Claim For Child Below 18")
+				tax = await db.raw(`SELECT tax_id, tax_max_claim FROM tax_category WHERE tax_code = 'CHILD_UNDER18_${ya}' AND tax_year = ${ya} AND status = 'Active' LIMIT 1`)
+				console.log("Log Tax Category : ", tax)
+
+				addTaxClaim = await upsertTaxClaim({
+					account_id: user.account_id,
+					tax_year: ya,
+					tax_id: tax[0]["tax_id"],
+					taxsub_id: null,
+					amount: tax[0]["tax_max_claim"],
+					claim_for: 'Self',
+					dependant_id: result.data 
+				})
+
+				await createLimitNotification(user.account_id, tax[0]["tax_id"])
+			}
+
+			// * * * * * ADD TAX CLAIM IF CHILD ABOVE 18 + A-LEVEL * * * * * 
+			if(params.dependant_type === "Child" && age > 18 && params.dependant_is_studying && validPreUniversity.includes(params.dependant_edu_level)) {
+				console.log("Claim For Child Above 18 + A-Level")
+				tax = await db.raw(`SELECT tax_id, tax_max_claim FROM tax_category WHERE tax_code = 'CHILD_ALEVEL_${ya}' AND tax_year = ${ya} AND status = 'Active' LIMIT 1`)
+				console.log("Log Tax Category : ", tax)
+
+				addTaxClaim = await upsertTaxClaim({
+					account_id: user.account_id,
+					tax_year: ya,
+					tax_id: tax[0]["tax_id"],
+					taxsub_id: null,
+					amount: tax[0]["tax_max_claim"],
+					claim_for: 'Self',
+					dependant_id: result.data 
+				})
+
+				await createLimitNotification(user.account_id, tax[0]["tax_id"])
+			}
+
+			// * * * * * ADD TAX CLAIM IF CHILD ABOVE 18 + HIGHER-EDU * * * * * 
+			if(params.dependant_type === "Child" && age > 18 && params.dependant_is_studying && validHigherUniversity.includes(params.dependant_edu_level)) {
+				console.log("Claim For Child Above 18 + Higher Edu Level")
+				tax = await db.raw(`SELECT tax_id, tax_max_claim FROM tax_category WHERE tax_code = 'CHILD_HIGHER_ED_${ya}' AND tax_year = ${ya} AND status = 'Active' LIMIT 1`)
+				console.log("Log Tax Category : ", tax)
+
+				addTaxClaim = await upsertTaxClaim({
+					account_id: user.account_id,
+					tax_year: ya,
+					tax_id: tax[0]["tax_id"],
+					taxsub_id: null,
+					amount: tax[0]["tax_max_claim"],
+					claim_for: 'Self',
+					dependant_id: result.data 
+				})
+
+				await createLimitNotification(user.account_id, tax[0]["tax_id"])
+			}
+
+
 			response = SUCCESS_API_RESPONSE;
 			response.message = "Dependant created successfully.";
 			response.data = {

@@ -4,6 +4,7 @@
  */
 
 const db = require('../../../utils/sqlbuilder');
+const { deleteClaimByDependantId } = require('../TaxClaimServices');
 
 /**
  * Get all dependants for a user
@@ -43,6 +44,7 @@ async function getDependantsList(accountId, params = {}) {
                 dependant_is_disabled,
                 dependant_disability_type,
                 dependant_is_studying,
+                dependant_is_employed,
                 dependant_education_level,
                 dependant_institution_name,
                 dependant_institution_country,
@@ -121,7 +123,7 @@ async function getDependantDetails(dependantId, accountId) {
  * @returns {object} - { status: boolean, data: insertId }
  */
 async function createDependant(dependantData) {
-    let result = { status: false, data: null };
+    let result = null;
     
     try {
         // Calculate age from DOB if provided
@@ -139,13 +141,13 @@ async function createDependant(dependantData) {
         const insertResult = await db.insert('account_dependant', dependantData);
         
         if (insertResult.insertId) {
-            result = { status: true, data: insertResult.insertId };
+            result = { status: true, data: insertResult.insertId, message: "" };
         } else {
             result = { status: false, data: null, message: 'Failed to create dependant' };
         }
     } catch (error) {
         console.error('[DependantModel] createDependant error:', error);
-        result = { status: false, data: null, error: error.message };
+        result = { status: false, data: null, message: error.message };
     }
     
     return result;
@@ -212,6 +214,7 @@ async function deleteDependant(dependantId, accountId) {
         );
         
         if (updateResult) {
+            await deleteClaimByDependantId(accountId, dependantId, new Date().getFullYear())
             result = { status: true, data: updateResult };
         } else {
             result = { status: false, data: null, message: 'Failed to delete dependant' };

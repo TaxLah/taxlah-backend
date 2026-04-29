@@ -3,7 +3,8 @@
  * Handles tax relief claim aggregation, limit enforcement, and notifications
  */
 
-const db = require('../../utils/sqlbuilder');
+const db                        = require('../../utils/sqlbuilder');
+const NotificationService       = require('../../services/NotificationService');
 
 /**
  * Get user's tax claims for a specific year
@@ -94,7 +95,7 @@ async function getUserTaxClaimSummary(accountId, taxYear) {
                 AND atc.status = 'Active'
             WHERE tc.tax_year = ? AND tc.status = 'Active'
             GROUP BY tc.tax_id
-            ORDER BY tc.tax_sort_order
+            ORDER BY COALESCE(SUM(atc.claimed_amount), 0) DESC
         `;
         const breakdown = await db.raw(breakdownSql, [accountId, taxYear, taxYear]);
 
@@ -512,6 +513,15 @@ async function deleteAutoClaimReliefs(accountId, taxYear) {
     }
 }
 
+async function deleteClaimByDependantId(accountId, dependantId, taxYear = new Date().getFullYear()) {
+    try {
+        let deleteClaims = await db.raw(`UPDATE account_tax_claim SET status = 'Deleted' WHERE account_id = ? AND dependant_id = ? AND tax_year = ? LIMIT 1`, [accountId, dependantId, taxYear])
+        console.log("Log delete claims by dependant id : ", deleteClaims)
+    } catch (error) {
+        console.error('[TaxClaimService] deleteClaimByDependantId error:', error);
+    }
+}
+
 /**
  * Create notification when limit is reached
  * @param {number} accountId - User account ID
@@ -521,9 +531,9 @@ async function deleteAutoClaimReliefs(accountId, taxYear) {
 async function createLimitNotification(accountId, taxId, message) {
     try {
         // Get tax category name
-        const taxSql = `SELECT tax_title FROM tax_category WHERE tax_id = ?`;
-        const tax = await db.raw(taxSql, [taxId]);
-        const taxTitle = tax[0]?.tax_title || 'Tax Relief';
+        const taxSql    = `SELECT tax_title FROM tax_category WHERE tax_id = ?`;
+        const tax       = await db.raw(taxSql, [taxId]);
+        const taxTitle  = tax[0]?.tax_title || 'Tax Relief';
 
         const notificationData = {
             account_id: accountId,
@@ -535,6 +545,14 @@ async function createLimitNotification(accountId, taxId, message) {
         };
 
         await db.insert('account_notification', notificationData);
+
+        await NotificationService.sendUserNotification(
+            accountId, 
+            notificationData.notification_title, 
+            notificationData.notification_description, 
+            {
+                type: 'MaxTaxClaim',
+            })
     } catch (error) {
         console.error('[TaxClaimService] createLimitNotification error:', error);
     }
@@ -591,6 +609,7 @@ module.exports = {
     recalculateTaxClaims,
     addAutoClaimReliefs,
     deleteAutoClaimReliefs,
+    deleteClaimByDependantId,
     createLimitNotification,
     getRemainingClaimable
 };
