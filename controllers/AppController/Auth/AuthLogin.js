@@ -82,7 +82,7 @@ router.post("/", async(req , res) => {
                         // Trigger tax claim initialisation for current year (non-blocking)
                         const currentYear = new Date().getFullYear();
                         addAutoClaimReliefs(login.data.account_id, currentYear)
-                            .catch(err => console.error('[AuthLogin] Tax init error:', err.message));
+                        .catch(err => console.error('[AuthLogin] Tax init error:', err.message));
 
                         response                = SUCCESS_API_RESPONSE
                         response.status_code    = 200

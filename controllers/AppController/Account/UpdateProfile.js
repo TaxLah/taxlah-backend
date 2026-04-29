@@ -4,6 +4,7 @@ const { AccountUpdate, AccountGetInfo } = require('../../../models/AppModel/Acco
 const { AuthCheckExistingUsername } = require('../../../models/AppModel/Auth')
 const moment = require('moment');
 const { UserNotificationCreate } = require('../../../models/AppModel/Notification');
+const { addAutoClaimReliefs, deleteAutoClaimReliefs } = require('../../../models/AppModel/TaxClaimServices');
 const router = express.Router()
 
 router.patch("/", async(req , res) => {
@@ -26,6 +27,9 @@ router.patch("/", async(req , res) => {
     let account_age                 = null
     let account_nationality         = null
     let account_salary_range        = null
+
+    let account_is_employed         = 0
+    let account_is_tax_declared     = 0
 
     if(CHECK_EMPTY(user)) {
         response = UNAUTHORIZED_API_RESPONSE
@@ -53,7 +57,10 @@ router.patch("/", async(req , res) => {
         account_dob                 = params.account_dob || null                 
         account_age                 = params.account_age || null
         account_nationality         = params.account_nationality || null                 
-        account_salary_range        = params.account_salary_range || null                   
+        account_salary_range        = params.account_salary_range || null     
+        
+        account_is_employed         = params.account_is_employed || 0
+        account_is_tax_declared     = params.account_is_tax_declared || 0
 
         if(CHECK_EMPTY(account_name)) {
             response = BAD_REQUEST_API_RESPONSE
@@ -107,10 +114,18 @@ router.patch("/", async(req , res) => {
                 account_address_3, 
                 account_address_postcode, 
                 account_address_city, 
-                account_address_state 
+                account_address_state,
+                account_is_employed,
+                account_is_tax_declared
             }
             let updateProfile   = await AccountUpdate(json)
             console.log("Log Function Update Profile : ", updateProfile)
+
+            if(account_is_employed === 1 && account_is_tax_declared === 1) {
+                await addAutoClaimReliefs(json.account_id, new Date().getFullYear())
+            } else {
+                await deleteAutoClaimReliefs(json.account_id, new Date().getFullYear())
+            }
 
             if(updateProfile.status) {
                 let auth            = await AuthCheckExistingUsername(user.username) 

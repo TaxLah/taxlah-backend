@@ -439,25 +439,76 @@ async function recalculateTaxClaims(accountId, taxYear) {
  */
 async function addAutoClaimReliefs(accountId, taxYear) {
     try {
-        const autoClaimSql = `
-            SELECT tax_id, tax_max_claim
-            FROM tax_category
-            WHERE tax_year = ? AND tax_is_auto_claim = 'Yes' AND status = 'Active'
-        `;
-        const autoClaims = await db.raw(autoClaimSql, [taxYear]);
 
-        for (const autoClaim of autoClaims) {
-            await upsertTaxClaim({
-                account_id: accountId,
-                tax_year: taxYear,
-                tax_id: autoClaim.tax_id,
-                taxsub_id: null,
-                amount: autoClaim.tax_max_claim,
-                claim_for: 'Self'
-            });
+        let sql_account = await db.raw(`SELECT account_is_employed, account_is_tax_declared FROM account WHERE account_id = ? AND account_status = 'Active' LIMIT 1`, [accountId])
+        console.log("Log Get Profile : ", sql_account)
+
+        let { account_is_employed, account_is_tax_declared } = sql_account[0]
+        console.log("Log account_is_employed : ", account_is_employed)
+        console.log("Log account_is_tax_declared : ", account_is_tax_declared)
+
+        if(account_is_employed === 1 && account_is_tax_declared === 1) {
+            // let getFullAccount = await 
+            const autoClaimSql = `
+                SELECT tax_id, tax_max_claim
+                FROM tax_category
+                WHERE tax_year = ? AND tax_is_auto_claim = 'Yes' AND status = 'Active'
+            `;
+            const autoClaims = await db.raw(autoClaimSql, [taxYear]);
+
+            for (const autoClaim of autoClaims) {
+                await upsertTaxClaim({
+                    account_id: accountId,
+                    tax_year: taxYear,
+                    tax_id: autoClaim.tax_id,
+                    taxsub_id: null,
+                    amount: autoClaim.tax_max_claim,
+                    claim_for: 'Self'
+                });
+            }
+        } else {
+            let deleteAutoClaim = await db.raw(`
+                UPDATE account_tax_claim A 
+                INNER JOIN tax_category B ON A.tax_id = B.tax_id
+                SET A.status = 'Deleted'
+                WHERE A.account_id = ? AND A.tax_year = ?
+            `, [accountId, taxYear])
+
+            console.log("Log Delete Auto Claim : ", deleteAutoClaim)
         }
     } catch (error) {
         console.error('[TaxClaimService] addAutoClaimReliefs error:', error);
+    }
+}
+
+
+/**
+ * Add auto-claim reliefs (e.g., Individual relief RM9,000)
+ * @param {number} accountId - User account ID
+ * @param {number} taxYear - Tax year
+ */
+async function deleteAutoClaimReliefs(accountId, taxYear) {
+    try {
+
+        let sql_account = await db.raw(`SELECT account_is_employed, account_is_tax_declared FROM account WHERE account_id = ? AND account_status = 'Active' LIMIT 1`, [accountId])
+        console.log("Log Get Profile : ", sql_account)
+
+        let { account_is_employed, account_is_tax_declared } = sql_account[0]
+        console.log("Log account_is_employed : ", account_is_employed)
+        console.log("Log account_is_tax_declared : ", account_is_tax_declared)
+
+        if(account_is_employed === 0 && account_is_tax_declared === 0) {
+            let deleteAutoClaim = await db.raw(`
+                UPDATE account_tax_claim A 
+                INNER JOIN tax_category B ON A.tax_id = B.tax_id
+                SET A.status = 'Deleted'
+                WHERE A.account_id = ? AND A.tax_year = ?
+            `, [accountId, taxYear])
+
+            console.log("Log Delete Auto Claim : ", deleteAutoClaim)
+        }
+    } catch (error) {
+        console.error('[TaxClaimService] deleteAutoClaimReliefs error:', error);
     }
 }
 
@@ -539,6 +590,7 @@ module.exports = {
     processReceiptForTaxClaim,
     recalculateTaxClaims,
     addAutoClaimReliefs,
+    deleteAutoClaimReliefs,
     createLimitNotification,
     getRemainingClaimable
 };

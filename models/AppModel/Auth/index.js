@@ -40,7 +40,7 @@ async function AuthCheckExistingEmail(email) {
 async function AuthGetAccessAccount(auth_id) {
     let result = null
     try {
-        let data = await db.raw(`${sql_full_auth} WHERE auth_id LIKE ? LIMIT 1`, [auth_id])
+        let data = await db.raw(`${sql_full_auth} WHERE auth_id LIKE ? AND auth_status LIKE 'Active' LIMIT 1`, [auth_id])
         if(data.length) {
             result = { status: true, data: data[0]}
         } else {
