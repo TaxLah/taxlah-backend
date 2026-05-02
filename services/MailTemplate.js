@@ -70,7 +70,49 @@ const ForgotPasswordEmail = (accountFullname, otp) => {
     };
 };
 
+const ApprovalCodeEmail = (email_account, otp) => {
+    return {
+        subject: '🔐 Your Account Approval Code',
+        text: `
+        Dear ${email_account || 'User'},
+
+        We are sending your the account approval code.
+
+        Your One-Time Password (OTP) is: ${otp}
+
+        This OTP is valid for 10 minutes. Do not share it with anyone.
+
+        If this is not you, please ignore this email. Your account remains secure.
+
+        Best regards,
+        The TaxLah Team
+                `,
+                html: `
+        <!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px}.header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:30px 20px;text-align:center;border-radius:10px 10px 0 0}.header h1{margin:0;font-size:26px}.content{background:#f9f9f9;padding:30px;border-radius:0 0 10px 10px}.otp-box{background:white;border:2px dashed #667eea;border-radius:10px;padding:25px;text-align:center;margin:25px 0}.otp-code{font-size:42px;font-weight:bold;letter-spacing:12px;color:#667eea;margin:10px 0}.warning-box{background:#fff3cd;border-left:4px solid #ffc107;padding:15px;margin:20px 0;border-radius:5px;font-size:14px}.footer{text-align:center;padding:20px;color:#666;font-size:13px}</style></head>
+        <body>
+        <div class='header'><h1>🔐 OTP Approval Code</h1></div>
+        <div class='content'>
+        <p>Dear <strong>${email_account || 'User'}</strong>,</p>
+        <p>We are sending you a <strong>Taxlah</strong> account approval code. Use the OTP below to proceed:</p>
+        <div class='otp-box'>
+        <p style='margin:0;color:#666;font-size:14px'>YOUR ONE-TIME PASSWORD</p>
+        <div class='otp-code'>${otp}</div>
+        <p style='margin:0;color:#888;font-size:13px'>Valid for <strong>10 minutes</strong></p>
+        </div>
+        <div class='warning-box'>
+        ⚠️ <strong>Do not share this OTP</strong> with anyone. Taxlah staff will never ask for your OTP.
+        </div>
+        <p>If you did not request this, you can safely ignore this email. Your account remains secure.</p>
+        <p style='margin-top:30px'>Best regards,<br><strong>The TaxLah Team</strong></p>
+        </div>
+        <div class='footer'><p style='font-size:12px;color:#999'>Making Malaysian tax relief claims simple, one receipt at a time.</p></div>
+        </body></html>
+        `,
+    };
+};
+
 module.exports = {
     OnboardingEmail,
     ForgotPasswordEmail,
+    ApprovalCodeEmail
 };

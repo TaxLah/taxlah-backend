@@ -151,8 +151,8 @@ router.post("/generate", async (req, res) => {
         const creditsRequired = REPORT_CONFIG[reportType].credits;
 
         // Check report limit: max 5 reports stored at one time
-        const REPORT_LIMIT = 5;
-        const documentDir = path.join(__dirname, '../../../assets/document');
+        const REPORT_LIMIT  = 5;
+        const documentDir   = path.join(__dirname, '../../../assets/document');
         const existingReports = fs.readdirSync(documentDir)
             .filter(f => f.startsWith('tax_report_') && f.includes(`_${user.account_id}_`) && f.endsWith('.pdf'));
 

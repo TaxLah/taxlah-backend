@@ -5,8 +5,15 @@ const router    = express.Router()
 const bcrypt    = require('bcrypt');
 const moment = require('moment');
 const { UserNotificationCreate } = require('../../../models/AppModel/Notification');
-const { AccountGetInfo } = require('../../../models/AppModel/Account');
+const { AccountGetInfo, CheckApprovalAccountByEmail, CreateApprovalAccount } = require('../../../models/AppModel/Account');
 const { addAutoClaimReliefs } = require('../../../models/AppModel/TaxClaimServices');
+const { ApprovalCodeEmail } = require('../../../services/MailTemplate');
+
+const EmailService = require("../../../services/MailService")
+
+function generateOtp() {
+    return String(Math.floor(100000 + Math.random() * 900000))
+}
 
 router.post("/", async(req , res) => {
     let response        = DEFAULT_API_RESPONSE
@@ -22,12 +29,18 @@ router.post("/", async(req , res) => {
         auth_password = params.auth_password || null
 
         if(CHECK_EMPTY(auth_username)) {
-            response = BAD_REQUEST_API_RESPONSE
-            response.message = "Error. Parameter account username is undefined or empty."
+            response            = BAD_REQUEST_API_RESPONSE
+            response.message    = "Error. Parameter account username is undefined or empty."
+            response.data       = { status: "Unknown" }
+            return res.status(response.status_code).json(response)
         } else if(CHECK_EMPTY(auth_password)) {
-            response = BAD_REQUEST_API_RESPONSE
-            response.message = "Error. Parameter account password is undefined or empty."
-        } else {
+            response            = BAD_REQUEST_API_RESPONSE
+            response.message    = "Error. Parameter account password is undefined or empty."
+            response.data       = { status: "Unknown" }
+            return res.status(response.status_code).json(response)
+        } 
+        else {
+
             let check_username = await AuthCheckExistingUsername(auth_username)
             console.log("Log Function Check Username : ", check_username)
 
@@ -35,25 +48,75 @@ router.post("/", async(req , res) => {
             console.log("Log Function Check Email : ", check_email)
 
             if(check_username.status === false && check_email.status === false) {
-                response = FORBIDDEN_API_RESPONSE
-                response.message = "Error. Account with username is not exist or invalid account username."
-            } else {
+                response            = FORBIDDEN_API_RESPONSE
+                response.message    = "Error. Account with username is not exist or invalid account username."
+                response.data       = { status: "Unknown" }
+                return res.status(response.status_code).json(response)
+            } 
+            else 
+            {
+                let account_email = check_username.data.auth_usermail || check_email.data.auth_usermail
+                let checkApproval = await CheckApprovalAccountByEmail(account_email)
+
+                console.log("Log Check Approval Account : ", checkApproval)
+
+                let auth_otp = generateOtp()
+                console.log("Log OTP : ", auth_otp)
+
+                if(!checkApproval.status && checkApproval.error == false) {
+                    let create_approval = await CreateApprovalAccount({ 
+                        email: account_email,
+                        account: null,
+                        dependant: null,
+                        is_verified: "Pending",
+                        verified_date: null,
+                        otp_number: auth_otp,
+                        otp_expired_date: moment.utc().add(10, 'minutes').format("YYYY-MM-DD HH:mm:ss")
+                    })
+
+                    if(create_approval.status) {
+                        let email_html = ApprovalCodeEmail(account_email, auth_otp)
+                        let send_email = await EmailService.sendMail({ 
+                            to: account_email, 
+                            ...email_html
+                        })
+                    }
+
+                    response            = FORBIDDEN_API_RESPONSE
+                    response.message    = "Account is under verification. Please make sure you have verified your email account."
+                    response.data       = { status: "Pending" }
+                    return res.status(response.status_code).json(response)
+                } 
+                else if(checkApproval.status ==  true) {
+                    let { is_verified } = checkApproval.data
+                    
+                    if(is_verified == 'Pending') {
+                        response            = FORBIDDEN_API_RESPONSE
+                        response.message    = "Account is under verification. Please make sure you have verified your email account."
+                        response.data       = { status: "Pending" }
+                        return res.status(response.status_code).json(response)
+                    }
+                }
+
                 let auth_id = check_username.data.auth_id || check_email.data.auth_id
                 let login   = await AuthLogin(auth_id)
                 console.log("Log Function Auth Login : ", login)
 
                 if(!login.status) {
-                    response = FORBIDDEN_API_RESPONSE
-                    response.message = "Error! Accout with account username is not exist or suspended. Please contact support for more information."
+                    response            = FORBIDDEN_API_RESPONSE
+                    response.message    = "Error! Accout with account username is not exist or suspended. Please contact support for more information."
+                    response.data       = { status: "Unknown" }
+                    return res.status(response.status_code).json(response)
                 } else {
 
                     let user_password = login.data.auth_password
                     let compare = await bcrypt.compare(auth_password, user_password)
 
                     if(!compare) {
-                        response = UNAUTHORIZED_API_RESPONSE
-                        response.message = "Error. Account username or password is incorrect. Please try again."
-                        response.data = null
+                        response            = UNAUTHORIZED_API_RESPONSE
+                        response.message    = "Error. Account username or password is incorrect. Please try again."
+                        response.data       = { status: "Unknown" }
+                        return res.status(response.status_code).json(response)
                     } else {
 
                         let user_profile = await AccountGetInfo(login.data.account_id)
@@ -90,8 +153,11 @@ router.post("/", async(req , res) => {
                         response.data = {
                             profile: profile,
                             access_token,
-                            refresh_token
+                            refresh_token,
+                            status: "Approved"
                         }
+
+                        return res.status(response.status_code).json(response)
                     }
                 }
             }
@@ -102,8 +168,7 @@ router.post("/", async(req , res) => {
         response            = INTERNAL_SERVER_ERROR_API_RESPONSE
         response.message    = ERROR_TECHNICAL_ERROR
         response.data       = null
-    } finally {
-        return res.status(response.status_code).json(response)
     }
+    return res.status(response.status_code).json(response)
 })
 module.exports = router

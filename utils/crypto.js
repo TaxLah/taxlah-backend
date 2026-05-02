@@ -14,22 +14,20 @@ function decryptData(encrypted) {
     const decipher    = crypto.createDecipheriv("aes-256-cbc", key, iv);
     let decrypted     = decipher.update(encrypted, "base64", "utf8");
     decrypted         += decipher.final("utf8");
-
     return JSON.parse(decrypted);
 }
 
 // Middleware
 function decryptMiddleware(req, res, next) {
-  try {
+    try {
         if (!req.body.data) return res.status(400).json({ error: "Missing encrypted data" });
         const decrypted     = decryptData(req.body.data);
         req.decryptedBody   = decrypted; // attach decrypted data for later use
-
         next();
-  } catch (err) {
+    } catch (err) {
         console.error("Decryption failed:", err.message);
         return res.status(400).json({ error: "Invalid encrypted payload" });
-  }
+    }
 }
 
 module.exports = {

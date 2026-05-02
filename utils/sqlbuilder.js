@@ -9,6 +9,7 @@ const pool = mysql.createPool({
     password: DB_PASSWORD,
     database: DB_DATABASE,
     connectionLimit: 60,
+    timezone: '+00:00',  // treat DATETIME columns as UTC to match moment.utc() writes
 });
 
 function buildWhereClause(where = {}) {
