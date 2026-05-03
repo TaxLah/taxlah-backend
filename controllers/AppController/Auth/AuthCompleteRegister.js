@@ -1,10 +1,10 @@
 const express = require('express')
 const { DEFAULT_API_RESPONSE, INTERNAL_SERVER_ERROR_API_RESPONSE, CHECK_EMPTY, BAD_REQUEST_API_RESPONSE, FORBIDDEN_API_RESPONSE, SUCCESS_API_RESPONSE, SEND_EMAIL_NOTIFICATION } = require('../../../configs/helper')
-const { CheckApprovalAccountByEmail, AccountCreate, UpdateApprovalAccount, CheckAccountByEmail } = require('../../../models/AppModel/Account')
+const { CheckApprovalAccountByEmail, AccountCreate, UpdateApprovalAccount, CheckAccountByEmail, AccountUpdate } = require('../../../models/AppModel/Account')
 const router = express.Router()
 
 const moment = require('moment')
-const { AuthCreateAccessAccount } = require('../../../models/AppModel/Auth')
+const { AuthCreateAccessAccount, AuthUpdateAccessAccount, AuthUpdateAccessAccountByAccountId } = require('../../../models/AppModel/Auth')
 
 const EmailService = require("../../../services/MailService")
 const { ApprovalCodeEmail, OnboardingEmail } = require('../../../services/MailTemplate')
@@ -169,7 +169,9 @@ router.post("/", async(req , res) => {
 
                         console.log("Log Account JSON : ", account)
 
-                        let check_account_if_exist = await CheckAccountByEmail(email)
+                        let check_account_if_exist  = await CheckAccountByEmail(email)
+                        let user_account_id         = check_account_if_exist.account_id
+
                         if(check_account_if_exist.status == false && check_account_if_exist.is_error == true) {
                             response            = INTERNAL_SERVER_ERROR_API_RESPONSE
                             response.message    = "Unable to verify your account at the moment. Please contact our support."
@@ -182,9 +184,11 @@ router.post("/", async(req , res) => {
                                 account_status: "Active",
                                 account_verified: "Approved"
                             })
+
                             let create_access   = await AuthCreateAccessAccount({
                                 ...account.access, 
                                 account_id: create_account.account_id,
+                                auth_is_verified: "Yes",
                                 auth_status: "Active"
                             })
 
@@ -224,11 +228,25 @@ router.post("/", async(req , res) => {
                                 return res.status(response.status_code).json(response)
                             }
                         } else {
+
                             let updateApprovalAccount = await UpdateApprovalAccount(id, {
                                 is_verified: 'Approved',
                                 verified_date: moment.utc().format("YYYY-MM-DD HH:mm:ss"),
                                 last_modified: moment.utc().format("YYYY-MM-DD HH:mm:ss")
                             })
+
+                            let updateAccount = await AccountUpdate({
+                                account_id: user_account_id,
+                                account_status: "Active",
+                                account_verified: "Approved"
+                            })
+
+                            let updateAccessAccount = await AuthUpdateAccessAccountByAccountId({
+                                account_id: user_account_id,
+                                auth_is_verified: "Yes",
+                                auth_status: "Active"
+                            })
+
                             response            = SUCCESS_API_RESPONSE
                             response.message    = "Account approved. Please continue to login your account."
                             return res.status(response.status_code).json(response)

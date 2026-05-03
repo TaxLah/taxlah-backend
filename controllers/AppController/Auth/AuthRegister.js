@@ -108,7 +108,7 @@ router.post("/", async(req , res) => {
                     account_name: sanitize(account_name),
                     account_fullname: sanitize(account_fullname),
                     account_email: sanitize(account_email),
-                    account_contact: sanitize(account_phone)
+                    account_contact: sanitize(account_phone) || null
                 }
 
                 let access = {
@@ -138,6 +138,23 @@ router.post("/", async(req , res) => {
                     ...html,
                     subject: `🔐 Your New Account Approval Code (${moment.utc().format('HH:mm')} UTC)`
                 })
+
+                // * * * * * * * * * * MUST CREATE ACCOUNT RECORD * * * * * * * * * * //
+                let createAccount = await AccountCreate({
+                    ...account,
+                    account_status: "Pending",
+                    account_verified: "Pending"
+                })
+
+                console.log("Log Create Account Function : ", createAccount)
+
+                let createAccessAccount = await AuthCreateAccessAccount({
+                    ...access,
+                    account_id: createAccount?.account_id,
+                    auth_status: "Pending"
+                })
+
+                console.log("Log Create Access Account : ", createAccessAccount)
 
                 response            = SUCCESS_API_RESPONSE
                 response.message    = "Please check your mailbox to get your new approval code."

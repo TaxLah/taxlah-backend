@@ -10,13 +10,13 @@ async function CheckAccountByEmail(account_email) {
         let data = await db.select("account", { account_email }, "*", 0, 1)
         console.log("Log Data Email : ", data)
         if(data.length) {
-            result = { status: true, is_error: false }
+            result = { status: true, is_error: false, account_id: data[0]["account_id"] }
         } else {
-            result = { status: false, is_error: false }
+            result = { status: false, is_error: false, account_id: null }
         }
     } catch (e) {
         console.log("[CheckAccountByEmail] error :", e)
-        result = { status: false, is_error: true }
+        result = { status: false, is_error: true, account_id: null }
     } 
     return result
 }

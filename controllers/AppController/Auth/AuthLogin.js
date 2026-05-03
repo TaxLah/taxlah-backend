@@ -48,6 +48,7 @@ router.post("/", async(req , res) => {
             console.log("Log Function Check Email : ", check_email)
 
             if(check_username.status === false && check_email.status === false) {
+                
                 response            = FORBIDDEN_API_RESPONSE
                 response.message    = "Error. Account with username is not exist or invalid account username."
                 response.data       = { status: "Unknown" }

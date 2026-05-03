@@ -6,7 +6,7 @@ const sql_full_auth     = `SELECT auth_id, auth_reference_key, auth_username, au
 async function AuthCheckExistingUsername(username) {
     let result = null
     try {
-        let data = await db.raw(`${sql_basic_auth} WHERE auth_status LIKE 'Active' AND ( auth_username LIKE ? OR auth_usermail LIKE ? ) LIMIT 1`, [username, username])
+        let data = await db.raw(`${sql_basic_auth} WHERE is_deleted = 0 AND ( auth_username LIKE ? OR auth_usermail LIKE ? ) LIMIT 1`, [username, username])
         if(data.length) {
             result = { status: true, data: data[0]}
         } else {
@@ -23,7 +23,7 @@ async function AuthCheckExistingUsername(username) {
 async function AuthCheckExistingEmail(email) {
     let result = null
     try {
-        let data = await db.raw(`${sql_basic_auth} WHERE auth_status LIKE 'Active' AND ( auth_username LIKE ? OR auth_usermail LIKE ? ) LIMIT 1`, [email, email])
+        let data = await db.raw(`${sql_basic_auth} WHERE is_deleted = 0 AND ( auth_username LIKE ? OR auth_usermail LIKE ? ) LIMIT 1`, [email, email])
         if(data.length) {
             result = { status: true, data: data[0]}
         } else {
@@ -40,7 +40,7 @@ async function AuthCheckExistingEmail(email) {
 async function AuthGetAccessAccount(auth_id) {
     let result = null
     try {
-        let data = await db.raw(`${sql_full_auth} WHERE auth_id LIKE ? AND auth_status LIKE 'Active' LIMIT 1`, [auth_id])
+        let data = await db.raw(`${sql_full_auth} WHERE auth_id LIKE ? AND is_deleted = 0 LIMIT 1`, [auth_id])
         if(data.length) {
             result = { status: true, data: data[0]}
         } else {
@@ -88,10 +88,27 @@ async function AuthUpdateAccessAccount(data) {
     } 
 }
 
+async function AuthUpdateAccessAccountByAccountId(data) {
+    let result = null
+    try {
+        let updatedData = await db.update('auth_access', data, { account_id: data.account_id })
+        if(updatedData) {
+            result = { status: true, data: updatedData}
+        } else {
+            result = { status: false, data: null }
+        }
+    } catch (e) {
+        console.log("")
+        result = { status: false, data: null }
+    }    finally {
+        return result
+    } 
+}
+
 async function AuthLogin(account_id) {
     let result = null
     try {
-        let sql     = `SELECT auth_id, auth_username, auth_usermail, auth_password, account_id FROM auth_access WHERE auth_status LIKE 'Active' AND auth_id LIKE ? LIMIT 1`
+        let sql     = `SELECT auth_id, auth_username, auth_usermail, auth_password, account_id FROM auth_access WHERE is_deleted = 0 AND auth_id LIKE ? LIMIT 1`
         let query   = await db.raw(sql, [account_id])
         if(query.length) {
             result = { status: true, data: query[0] }
@@ -228,6 +245,7 @@ module.exports = {
     AuthGetAccessAccount,
     AuthCreateAccessAccount,
     AuthUpdateAccessAccount,
+    AuthUpdateAccessAccountByAccountId,
     AuthLogin,
     AuthDeleteAccount,
     AuthGetByEmail,
