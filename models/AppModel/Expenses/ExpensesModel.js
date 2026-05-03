@@ -278,10 +278,8 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
         const mappingCheck = await checkOfficialMappingExists(taxYear);
 
         // Step 3: Determine mapping status
-        const mappingStatus = mappingCheck.exists ? 'Confirmed' : 'Estimated';
-        const mappingVersion = mappingCheck.exists 
-            ? `${taxYear}-official` 
-            : `${taxYear}-preliminary`;
+        const mappingStatus     = mappingCheck.exists ? 'Confirmed' : 'Estimated';
+        const mappingVersion    = mappingCheck.exists ? `${taxYear}-official` : `${taxYear}-preliminary`;
 
         // Step 4: Insert expense with categorization
         const insertData = {
@@ -292,6 +290,7 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
             expenses_merchant_id,
             expenses_total_amount: parseFloat(expenses_total_amount),
             expenses_receipt_no,
+            receipt_id,
             expenses_tags,
             expenses_tax_category: categorization.tax_id || null,
             expenses_tax_subcategory: categorization.taxsub_id || null,

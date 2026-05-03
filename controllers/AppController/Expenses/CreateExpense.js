@@ -80,19 +80,21 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
         const expenses_merchant_name    = params.expenses_merchant_name;
         const expenses_total_amount     = params.expenses_total_amount;
 
-        // Validation
+        // Validate Empty Expenses Date
         if (CHECK_EMPTY(expenses_date)) {
             response = BAD_REQUEST_API_RESPONSE;
             response.message = 'Expense date is required';
             return res.status(response.status_code).json(response);
         }
 
+        // Validate Empty Merchant Name
         if (CHECK_EMPTY(expenses_merchant_name)) {
             response = BAD_REQUEST_API_RESPONSE;
             response.message = 'Merchant name is required';
             return res.status(response.status_code).json(response);
         }
 
+        // Validate Empty Total Amount
         if (CHECK_EMPTY(expenses_total_amount) || isNaN(expenses_total_amount) || expenses_total_amount <= 0) {
             response = BAD_REQUEST_API_RESPONSE;
             response.message = 'Valid expense amount is required';
