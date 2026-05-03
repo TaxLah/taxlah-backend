@@ -36,12 +36,104 @@ const checkOfficialMappingExists = async (taxYear) => {
 };
 
 /**
- * Check for duplicate expense before inserting
- * Matches on: account_id + expenses_date + merchant name (case-insensitive) + total_amount
- * Returns the existing expense_id if a duplicate is found within the last 5 minutes or same-day exact match
+ * Check for duplicate expense before inserting.
+ *
+ * Three layers, evaluated in order (cheapest first):
+ *   Layer 1 – receipt_no exact match (when provided)
+ *   Layer 2 – SHA-256 exact file hash match (same file uploaded twice)
+ *   Layer 3 – perceptual hash similarity (same receipt photographed twice, Hamming ≤ PHASH_THRESHOLD)
+ *   Layer 4 – semantic signal: account_id + date + merchant + amount
+ *
+ * @param {number} account_id
+ * @param {string} expenses_date          YYYY-MM-DD
+ * @param {string} expenses_merchant_name
+ * @param {number} expenses_total_amount
+ * @param {object} [receiptHashes]        Optional { receipt_no, receipt_hash, receipt_phash }
  */
-const checkDuplicateExpense = async (account_id, expenses_date, expenses_merchant_name, expenses_total_amount) => {
+const { PHASH_THRESHOLD } = require('../../../utils/receiptHash');
+
+const checkDuplicateExpense = async (
+    account_id,
+    expenses_date,
+    expenses_merchant_name,
+    expenses_total_amount,
+    receiptHashes = {}
+) => {
     try {
+        const { receipt_no, receipt_hash, receipt_phash } = receiptHashes;
+
+        // Layer 1: receipt number (exact, cheapest)
+        if (receipt_no) {
+            const byReceiptNo = await db.raw(
+                `SELECT ae.expenses_id, ae.expenses_receipt_no
+                 FROM account_expenses ae
+                 WHERE ae.account_id = ?
+                   AND ae.expenses_receipt_no = ?
+                   AND ae.status = 'Active'
+                 LIMIT 1`,
+                [account_id, receipt_no]
+            );
+            if (byReceiptNo.length > 0) {
+                return {
+                    isDuplicate: true,
+                    matchedBy: 'receipt_no',
+                    existingExpense: byReceiptNo[0]
+                };
+            }
+        }
+
+        // Layer 2: exact file hash (SHA-256)
+        if (receipt_hash) {
+            const byExactHash = await db.raw(
+                `SELECT ae.expenses_id, r.receipt_hash
+                 FROM account_expenses ae
+                 JOIN receipt r ON r.receipt_id = ae.receipt_id
+                 WHERE ae.account_id = ?
+                   AND r.receipt_hash = ?
+                   AND ae.status = 'Active'
+                 LIMIT 1`,
+                [account_id, receipt_hash]
+            );
+            if (byExactHash.length > 0) {
+                return {
+                    isDuplicate: true,
+                    matchedBy: 'exact_file_hash',
+                    existingExpense: byExactHash[0]
+                };
+            }
+        }
+
+        // Layer 3: perceptual hash (similar-looking image)
+        if (receipt_phash != null) {
+            // Fetch candidate receipts for this account that have a phash stored,
+            // then do the Hamming distance check in JS (MySQL BIT_COUNT on BIGINT UNSIGNED
+            // requires the value to fit — we keep it safe by doing it here).
+            const candidates = await db.raw(
+                `SELECT ae.expenses_id, r.receipt_id, r.receipt_phash
+                 FROM account_expenses ae
+                 JOIN receipt r ON r.receipt_id = ae.receipt_id
+                 WHERE ae.account_id = ?
+                   AND r.receipt_phash IS NOT NULL
+                   AND ae.status = 'Active'`,
+                [account_id]
+            );
+            for (const row of candidates) {
+                const storedPhash = BigInt(row.receipt_phash);
+                let xor = storedPhash ^ receipt_phash;
+                let dist = 0;
+                while (xor > 0n) { if (xor & 1n) dist++; xor >>= 1n; }
+                if (dist <= PHASH_THRESHOLD) {
+                    return {
+                        isDuplicate: true,
+                        matchedBy: 'perceptual_hash',
+                        hammingDistance: dist,
+                        existingExpense: row
+                    };
+                }
+            }
+        }
+
+        // Layer 4: semantic signal (date + merchant + amount)
         const rows = await db.raw(
             `SELECT expenses_id, expenses_date, expenses_merchant_name, expenses_total_amount, created_date
              FROM account_expenses
@@ -53,10 +145,10 @@ const checkDuplicateExpense = async (account_id, expenses_date, expenses_merchan
              LIMIT 1`,
             [account_id, expenses_date, expenses_merchant_name, parseFloat(expenses_total_amount)]
         );
-
         if (rows.length > 0) {
-            return { isDuplicate: true, existingExpense: rows[0] };
+            return { isDuplicate: true, matchedBy: 'semantic_signal', existingExpense: rows[0] };
         }
+
         return { isDuplicate: false, existingExpense: null };
     } catch (error) {
         console.error('[ExpensesModel] checkDuplicateExpense error:', error);
@@ -219,20 +311,30 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
             dependant_id = null,
             items = [],
             // Receipt file data
-            receipt_file_url = null,
-            receipt_metadata = null
+            receipt_file_url  = null,
+            receipt_metadata  = null,
+            // Pre-computed receipt hashes (set by CreateExpense controller)
+            receipt_hash      = null,
+            receipt_phash     = null
         } = expenseData;
 
         // Step 0: Duplicate detection — reject before any DB writes
+        // Passes all available signals so each layer can short-circuit early.
         const duplicateCheck = await checkDuplicateExpense(
-            account_id, expenses_date, expenses_merchant_name, expenses_total_amount
+            account_id,
+            expenses_date,
+            expenses_merchant_name,
+            expenses_total_amount,
+            { receipt_no: expenses_receipt_no, receipt_hash, receipt_phash }
         );
         if (duplicateCheck.isDuplicate) {
+            console.log('[ExpensesModel] Duplicate detected via:', duplicateCheck.matchedBy);
             return {
                 status: false,
                 duplicate: true,
                 existingExpenseId: duplicateCheck.existingExpense.expenses_id,
-                message: 'Duplicate expense detected. A record with the same date, merchant and amount already exists.'
+                message: 'Duplicate expense detected. A similar receipt or record already exists.',
+                matchedBy: duplicateCheck.matchedBy
             };
         }
 
@@ -247,6 +349,9 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
                 receipt_items: items && items.length > 0 ? JSON.stringify(items) : null,
                 receipt_image_url: receipt_file_url,
                 receipt_metadata: receipt_metadata ? JSON.stringify(receipt_metadata) : null,
+                // Store hashes for future duplicate lookups
+                receipt_hash: receipt_hash || null,
+                receipt_phash: receipt_phash !== null ? receipt_phash.toString() : null,
                 status: 'Active'
             };
 

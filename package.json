@@ -50,6 +50,7 @@
 		"pdf-to-img": "^6.0.0",
 		"pdfkit": "^0.17.2",
 		"postmark": "^4.0.5",
+		"sharp": "^0.34.5",
 		"uuid": "^13.0.0",
 		"wink-eng-lite-web-model": "^1.8.1",
 		"wink-nlp": "^2.4.0",

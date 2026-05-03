@@ -26,6 +26,7 @@ const ExpensesModel = require('../../../models/AppModel/Expenses');
 const { upload, getFileUrl } = require('../../../configs/fileUpload');
 const NotificationService = require('../../../services/NotificationService');
 const { checkSubscriptionAccess } = require('../../../models/AppModel/SubscriptionService');
+const { computeFileHash, computePerceptualHash } = require('../../../utils/receiptHash');
 
 /**
  * POST /api/expenses/create
@@ -153,6 +154,8 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
         // Process uploaded receipt file
         let receipt_file_url = null;
         let receipt_metadata = null;
+        let receipt_hash     = null;
+        let receipt_phash    = null;
         let useAI = false;
         
         console.log("Processing uploading file...")
@@ -165,6 +168,19 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
                 size: uploadedFile.size,
                 uploaded_date: new Date().toISOString()
             };
+
+            // Compute duplicate-detection hashes from the raw file on disk
+            try {
+                receipt_hash  = computeFileHash(uploadedFile.path);
+                receipt_phash = await computePerceptualHash(uploadedFile.path, uploadedFile.mimetype);
+                console.log('[CreateExpense] Receipt hashes:', {
+                    sha256: receipt_hash,
+                    phash: receipt_phash !== null ? receipt_phash.toString() : null
+                });
+            } catch (hashErr) {
+                // Non-fatal — hashing failure must never block expense creation
+                console.warn('[CreateExpense] Hash computation failed (non-fatal):', hashErr.message);
+            }
 
             console.log('[CreateExpense] File uploaded:', {
                 url: receipt_file_url,
@@ -217,7 +233,9 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
             dependant_id: params.dependant_id ? parseInt(params.dependant_id) : null,
             items: items,
             receipt_file_url: receipt_file_url,
-            receipt_metadata: receipt_metadata
+            receipt_metadata: receipt_metadata,
+            receipt_hash: receipt_hash,
+            receipt_phash: receipt_phash
         };
         console.log("Expense Data : ", expenseData)
 
