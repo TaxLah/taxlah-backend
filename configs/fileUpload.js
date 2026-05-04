@@ -16,17 +16,16 @@ if (!fs.existsSync(BASE_UPLOAD_DIR)) {
 // Configure storage
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        // Get upload type from request (image, document, etc.)
-        const uploadType = req.body.upload_type || req.query.upload_type || 'document'
-        
-        // Create directory path based on upload type
-        const uploadDir = path.join(BASE_UPLOAD_DIR, uploadType)
-        
-        // Ensure directory exists
+        // Scope uploads to the authenticated user's folder: asset/{account_id}/
+        const account_id = req.user?.account_id || req.user?.aid || 'unknown'
+
+        const uploadDir = path.join(BASE_UPLOAD_DIR, String(account_id))
+
+        // Ensure per-user directory exists
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true })
         }
-        
+
         cb(null, uploadDir)
     },
     filename: function (req, file, cb) {
@@ -68,10 +67,10 @@ const fileFilter = function (req, file, cb) {
             'image/gif',
             'image/webp',
             'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            // 'application/msword',
+            // 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            // 'application/vnd.ms-excel',
+            // 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         ]
         
         if (allowedMimeTypes.includes(file.mimetype)) {
