@@ -77,7 +77,7 @@ router.post("/resend-otp", async(req , res) => {
                     await EmailService.sendMail({ 
                         to: email_account,
                         ...html,
-                        subject: `🔐 Your New Account Approval Code (${moment.utc().format('HH:mm')} UTC)`
+                        subject: `🔐 Your New Account Approval Code`
                     })
 
                     response = SUCCESS_API_RESPONSE

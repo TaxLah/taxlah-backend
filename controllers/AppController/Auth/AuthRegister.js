@@ -136,7 +136,7 @@ router.post("/", async(req , res) => {
                 await EmailService.sendMail({ 
                     to: account_email,
                     ...html,
-                    subject: `🔐 Your New Account Approval Code (${moment.utc().format('HH:mm')} UTC)`
+                    subject: `🔐 Your New Account Approval Code`
                 })
 
                 // * * * * * * * * * * MUST CREATE ACCOUNT RECORD * * * * * * * * * * //
