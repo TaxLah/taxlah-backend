@@ -149,7 +149,7 @@ async function AuthCheckActiveStatus(account_id) {
 async function AuthDeleteAccount(account_id) {
     let result = null
     try {
-        let sql = await db.update("auth_access", { auth_status: 'Suspended' }, { account_id })
+        let sql = await db.update("auth_access", { auth_status: 'Suspended', is_deleted: 1 }, { account_id })
         if(sql) {
             result = { status: true }
         } else {
