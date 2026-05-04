@@ -85,7 +85,7 @@ router.post("/", async(req , res) => {
 
                     response            = FORBIDDEN_API_RESPONSE
                     response.message    = "Account is under verification. Please make sure you have verified your email account."
-                    response.data       = { status: "Pending" }
+                    response.data       = { status: "Pending", email: account_email }
                     return res.status(response.status_code).json(response)
                 } 
                 else if(checkApproval.status ==  true) {
@@ -94,7 +94,7 @@ router.post("/", async(req , res) => {
                     if(is_verified == 'Pending') {
                         response            = FORBIDDEN_API_RESPONSE
                         response.message    = "Account is under verification. Please make sure you have verified your email account."
-                        response.data       = { status: "Pending" }
+                        response.data       = { status: "Pending", email: account_email }
                         return res.status(response.status_code).json(response)
                     }
                 }
