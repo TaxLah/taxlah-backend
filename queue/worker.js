@@ -215,7 +215,7 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 			const totalClaimed    = Number(sumResult[0]?.total_claimed) || 0;
 			const claimedAmount   = Math.min(totalClaimed, Number(taxMaxClaim));
 
-			await db.raw(
+			let addTaxClaim = await db.raw(
 				`INSERT INTO account_tax_claim
 					(account_id, tax_year, tax_id, taxsub_id, claimed_amount, max_claimable, claim_for, claim_status, status)
 				VALUES
@@ -227,6 +227,8 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 				[account_id, claimYear, tax_id, taxsub_id, aiResult.eligible_amount, taxMaxClaim, aiResult.eligible_amount]
 			);
 			console.log(`[AI-Receipt Worker] Tax claim upserted: account_id=${account_id}, tax_id=${tax_id}, year=${claimYear}, claimed=${claimedAmount}/${taxMaxClaim}`);
+
+			await db.update("account_expenses", { claim_id: addTaxClaim.insertId }, { expenses_id })
 		}
 
 
