@@ -11,7 +11,6 @@ const express 		= require("express");
 const app 			= express();
 
 const morgan 		= require("morgan");
-
 const fs 			= require("fs")
 
 const winkNLP 		= require('wink-nlp');
@@ -25,7 +24,9 @@ const { initCronJobs } = require("./cronjob/index.js");
 require("./queue/worker.js");
 
 NODE_ENV === "production" ? app.use(cors(corsOptions)) : app.use(cors());
-app.use(express.static("assets"));
+
+app.use('/asset', express.static("asset"));
+app.use('/assets', express.static("assets"));
 
 app.use('/api/subscription/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/credit/webhook', express.raw({ type: 'application/json' }));
