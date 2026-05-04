@@ -103,7 +103,7 @@ const ApprovalCodeEmail = (email_account, otp) => {
         ⚠️ <strong>Do not share this OTP</strong> with anyone. Taxlah staff will never ask for your OTP.
         </div>
         <p>If you did not request this, you can safely ignore this email. Your account remains secure.</p>
-        <p style='margin-top:30px'>Best regards,<br><strong>The TaxLah Team</strong></p>
+        <p style='margin-top:30px'>Best regards,<br><strong>The Taxlah Team</strong></p>
         </div>
         <div class='footer'><p style='font-size:12px;color:#999'>Making Malaysian tax relief claims simple, one receipt at a time.</p></div>
         </body></html>
