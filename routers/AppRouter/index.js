@@ -25,6 +25,8 @@ const BillRouter            = require("../../controllers/AppController/Bill")
 const BillingTransactionRouter = require("../../controllers/AppController/BillingTransaction")
 const { auth }              = require('../../configs/auth')
 
+router.use("/app-version", require("../../controllers/AppController/AppVersion"))
+
 router.use("/auth", AuthRouter)
 router.use("/profile", AccountRouter)
 router.use("/device", DeviceRouter)
