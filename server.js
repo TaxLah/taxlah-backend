@@ -88,6 +88,10 @@ app.listen(PORT, async () => {
 	╚════════════════════════════════════════════╝
 	`);
 
+	console.log("DB HOST : ", process.env.DB_HOST)
+	console.log("DB USERNAME : ", process.env.DB_USERNAME)
+	console.log("DB DATABASE : ", process.env.DB_DATABASE)
+
 	if(!fs.existsSync("./asset")) {
 		fs.mkdirSync("./asset")
 	}
