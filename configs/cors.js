@@ -1,11 +1,11 @@
 var whitelist = [
-	"https://dev.taxlah.com",
-	"https://staging.taxlah.com",
-	"https://taxlah.com",
 	"http://localhost:3000",
 	"http://localhost:3100",
 	"http://localhost:4000",
 	"http://localhost:5000",
+	"https://dev.taxlah.com",
+	"https://staging.taxlah.com",
+	"https://taxlah.com",
 	"https://sysadmin.taxlah.com",
 	"https://sysdev.taxlah.com",
 ];
