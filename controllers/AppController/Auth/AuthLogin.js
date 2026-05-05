@@ -50,6 +50,7 @@ router.post("/", async(req , res) => {
             if(check_username.status === false && check_email.status === false) {
                 
                 response            = FORBIDDEN_API_RESPONSE
+                response.status_code = 403
                 response.message    = "Error. Account with username is not exist or invalid account username."
                 response.data       = { status: "Unknown" }
                 return res.status(response.status_code).json(response)
@@ -84,6 +85,7 @@ router.post("/", async(req , res) => {
                     }
 
                     response            = FORBIDDEN_API_RESPONSE
+                    response.status_code = 403
                     response.message    = "Account is under verification. Please make sure you have verified your email account."
                     response.data       = { status: "Pending", email: account_email }
                     return res.status(response.status_code).json(response)
@@ -92,9 +94,10 @@ router.post("/", async(req , res) => {
                     let { is_verified } = checkApproval.data
                     
                     if(is_verified == 'Pending') {
-                        response            = FORBIDDEN_API_RESPONSE
-                        response.message    = "Account is under verification. Please make sure you have verified your email account."
-                        response.data       = { status: "Pending", email: account_email }
+                        response                = FORBIDDEN_API_RESPONSE
+                        response.status_code    = 403
+                        response.message        = "Account is under verification. Please make sure you have verified your email account."
+                        response.data           = { status: "Pending", email: account_email }
                         return res.status(response.status_code).json(response)
                     }
                 }
@@ -105,6 +108,7 @@ router.post("/", async(req , res) => {
 
                 if(!login.status) {
                     response            = FORBIDDEN_API_RESPONSE
+                    response.status_code = 403
                     response.message    = "Error! Accout with account username is not exist or suspended. Please contact support for more information."
                     response.data       = { status: "Unknown" }
                     return res.status(response.status_code).json(response)
@@ -115,6 +119,7 @@ router.post("/", async(req , res) => {
 
                     if(!compare) {
                         response            = UNAUTHORIZED_API_RESPONSE
+                        response.status_code = 401
                         response.message    = "Error. Account username or password is incorrect. Please try again."
                         response.data       = { status: "Unknown" }
                         return res.status(response.status_code).json(response)
