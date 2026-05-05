@@ -48,9 +48,9 @@ router.patch("/", async(req , res) => {
         account_address_1           = params.account_address_1 || null
         account_address_2           = params.account_address_2 || null
         account_address_3           = params.account_address_3 || null
-        account_address_postcode    = params.account_postcode || null
-        account_address_city        = params.account_city || null
-        account_address_state       = params.account_state || null
+        account_address_postcode    = params.account_address_postcode || null
+        account_address_city        = params.account_address_city || null
+        account_address_state       = params.account_address_state || null
 
         account_ic                  = params.account_ic || null
         account_gender              = params.account_gender || null                 
