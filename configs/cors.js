@@ -2,10 +2,12 @@ var whitelist = [
 	"https://dev.taxlah.com",
 	"https://staging.taxlah.com",
 	"https://taxlah.com",
-	"https://localhost:3000",
-	"https://localhost:4000",
-	"https://localhost:5000",
+	"http://localhost:3000",
+	"http://localhost:3100",
+	"http://localhost:4000",
+	"http://localhost:5000",
 	"https://sysadmin.taxlah.com",
+	"https://sysdev.taxlah.com",
 ];
 var corsOptions = {
 	origin: function (origin, callback) {
