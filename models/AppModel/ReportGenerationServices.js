@@ -222,7 +222,7 @@ async function generatePDFReport(accountId, taxYear, reportType = 'basic') {
 
     const timestamp = Date.now();
     const filename = `tax_report_${taxYear}_${accountId}_${timestamp}.pdf`;
-    const filepath = path.join(__dirname, '../../assets/document', filename);
+    const filepath = path.join(__dirname, `../../asset/document/${accountId}`, filename);
     
     const dir = path.dirname(filepath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

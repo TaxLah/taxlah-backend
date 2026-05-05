@@ -210,7 +210,7 @@ router.post("/generate", async (req, res) => {
             report_name: REPORT_CONFIG[reportType].name,
             tax_year: taxYear,
             filename: result.data.filename,
-            download_url: req.protocol + '://' + req.get('host') + result.data.url,
+            download_url: 'https' + '://' + req.get('host') + result.data.url,
             credits_used: result.data.credits_used,
             generated_at: new Date().toISOString()
         };
