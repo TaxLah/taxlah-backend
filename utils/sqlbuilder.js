@@ -4,13 +4,14 @@ const mysql = require('mysql2/promise');
 const { DB_HOST, DB_USERNAME, DB_PASSWORD, DB_DATABASE } = process.env
 
 const pool = mysql.createPool({
-    host: DB_HOST,
+    // Normalize 'localhost' to '127.0.0.1' — on Linux, 'localhost' resolves to ::1 (IPv6)
+    // but MySQL typically binds only to 127.0.0.1 (IPv4), causing ECONNREFUSED.
+    host: DB_HOST === 'localhost' ? '127.0.0.1' : DB_HOST,
     user: DB_USERNAME,
     password: DB_PASSWORD,
     database: DB_DATABASE,
     connectionLimit: 60,
     timezone: '+00:00',  // treat DATETIME columns as UTC to match moment.utc() writes
-    family: 4,           // force IPv4 — prevents localhost resolving to ::1 (IPv6) on Linux
 });
 
 function buildWhereClause(where = {}) {
