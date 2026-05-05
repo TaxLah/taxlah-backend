@@ -272,7 +272,7 @@ async function generatePDFReport(accountId, taxYear, reportType = 'basic') {
         stream.on('error', reject);
     });
 
-    return { filename, filepath, url: `/document/${filename}`, report_type: reportType, credits_used: config.credits };
+    return { filename, filepath, url: `/asset/document/${filename}`, report_type: reportType, credits_used: config.credits };
 }
 
 /**

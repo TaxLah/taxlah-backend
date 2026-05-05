@@ -131,13 +131,13 @@ router.post("/generate", async (req, res) => {
     }
 
     try {
-        const taxYear = parseInt(req.body.year) || new Date().getFullYear();
-        const reportType = req.body.type || 'basic';
+        const taxYear       = parseInt(req.body.year) || new Date().getFullYear();
+        const reportType    = req.body.type || 'premium';
 
         // Validate tax year
-        if (taxYear < 2023 || taxYear > new Date().getFullYear() + 1) {
+        if (taxYear < 2024 || taxYear > new Date().getFullYear() + 1) {
             response = BAD_REQUEST_API_RESPONSE;
-            response.message = "Invalid tax year. Must be 2023 or later.";
+            response.message = "Invalid tax year. Must be 2024 or later.";
             return res.status(response.status_code).json(response);
         }
 
