@@ -581,14 +581,17 @@ CREATE TABLE `account` (
   `account_secret_key` varchar(256) DEFAULT (uuid()),
   `account_name` varchar(256) NOT NULL,
   `account_fullname` varchar(256) NOT NULL,
+  `company_name` varchar(200) DEFAULT NULL COMMENT 'Organisation / company name for billing display',
   `account_email` varchar(100) NOT NULL,
   `account_contact` varchar(30) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `account_ic` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `account_gender` enum('Male','Female') CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
-  `account_dob` datetime DEFAULT NULL,
+  `account_dob` date DEFAULT NULL,
   `account_age` int DEFAULT NULL,
   `account_nationality` varchar(100) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT 'Malaysia',
-  `account_salary_range` decimal(15,2) DEFAULT '0.00',
+  `account_salary_range` varchar(100) DEFAULT '0.00',
+  `account_is_employed` int DEFAULT '0' COMMENT '0 - Unemployed, 1 - Employed',
+  `account_is_tax_declared` int DEFAULT '0' COMMENT '0 - Not Declare, 1 - Declare',
   `account_address_1` text,
   `account_address_2` text,
   `account_address_3` text,
@@ -597,8 +600,10 @@ CREATE TABLE `account` (
   `account_address_state` varchar(100) DEFAULT NULL,
   `account_profile_image` text,
   `account_status` enum('Pending','Active','Suspended','Others') CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT 'Active',
+  `account_verified` enum('Pending','Approved','Unverified','Others') CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT 'Pending',
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `last_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_deleted` int NOT NULL DEFAULT '0' COMMENT '1 - Deleted, 0 - Active',
   PRIMARY KEY (`account_id`),
   KEY `account_search_index` (`account_id`,`account_secret_key`,`account_name`,`account_email`,`account_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
@@ -650,6 +655,22 @@ DELIMITER ;
 
 SET NAMES utf8mb4;
 
+CREATE TABLE `account_approval` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `email` varchar(100) NOT NULL,
+  `account` json DEFAULT NULL,
+  `dependant` json DEFAULT NULL,
+  `is_verified` enum('Pending','Approved','Rejected','Expired','Others') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'Pending',
+  `verified_date` datetime DEFAULT NULL,
+  `otp_number` int DEFAULT NULL,
+  `otp_expired_date` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `is_deleted` int NOT NULL DEFAULT '0' COMMENT '0 = Deleted, 1 = Active',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
 CREATE TABLE `account_credit` (
   `credit_id` int NOT NULL AUTO_INCREMENT,
   `account_id` int NOT NULL,
@@ -681,6 +702,7 @@ CREATE TABLE `account_dependant` (
   `dependant_dob` datetime DEFAULT NULL,
   `dependant_gender` enum('Male','Female') DEFAULT NULL,
   `dependant_type` enum('Spouse','Child','Sibling','Parent','Relative','Other') DEFAULT NULL,
+  `dependant_is_employed` enum('No','Yes') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'No',
   `dependant_is_disabled` enum('No','Yes') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'No',
   `dependant_disability_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `dependant_education_level` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
@@ -720,6 +742,7 @@ CREATE TABLE `account_expenses` (
   `expenses_tax_category` int DEFAULT NULL,
   `expenses_tax_subcategory` int DEFAULT NULL,
   `expenses_receipt_no` varchar(256) DEFAULT NULL,
+  `receipt_id` int DEFAULT NULL,
   `expenses_merchant_id` varchar(100) DEFAULT NULL,
   `expenses_merchant_name` varchar(256) DEFAULT NULL,
   `expenses_total_amount` decimal(15,2) NOT NULL DEFAULT '0.00',
@@ -731,6 +754,8 @@ CREATE TABLE `account_expenses` (
   `expenses_mapping_version` varchar(50) DEFAULT NULL COMMENT 'e.g., 2026-prelim, 2026-official',
   `expenses_original_tax_category` int DEFAULT NULL COMMENT 'Store original prelim category before remap',
   `expenses_mapping_date` datetime DEFAULT NULL COMMENT 'When category was assigned',
+  `ai_processing_status` enum('None','Queued','Processing','Completed','Failed') NOT NULL DEFAULT 'None',
+  `ai_processing_result` json DEFAULT NULL,
   `expenses_for` enum('Self','Spouse','Child','Parent','Sibling') DEFAULT 'Self',
   `dependant_id` int DEFAULT NULL,
   `claim_id` int DEFAULT NULL,
@@ -754,12 +779,15 @@ CREATE TABLE `account_expenses` (
   KEY `idx_account_year_status_mapping` (`account_id`,`expenses_year`,`expenses_mapping_status`,`status`),
   KEY `idx_date_status_mapping` (`expenses_date`,`status`,`expenses_mapping_status`),
   KEY `idx_merchant_mapping` (`expenses_merchant_id`,`expenses_mapping_status`),
+  KEY `idx_receipt_id` (`receipt_id`),
+  KEY `idx_ai_processing_status` (`ai_processing_status`),
   CONSTRAINT `account_expenses_ibfk_1` FOREIGN KEY (`expenses_tax_category`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET NULL,
   CONSTRAINT `account_expenses_ibfk_2` FOREIGN KEY (`expenses_tax_subcategory`) REFERENCES `tax_subcategory` (`taxsub_id`) ON DELETE SET NULL,
   CONSTRAINT `account_expenses_ibfk_3` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_expenses_claim` FOREIGN KEY (`claim_id`) REFERENCES `account_tax_claim` (`claim_id`) ON DELETE SET NULL,
   CONSTRAINT `fk_expenses_dependant` FOREIGN KEY (`dependant_id`) REFERENCES `account_dependant` (`dependant_id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_expenses_original_tax` FOREIGN KEY (`expenses_original_tax_category`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET NULL
+  CONSTRAINT `fk_expenses_original_tax` FOREIGN KEY (`expenses_original_tax_category`) REFERENCES `tax_category` (`tax_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_expenses_receipt` FOREIGN KEY (`receipt_id`) REFERENCES `receipt` (`receipt_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
@@ -925,14 +953,17 @@ CREATE TABLE `account_logs` (
   `account_secret_key` varchar(256) NOT NULL DEFAULT 'uuid()',
   `account_name` varchar(256) NOT NULL,
   `account_fullname` varchar(256) NOT NULL,
+  `company_name` varchar(200) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL COMMENT 'Organisation / company name for billing display',
   `account_email` varchar(100) NOT NULL,
   `account_contact` varchar(20) DEFAULT NULL,
   `account_ic` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `account_gender` enum('Male','Female') CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `account_dob` date DEFAULT NULL,
   `account_age` int DEFAULT NULL,
-  `account_nationality` varchar(50) DEFAULT 'Malaysia',
-  `account_salary_range` decimal(15,2) DEFAULT '0.00',
+  `account_nationality` varchar(100) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT 'Malaysia',
+  `account_salary_range` varchar(100) DEFAULT '0.00',
+  `account_is_employed` int DEFAULT '0',
+  `account_is_tax_declared` int DEFAULT '0',
   `account_address_1` text,
   `account_address_2` text,
   `account_address_3` text,
@@ -940,9 +971,11 @@ CREATE TABLE `account_logs` (
   `account_address_city` varchar(100) DEFAULT NULL,
   `account_address_state` varchar(100) DEFAULT NULL,
   `account_profile_image` text,
-  `account_status` enum('Pending','Active','Suspended','Others') NOT NULL DEFAULT 'Pending',
+  `account_status` enum('Pending','Active','Suspended','Others') CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT 'Active',
+  `account_verified` enum('Pending','Approved','Unverified','Others') CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT 'Pending',
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `is_deleted` int NOT NULL DEFAULT '0' COMMENT '0 - Deleted, 1 - Active'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
@@ -1100,6 +1133,28 @@ CREATE TABLE `admin_auth` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
+CREATE TABLE `app_version` (
+  `version_id` int NOT NULL AUTO_INCREMENT,
+  `platform` enum('iOS','Android','Both') NOT NULL DEFAULT 'Both',
+  `version_number` varchar(20) NOT NULL,
+  `build_number` int DEFAULT NULL,
+  `minimum_required_version` varchar(20) NOT NULL,
+  `is_force_update` tinyint(1) NOT NULL DEFAULT '0',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `update_title` varchar(255) DEFAULT NULL,
+  `update_message` text,
+  `release_notes` text,
+  `ios_download_url` varchar(500) DEFAULT NULL,
+  `android_download_url` varchar(500) DEFAULT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `last_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_by` int DEFAULT NULL,
+  PRIMARY KEY (`version_id`),
+  KEY `created_by` (`created_by`),
+  CONSTRAINT `app_version_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `admin_user` (`admin_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
 CREATE TABLE `auth_access` (
   `auth_id` int NOT NULL AUTO_INCREMENT,
   `auth_reference_key` varchar(256) DEFAULT (uuid()),
@@ -1114,6 +1169,7 @@ CREATE TABLE `auth_access` (
   `account_id` int NOT NULL,
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_deleted` int NOT NULL DEFAULT '0' COMMENT '0 - Active, 1 - Deleted',
   PRIMARY KEY (`auth_id`),
   KEY `account_id` (`account_id`),
   KEY `search_login` (`auth_id`,`auth_reference_key`,`auth_username`,`auth_usermail`,`auth_password`,`auth_is_verified`,`auth_status`),
@@ -1172,8 +1228,168 @@ CREATE TABLE `auth_access_logs` (
   `auth_status` enum('Pending','Active','Inactive','Suspended','Others') NOT NULL DEFAULT 'Pending',
   `account_id` int NOT NULL,
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_deleted` int NOT NULL DEFAULT '1' COMMENT '1 - Active, 0 - Deleted'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+
+CREATE TABLE `bill` (
+  `bill_id` int NOT NULL AUTO_INCREMENT,
+  `bill_no` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'BILL-YYYYMM-NNNNN  e.g. BILL-202501-00302',
+  `invoice_no` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'INV-YYYY-NNNNNN  assigned only on payment',
+  `account_id` int NOT NULL,
+  `subscription_id` int DEFAULT NULL COMMENT 'NULL for one-off bills',
+  `sub_package_id` int DEFAULT NULL COMMENT 'FK to subscription_package — which plan is being billed',
+  `bill_type` enum('Subscription','Renewal','TaxReliefReport','StorageAddon','UserSeatsAddon','EnterpriseLicense') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Subscription',
+  `bill_description` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'e.g. Premium Yearly Renewal',
+  `billing_year` year NOT NULL COMMENT 'For year-tab filtering (2025|2024|2023)',
+  `billing_month` tinyint unsigned NOT NULL COMMENT '1-12  for mobile monthly display',
+  `billing_period_start` datetime DEFAULT NULL COMMENT 'Start of the subscription period being billed',
+  `billing_period_end` datetime DEFAULT NULL COMMENT 'End   of the subscription period being billed',
+  `bill_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'When the bill was issued',
+  `due_date` datetime NOT NULL COMMENT 'Payment deadline; UI highlights in red when past',
+  `paid_at` datetime DEFAULT NULL COMMENT 'Populated by processSuccessfulPayment()',
+  `subtotal` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `sst_rate` decimal(5,4) NOT NULL DEFAULT '0.0600' COMMENT '0.0600 = 6% Malaysian SST',
+  `sst_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT 'subtotal × sst_rate (computed on insert)',
+  `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT 'subtotal + sst_amount  — incl. SST shown in UI',
+  `currency` varchar(3) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'MYR',
+  `chip_purchase_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'CHIP purchase UUID returned by /purchases/ API',
+  `checkout_url` text COLLATE utf8mb4_unicode_ci COMMENT 'CHIP hosted payment page URL sent to user',
+  `status` enum('Draft','Pending','Paid','Overdue','Cancelled','Refunded') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Draft',
+  `reminder_count` tinyint unsigned NOT NULL DEFAULT '0' COMMENT 'Number of push/email reminders sent',
+  `reminder_sent_at` datetime DEFAULT NULL COMMENT 'Timestamp of most recent reminder',
+  `notes` text COLLATE utf8mb4_unicode_ci COMMENT 'Admin notes, cancellation reason, etc.',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`bill_id`),
+  UNIQUE KEY `uq_bill_no` (`bill_no`),
+  UNIQUE KEY `uq_invoice_no` (`invoice_no`),
+  UNIQUE KEY `uq_chip_purchase` (`chip_purchase_id`),
+  KEY `idx_bill_account` (`account_id`),
+  KEY `idx_bill_subscription` (`subscription_id`),
+  KEY `idx_bill_year_month` (`billing_year`,`billing_month`),
+  KEY `idx_bill_status` (`status`),
+  KEY `idx_bill_due` (`due_date`),
+  KEY `idx_bill_type` (`bill_type`),
+  KEY `idx_bill_paid_at` (`paid_at`),
+  KEY `idx_bill_dashboard` (`billing_year`,`status`,`bill_type`),
+  KEY `idx_bill_package` (`sub_package_id`),
+  CONSTRAINT `fk_bill_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_bill_sub_package` FOREIGN KEY (`sub_package_id`) REFERENCES `subscription_package` (`sub_package_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_bill_subscription` FOREIGN KEY (`subscription_id`) REFERENCES `account_subscription` (`subscription_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `chk_bill_amounts` CHECK (((`total_amount` >= 0) and (`subtotal` >= 0))),
+  CONSTRAINT `chk_bill_month` CHECK ((`billing_month` between 1 and 12))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Invoice / demand document — one row per billing event';
+
+
+CREATE TABLE `billing_sequence` (
+  `seq_type` enum('BILL','INV','TXN') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `seq_period` varchar(7) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'BILL/TXN: YYYYMM  |  INV: YYYY',
+  `last_seq` int unsigned NOT NULL DEFAULT '0',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`seq_type`,`seq_period`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Monotonically increasing counters for bill/invoice/txn numbers';
+
+
+CREATE TABLE `billing_transaction` (
+  `txn_id` int NOT NULL AUTO_INCREMENT,
+  `txn_ref` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'TXN-YYYYMM-NNNNN  e.g. TXN-202501-00271',
+  `bill_id` int NOT NULL,
+  `account_id` int NOT NULL,
+  `subscription_id` int DEFAULT NULL COMMENT 'Denormalised from bill for fast joins',
+  `bill_year` year NOT NULL,
+  `bill_month` tinyint unsigned NOT NULL,
+  `payment_gateway` enum('Chip','ToyyibPay','Stripe','Manual') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Chip',
+  `gateway_purchase_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'CHIP purchase UUID / ToyyibPay bill code',
+  `gateway_ref` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'orderId / bill_no passed as reference to gateway',
+  `gateway_event_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'e.g. purchase.paid / purchase.failed',
+  `gateway_status_raw` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Raw status string from gateway: paid/failed/pending',
+  `payment_method` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'FPX Online Banking / E-Wallet / Debit Card / QR Pay',
+  `bank_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Maybank / CIMB / RHB etc',
+  `amount` decimal(10,2) NOT NULL,
+  `currency` varchar(3) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'MYR',
+  `client_email` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Email from CHIP client object at time of payment',
+  `client_name` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Full name from CHIP client object at time of payment',
+  `checkout_url` text COLLATE utf8mb4_unicode_ci,
+  `success_redirect_url` text COLLATE utf8mb4_unicode_ci,
+  `failure_redirect_url` text COLLATE utf8mb4_unicode_ci,
+  `callback_url` text COLLATE utf8mb4_unicode_ci,
+  `paid_at` datetime DEFAULT NULL,
+  `failed_at` datetime DEFAULT NULL,
+  `refunded_at` datetime DEFAULT NULL,
+  `chip_payload` json DEFAULT NULL COMMENT 'Full purchase object from CHIP /purchases/ on creation',
+  `chip_callback` json DEFAULT NULL COMMENT 'Full raw webhook / callback body from CHIP',
+  `status` enum('Pending','Success','Failed','Refunded','Cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Pending',
+  `failure_reason` text COLLATE utf8mb4_unicode_ci,
+  `is_test` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = test/sandbox transaction',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`txn_id`),
+  UNIQUE KEY `uq_txn_ref` (`txn_ref`),
+  UNIQUE KEY `uq_gateway_purchase_id` (`payment_gateway`,`gateway_purchase_id`),
+  KEY `idx_btxn_bill` (`bill_id`),
+  KEY `idx_btxn_account` (`account_id`),
+  KEY `idx_btxn_subscription` (`subscription_id`),
+  KEY `idx_btxn_year_month` (`bill_year`,`bill_month`),
+  KEY `idx_btxn_status` (`status`),
+  KEY `idx_btxn_gateway` (`payment_gateway`),
+  KEY `idx_btxn_paid_at` (`paid_at`),
+  KEY `idx_btxn_created` (`created_at`),
+  KEY `idx_btxn_dashboard` (`bill_year`,`payment_gateway`,`status`),
+  CONSTRAINT `fk_btxn_account` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_btxn_bill` FOREIGN KEY (`bill_id`) REFERENCES `bill` (`bill_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_btxn_subscription` FOREIGN KEY (`subscription_id`) REFERENCES `account_subscription` (`subscription_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `chk_btxn_amount` CHECK ((`amount` >= 0)),
+  CONSTRAINT `chk_btxn_month` CHECK ((`bill_month` between 1 and 12))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Full gateway audit record — one row per payment attempt';
+
+
+CREATE TABLE `blast_message` (
+  `blast_id` int NOT NULL AUTO_INCREMENT,
+  `blast_ref` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Unique reference e.g. BLAST-202501-00001',
+  `blast_channel` enum('Push','Email') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `blast_title` varchar(65) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Push title or email subject',
+  `blast_body` text COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Message body (plain text; may contain resolved variables)',
+  `blast_recipient_type` enum('Group','Individual') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Group',
+  `blast_recipient_group` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Group key e.g. all_users, active_users, pending_claims',
+  `blast_recipient_ids` json DEFAULT NULL COMMENT 'Array of account_ids when type=Individual',
+  `blast_recipient_count` int NOT NULL DEFAULT '0' COMMENT 'Number of resolved recipients at send time',
+  `blast_sent_count` int NOT NULL DEFAULT '0' COMMENT 'Successful deliveries',
+  `blast_failed_count` int NOT NULL DEFAULT '0' COMMENT 'Failed deliveries',
+  `blast_template_id` int DEFAULT NULL COMMENT 'Source template if used',
+  `blast_status` enum('Draft','Pending','Sent','Failed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Draft',
+  `blast_scheduled_at` datetime DEFAULT NULL COMMENT 'Reserved for future scheduled sends',
+  `blast_sent_at` datetime DEFAULT NULL,
+  `blast_sent_by` int DEFAULT NULL COMMENT 'admin_id of the sender',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`blast_id`),
+  UNIQUE KEY `blast_ref` (`blast_ref`),
+  KEY `idx_bm_status` (`blast_status`),
+  KEY `idx_bm_channel` (`blast_channel`),
+  KEY `idx_bm_sent_at` (`blast_sent_at`),
+  KEY `idx_bm_sent_by` (`blast_sent_by`),
+  KEY `fk_bm_template` (`blast_template_id`),
+  CONSTRAINT `fk_bm_admin` FOREIGN KEY (`blast_sent_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_bm_template` FOREIGN KEY (`blast_template_id`) REFERENCES `blast_template` (`blast_template_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE `blast_template` (
+  `blast_template_id` int NOT NULL AUTO_INCREMENT,
+  `template_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Display name of the template',
+  `template_tag` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Category label e.g. Reminder, Notification, Announcement, Alert, Onboarding, Custom',
+  `template_channel` enum('Push','Email','Both') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Push',
+  `template_title` varchar(65) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Push notification title or email subject (max 65 chars)',
+  `template_body` text COLLATE utf8mb4_unicode_ci COMMENT 'Message body supporting {{variable}} placeholders',
+  `status` enum('Active','Inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Active',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`blast_template_id`),
+  KEY `idx_bt_status` (`status`),
+  KEY `idx_bt_channel` (`template_channel`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `credit_batch` (
@@ -1347,14 +1563,21 @@ CREATE TABLE `package` (
 CREATE TABLE `payment_gateway_conf` (
   `pg_id` int NOT NULL AUTO_INCREMENT,
   `pg_name` varchar(256) DEFAULT NULL,
+  `pg_provider` enum('ToyyibPay','Chip','Stripe','Manual') NOT NULL DEFAULT 'Manual',
+  `pg_environment` enum('Production','Sandbox') NOT NULL DEFAULT 'Production',
+  `pg_is_default` tinyint(1) NOT NULL DEFAULT '0',
   `pg_apikey` varchar(256) DEFAULT NULL,
   `pg_secretkey` varchar(256) DEFAULT NULL,
   `pg_baseurl` varchar(256) DEFAULT NULL,
   `pg_config` json DEFAULT NULL,
+  `pg_payment_methods` json DEFAULT NULL,
   `status` enum('Active','Inactive') NOT NULL DEFAULT 'Active',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`pg_id`)
+  `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`pg_id`),
+  KEY `idx_pg_provider_env` (`pg_provider`,`pg_environment`),
+  KEY `idx_pg_default` (`pg_is_default`),
+  KEY `idx_pg_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
@@ -1460,6 +1683,18 @@ CREATE TABLE `promo_code_usage` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+CREATE TABLE `prompt_templates` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `description` text,
+  `template` text NOT NULL,
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
 CREATE TABLE `receipt` (
   `receipt_id` int NOT NULL AUTO_INCREMENT,
   `receipt_name` varchar(256) DEFAULT NULL,
@@ -1473,9 +1708,12 @@ CREATE TABLE `receipt` (
   `last_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `account_id` int NOT NULL,
   `rc_id` int DEFAULT NULL,
+  `receipt_hash` varchar(64) DEFAULT NULL COMMENT 'SHA-256 hex of raw image bytes; NULL for non-image files',
+  `receipt_phash` bigint unsigned DEFAULT NULL COMMENT '64-bit average perceptual hash; NULL for PDFs/non-image files',
   PRIMARY KEY (`receipt_id`),
   KEY `rc_id` (`rc_id`),
-  KEY `account_id` (`account_id`),
+  KEY `idx_receipt_exact_hash` (`account_id`,`receipt_hash`),
+  KEY `idx_receipt_phash` (`account_id`,`receipt_phash`),
   CONSTRAINT `receipt_ibfk_1` FOREIGN KEY (`rc_id`) REFERENCES `receipt_category` (`rc_id`) ON DELETE SET DEFAULT,
   CONSTRAINT `receipt_ibfk_2` FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE SET DEFAULT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -1727,4 +1965,4 @@ CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_user_claims_summary` AS
 DROP TABLE IF EXISTS `vw_user_expenses_by_category`;
 CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_user_expenses_by_category` AS select `ae`.`account_id` AS `account_id`,year(`ae`.`expenses_date`) AS `expense_year`,`tc`.`tax_code` AS `tax_code`,`tc`.`tax_title` AS `tax_title`,`tc`.`tax_max_claim` AS `tax_max_claim`,sum(`ae`.`expenses_total_amount`) AS `total_expenses` from (`account_expenses` `ae` left join `tax_category` `tc` on((`ae`.`expenses_tax_category` = `tc`.`tax_id`))) where ((`ae`.`status` = 'Active') and (`ae`.`expenses_tax_eligible` = 'Yes')) group by `ae`.`account_id`,year(`ae`.`expenses_date`),`tc`.`tax_id`;
 
--- 2026-03-02 02:50:06 UTC
+-- 2026-05-05 02:49:03 UTC

@@ -202,9 +202,22 @@ async function AdminDeleteTaxCategory(tax_id) {
  * Get tax category statistics
  * @returns {object} { status: boolean, data: object|null }
  */
-async function AdminGetTaxCategoryStats() {
+async function AdminGetTaxCategoryStats(params = {}) {
     let result = null
     try {
+
+        let whereConditions = []
+        let queryParams = []
+
+        // Year filter
+        const tax_year = params.tax_year || params.year || ''
+        if (tax_year) {
+            whereConditions.push(`tax_year = ?`)
+            queryParams.push(tax_year)
+        }
+
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
+
         const sql = `
             SELECT 
                 COUNT(*) as total_categories,
@@ -212,9 +225,9 @@ async function AdminGetTaxCategoryStats() {
                 SUM(CASE WHEN status = 'Inactive' THEN 1 ELSE 0 END) as inactive_categories,
                 SUM(CASE WHEN status = 'Deleted' THEN 1 ELSE 0 END) as deleted_categories,
                 SUM(tax_max_claim) as total_max_claim
-            FROM tax_category
+            FROM tax_category ${whereClause}
         `
-        const data = await db.raw(sql)
+        const data = await db.raw(sql, queryParams)
         
         if(data.length) {
             result = { status: true, data: data[0] }

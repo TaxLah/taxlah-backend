@@ -39,7 +39,7 @@ router.get('/', superauth(), async (req, res) => {
 router.get('/stats', superauth(), async (req, res) => {
     let response = DEFAULT_API_RESPONSE
     try {
-        const result = await AdminGetTaxCategoryStats()
+        const result = await AdminGetTaxCategoryStats(req.query)
         response = result.status
             ? { ...SUCCESS_API_RESPONSE, data: result.data }
             : INTERNAL_SERVER_ERROR_API_RESPONSE

@@ -1,6 +1,19 @@
 const db = require("../../../utils/sqlbuilder")
 
-const sql_basic_account = `SELECT account_id, account_name, account_fullname, account_email, account_contact, account_status, created_date FROM account`
+const sql_basic_account = `
+    SELECT
+        a.account_id,
+        a.account_name,
+        a.account_fullname,
+        a.account_email,
+        a.account_contact,
+        a.account_status,
+        a.account_is_employed,
+        a.account_is_tax_declared,
+        a.created_date,
+        (SELECT COUNT(*) FROM account_expenses ae WHERE ae.account_id = a.account_id) AS total_expenses,
+        (SELECT COUNT(*) FROM account_dependant ad WHERE ad.account_id = a.account_id) AS total_dependants
+    FROM account a`
 const sql_full_account  = `SELECT account_id, account_secret_key, account_name, account_fullname, account_email, account_contact, account_address_1, account_address_2, account_address_3, account_address_postcode, account_address_city, account_address_state, account_profile_image, account_status, created_date, last_modified FROM account`
 
 /**
@@ -11,55 +24,106 @@ const sql_full_account  = `SELECT account_id, account_secret_key, account_name, 
 async function AdminGetUsersList(params = {}) {
     let result = null
     try {
-        const page = parseInt(params.page) || 1
-        const limit = parseInt(params.limit) || 20
-        const offset = (page - 1) * limit
-        const search = params.search || ''
-        const status = params.status || ''
-        const sortBy = params.sortBy || 'created_date'
+        const page      = Math.max(1, parseInt(params.page)  || 1)
+        const limit     = Math.min(100, Math.max(1, parseInt(params.limit) || 20))
+        const search    = params.search    || ''
+        const status    = params.status    || ''
+        const sortBy    = params.sortBy    || 'account_id'
         const sortOrder = params.sortOrder || 'DESC'
 
-        let whereConditions = []
-        let queryParams = []
+        const validSortColumns  = ['account_id', 'account_name', 'account_fullname', 'account_email', 'account_status', 'created_date', 'account_is_employed', 'account_is_tax_declared']
+        const validSortBy       = validSortColumns.includes(sortBy) ? sortBy : 'account_id'
+        const validSortOrder    = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC'
+
+        // Secondary sort by account_id ensures a stable, deterministic order when sortBy is not account_id.
+        // Since account has no deletions, account_id is monotonically increasing and safe to use as a tiebreaker.
+        const secondarySort = validSortBy !== 'account_id' ? `, account_id ${validSortOrder}` : ''
+        const orderClause   = `ORDER BY ${validSortBy} ${validSortOrder}${secondarySort}`
+
+        // --- Build filter conditions (search, status) ---
+        let filterConditions = []
+        let filterParams     = []
 
         // Search filter
         if (search) {
-            whereConditions.push(`(account_name LIKE ? OR account_fullname LIKE ? OR account_email LIKE ? OR account_contact LIKE ?)`)
+            filterConditions.push(`(a.account_name LIKE ? OR a.account_fullname LIKE ? OR a.account_email LIKE ? OR a.account_contact LIKE ?)`)
             const searchTerm = `%${search}%`
-            queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm)
+            filterParams.push(searchTerm, searchTerm, searchTerm, searchTerm)
         }
 
         // Status filter
         if (status && status !== 'All') {
-            whereConditions.push(`account_status = ?`)
-            queryParams.push(status)
+            filterConditions.push(`a.account_status = ?`)
+            filterParams.push(status)
         }
 
-        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
+        const filterClause = filterConditions.length > 0 ? `WHERE ${filterConditions.join(' AND ')}` : ''
 
-        // Get total count
-        const countSql = `SELECT COUNT(*) as total FROM account ${whereClause}`
-        const countResult = await db.raw(countSql, queryParams)
-        const total = countResult[0].total
+        // --- Total count (filter only, no cursor) ---
+        const countResult = await db.raw(`SELECT COUNT(*) as total FROM account a ${filterClause}`, filterParams)
+        const total       = countResult[0].total
+        const totalPages  = Math.ceil(total / limit)
 
-        // Get users with pagination
-        const validSortColumns = ['account_id', 'account_name', 'account_fullname', 'account_email', 'account_status', 'created_date']
-        const validSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_date'
-        const validSortOrder = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC'
+        // --- Cursor Pagination ---
+        // Algorithm: derive the cursor from page + limit without storing a cursor token.
+        // Since account rows are never deleted, account_id increases monotonically.
+        //
+        // For page 1  → no cursor condition needed; fetch the first `limit` rows.
+        // For page N  → find the account_id of the LAST row of the previous page via a
+        //               lightweight subquery on the PK only (fast index-only scan), then
+        //               add a WHERE clause on account_id so the main query uses an index
+        //               range scan instead of a full OFFSET scan.
+        //
+        //   prevPageLastRowOffset = (page - 1) * limit - 1   (0-based index of that row)
+        //
+        //   Subquery:
+        //     SELECT account_id FROM account
+        //     [filterClause]
+        //     ORDER BY [sortBy] [sortOrder], account_id [sortOrder]
+        //     LIMIT 1 OFFSET prevPageLastRowOffset
+        //
+        //   Cursor condition:
+        //     account_id < cursorId   (for DESC)
+        //     account_id > cursorId   (for ASC)
 
-        const sql = `${sql_basic_account} ${whereClause} ORDER BY ${validSortBy} ${validSortOrder} LIMIT ${limit} OFFSET ${offset}`
-        const users = await db.raw(sql, queryParams)
+        let cursorConditions = [...filterConditions]
+        let mainQueryParams  = [...filterParams]
+        let whereClause      = filterClause
 
-        const totalPages = Math.ceil(total / limit)
+        if (page > 1) {
+            // MySQL prepared statements do not allow ? placeholders inside LIMIT/OFFSET
+            // of a subquery. The offset is a computed integer (never user input), so it
+            // is safe to inline directly into the SQL string.
+            const prevPageLastRowOffset = (page - 1) * limit - 1
+            const cursorOp = validSortOrder === 'DESC' ? '<' : '>'
+
+            // Subquery fetches only account_id (PK) — avoids reading full row data.
+            // OFFSET is inlined as a literal integer — not a bind parameter.
+            const cursorSubquery = `(SELECT account_id FROM account a ${filterClause} ${orderClause} LIMIT 1 OFFSET ${prevPageLastRowOffset})`
+
+            cursorConditions.push(`a.account_id ${cursorOp} ${cursorSubquery}`)
+
+            // Params: outer filter params + inner subquery filter params (no offset param)
+            mainQueryParams = [...filterParams, ...filterParams]
+
+            whereClause = `WHERE ${cursorConditions.join(' AND ')}`
+        }
+
+        // --- Main query — no OFFSET, cursor WHERE clause drives an index range scan ---
+        const sql   = `${sql_basic_account} ${whereClause} ${orderClause} LIMIT ${limit}`
+
+        const users = await db.raw(sql, mainQueryParams)
 
         result = {
             status: true,
             data: {
-                users: users,
-                total: total,
-                page: page,
-                limit: limit,
-                totalPages: totalPages
+                users:       users,
+                total:       total,
+                page:        page,
+                limit:       limit,
+                totalPages:  totalPages,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1
             }
         }
     } catch (e) {
@@ -80,11 +144,7 @@ async function AdminGetUserDetails(account_id) {
     try {
         const sql = `
             SELECT 
-                a.account_id, a.account_secret_key, a.account_name, a.account_fullname, 
-                a.account_email, a.account_contact, a.account_address_1, a.account_address_2, 
-                a.account_address_3, a.account_address_postcode, a.account_address_city, 
-                a.account_address_state, a.account_profile_image, a.account_status, 
-                a.created_date, a.last_modified, a.account_ic, a.account_gender, a.account_dob, a.account_age, a.account_nationality, a.account_salary_range,
+                a.*,
                 auth.auth_id, auth.auth_username, auth.auth_usermail, auth.auth_role, 
                 auth.auth_is_verified, auth.auth_status as auth_status
             FROM account a
