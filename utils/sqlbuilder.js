@@ -10,6 +10,7 @@ const pool = mysql.createPool({
     database: DB_DATABASE,
     connectionLimit: 60,
     timezone: '+00:00',  // treat DATETIME columns as UTC to match moment.utc() writes
+    family: 4,           // force IPv4 — prevents localhost resolving to ::1 (IPv6) on Linux
 });
 
 function buildWhereClause(where = {}) {
