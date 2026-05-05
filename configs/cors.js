@@ -11,10 +11,13 @@ var whitelist = [
 ];
 var corsOptions = {
 	origin: function (origin, callback) {
-		console.log("Log Origin : ", origin);
-		if (whitelist.indexOf(origin) !== -1) {
+		// Allow requests with no Origin header:
+		// mobile apps (React Native), server-to-server calls, Postman, curl, etc.
+		// do not send an Origin header, so origin is undefined here.
+		if (!origin || whitelist.indexOf(origin) !== -1) {
 			callback(null, true);
 		} else {
+			console.warn("CORS blocked origin: ", origin);
 			callback(new Error("Not allowed by CORS"));
 		}
 	},
