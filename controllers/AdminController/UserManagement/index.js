@@ -12,7 +12,8 @@ const { superauth } = require('../../../configs/auth')
 
 const {
     AdminGetUsersList, AdminGetUserDetails, AdminUpdateUserStatus,
-    AdminUpdateUserProfile, AdminDeleteUser, AdminGetUserStats, AdminGetUserActivityLogs
+    AdminUpdateUserProfile, AdminDeleteUser, AdminGetUserStats, AdminGetUserActivityLogs,
+    AdminGetUserSubscriptionPayments, AdminGetUserApprovalList
 } = require('../../../models/AdminModel/UserManagement')
 
 const {
@@ -129,11 +130,28 @@ router.post('/', superauth(), async (req, res) => {
 /* ─── PUT /superadmin/users/:account_id ─── */
 router.put('/:account_id', superauth(), async (req, res) => {
     let response = DEFAULT_API_RESPONSE
+    console.log("Log Params : ", req.body)
+
     try {
         const allowed = [
-            'account_name','account_fullname','account_contact',
-            'account_address_1','account_address_2','account_address_3',
-            'account_address_postcode','account_address_city','account_address_state'
+            'account_fullname',
+            'account_name',
+            'account_email',
+            'account_contact',
+            'account_gender',
+            'account_ic',
+            'accocunt_dob',
+            'account_is_employed',
+            'account_is_tax_declared',
+            'account_salary_range',
+            'account_address_1',
+            'account_address_2',
+            'account_address_3',
+            'account_address_postcode',
+            'account_address_city',
+            'account_address_state',
+            'account_status',
+            'account_verified'
         ]
         const update = {}
         allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k] })
@@ -253,7 +271,7 @@ router.get('/:account_id/activity', superauth(), async (req, res) => {
 router.get('/:account_id/expenses', superauth(), async (req, res) => {
     let response = DEFAULT_API_RESPONSE
     try {
-        const { page = 1, limit = 20 } = req.query
+        const { page = 1, limit = 10 } = req.query
         const offset = (parseInt(page) - 1) * parseInt(limit)
         const [{ total }] = await db.raw(`SELECT COUNT(*) as total FROM account_expenses WHERE account_id = ? AND status = 'Active'`, [req.params.account_id])
         const rows = await db.raw(
@@ -350,6 +368,47 @@ router.delete('/:account_id/dependants/:dependant_id', superauth(), async (req, 
             : { ...NOT_FOUND_API_RESPONSE, message: 'Dependant not found.' }
     } catch (e) {
         console.error('[AdminController/UserManagement] DeleteDependant:', e)
+        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+    }
+    return res.status(response.status_code).json(response)
+})
+
+
+/* ─── GET /superadmin/users/:account_id/approvals ─── */
+router.get('/:account_id/approvals', superauth(), async (req, res) => {
+    let response = DEFAULT_API_RESPONSE
+    try {
+        const account_id = parseInt(req.params.account_id)
+        if (!account_id || isNaN(account_id)) {
+            return res.status(400).json({ ...BAD_REQUEST_API_RESPONSE, message: 'Invalid account_id' })
+        }
+
+        const result = await AdminGetUserApprovalList(account_id, req.query)
+        response = result.status
+            ? { ...SUCCESS_API_RESPONSE, data: result.data }
+            : INTERNAL_SERVER_ERROR_API_RESPONSE
+    } catch (e) {
+        console.error('[AdminController/UserManagement] ApprovalList:', e)
+        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+    }
+    return res.status(response.status_code).json(response)
+})
+
+/* ─── GET /superadmin/users/:account_id/subscription-payments ─── */
+router.get('/:account_id/subscription-payments', superauth(), async (req, res) => {
+    let response = DEFAULT_API_RESPONSE
+    try {
+        const account_id = parseInt(req.params.account_id)
+        if (!account_id || isNaN(account_id)) {
+            return res.status(400).json({ ...BAD_REQUEST_API_RESPONSE, message: 'Invalid account_id' })
+        }
+
+        const result = await AdminGetUserSubscriptionPayments(account_id, req.query)
+        response = result.status
+            ? { ...SUCCESS_API_RESPONSE, data: result.data }
+            : INTERNAL_SERVER_ERROR_API_RESPONSE
+    } catch (e) {
+        console.error('[AdminController/UserManagement] SubscriptionPayments:', e)
         response = INTERNAL_SERVER_ERROR_API_RESPONSE
     }
     return res.status(response.status_code).json(response)

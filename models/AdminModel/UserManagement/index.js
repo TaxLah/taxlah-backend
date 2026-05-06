@@ -229,9 +229,16 @@ async function AdminUpdateUserProfile(account_id, updateData) {
 async function AdminDeleteUser(account_id) {
     let result = null
     try {
-        const data = await db.delete('account', { account_id })
+        const data = await db.update('account', 
+            { account_status: "Suspended", account_verified: "Unverified", is_deleted: 1 }, 
+            { account_id }
+        )
         
         if(data) {
+            await db.update("auth_access", 
+                { auth_is_verified: "No", auth_status: "Suspended", is_deleted: 1 }, 
+                { account_id }
+            )
             result = { status: true, data: data }
         } else {
             result = { status: false, data: null }
@@ -299,6 +306,139 @@ async function AdminGetUserActivityLogs(account_id, limit = 50) {
     }
 }
 
+/**
+ * Get paginated approval list for a user by account_id (joined via email)
+ * @param {number} account_id
+ * @param {object} params - { page, limit, is_verified }
+ */
+async function AdminGetUserApprovalList(account_id, params = {}) {
+    let result = null
+    try {
+        const page   = Math.max(1, parseInt(params.page)  || 1)
+        const limit  = Math.min(100, Math.max(1, parseInt(params.limit) || 20))
+        const offset = (page - 1) * limit
+
+        const filterConditions = ['aa.email = (SELECT account_email FROM account WHERE account_id = ? LIMIT 1)', 'aa.is_deleted = 0']
+        const filterParams     = [account_id]
+
+        if (params.is_verified) {
+            filterConditions.push('aa.is_verified = ?')
+            filterParams.push(params.is_verified)
+        }
+
+        const whereClause = `WHERE ${filterConditions.join(' AND ')}`
+
+        const total      = (await db.raw(`SELECT COUNT(*) AS total FROM account_approval aa ${whereClause}`, filterParams))[0].total
+        const totalPages = Math.ceil(total / limit)
+
+        const rows = await db.raw(
+            `SELECT
+                aa.id,
+                aa.email,
+                aa.is_verified,
+                aa.verified_date,
+                aa.otp_expired_date,
+                aa.created_at,
+                aa.last_modified
+            FROM account_approval aa
+            ${whereClause}
+            ORDER BY aa.created_at DESC
+            LIMIT ${limit} OFFSET ${offset}`,
+            filterParams
+        )
+
+        result = {
+            status: true,
+            data: {
+                approvals:   rows,
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1
+            }
+        }
+    } catch (e) {
+        console.error('Error AdminGetUserApprovalList:', e)
+        result = { status: false, data: null }
+    }
+    return result
+}
+
+/**
+ * Get paginated subscription payment history for a user
+ * @param {number} account_id
+ * @param {object} params - { page, limit, status, payment_gateway }
+ */
+async function AdminGetUserSubscriptionPayments(account_id, params = {}) {
+    let result = null
+    try {
+        const page    = Math.max(1, parseInt(params.page)  || 1)
+        const limit   = Math.min(100, Math.max(1, parseInt(params.limit) || 20))
+        // OFFSET and LIMIT cannot be bind params in MySQL prepared statements — inline as integers
+        const offset  = (page - 1) * limit
+
+        const filterConditions = ['sp.account_id = ?']
+        const filterParams     = [account_id]
+
+        if (params.status) {
+            filterConditions.push('sp.payment_status = ?')
+            filterParams.push(params.status)
+        }
+
+        if (params.payment_gateway) {
+            filterConditions.push('sp.payment_gateway = ?')
+            filterParams.push(params.payment_gateway)
+        }
+
+        const whereClause = `WHERE ${filterConditions.join(' AND ')}`
+
+        const total       = (await db.raw(`SELECT COUNT(*) AS total FROM subscription_payment sp ${whereClause}`, filterParams))[0].total
+        const totalPages  = Math.ceil(total / limit)
+
+        const rows = await db.raw(
+            `SELECT
+                sp.payment_id,
+                sp.subscription_id,
+                sp.payment_ref,
+                sp.amount,
+                sp.currency,
+                sp.period_start,
+                sp.period_end,
+                sp.payment_gateway,
+                sp.gateway_transaction_id,
+                sp.payment_status,
+                sp.created_date,
+                sp.paid_date,
+                sp.failed_date,
+                sp.refunded_date
+            FROM subscription_payment sp
+            ${whereClause}
+            ORDER BY sp.created_date DESC
+            LIMIT ${limit} OFFSET ${offset}`,
+            filterParams
+        )
+
+        result = {
+            status: true,
+            data: {
+                payments:    rows,
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1
+            }
+        }
+    } catch (e) {
+        console.error('Error AdminGetUserSubscriptionPayments:', e)
+        result = { status: false, data: null }
+    }
+    return result
+}
+
 module.exports = {
     AdminGetUsersList,
     AdminGetUserDetails,
@@ -306,5 +446,7 @@ module.exports = {
     AdminUpdateUserProfile,
     AdminDeleteUser,
     AdminGetUserStats,
-    AdminGetUserActivityLogs
+    AdminGetUserActivityLogs,
+    AdminGetUserSubscriptionPayments,
+    AdminGetUserApprovalList
 }
