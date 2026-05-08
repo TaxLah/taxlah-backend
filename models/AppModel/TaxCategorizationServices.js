@@ -1,14 +1,8 @@
 /**
  * Tax Relief Auto-Categorization Service
- * Uses wink-nlp for intelligent matching of receipts to LHDN tax categories
+ * Matches receipts to LHDN tax categories using keyword and fuzzy matching
  */
 const db = require('../../utils/sqlbuilder');
-
-const winkNLP   = require('wink-nlp');
-const model     = require('wink-eng-lite-web-model');
-const nlp       = winkNLP(model);
-const its       = nlp.its;
-const as        = nlp.as;
 
 const TAX_CATEGORY_KEYWORDS = {
     // ============================================
@@ -1037,15 +1031,23 @@ const TAX_RELIEF_LIMITS = {
  * @param {string} text - Input text
  * @returns {string[]} - Array of normalized tokens
  */
+// Common English stop words for token filtering
+const STOP_WORDS = new Set([
+    'a','an','the','and','or','but','in','on','at','to','for','of','with',
+    'by','from','is','it','its','was','be','been','are','were','as','that',
+    'this','these','those','i','my','we','our','you','your','he','she','they',
+    'his','her','their','have','has','had','do','does','did','will','would',
+    'could','should','may','might','not','no','nor','so','yet','both','either',
+    'if','then','than','too','very','just','also','more','most','some','any'
+])
+
 function extractTokens(text) {
     if (!text || typeof text !== 'string') return [];
-    
-    const doc = nlp.readDoc(text.toLowerCase());
-    const tokens = doc.tokens()
-        .filter(t => t.out(its.type) === 'word' && t.out(its.stopWordFlag) === false)
-        .out(its.normal);
-    
-    return tokens;
+
+    return text.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(t => t.length > 1 && !STOP_WORDS.has(t));
 }
 
 /**

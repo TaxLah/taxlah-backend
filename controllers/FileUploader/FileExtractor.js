@@ -18,7 +18,7 @@ const {
     CHECK_EMPTY
 } = require('../../configs/helper');
 const { auth } = require('../../configs/auth');
-const ExtractReceipt = require('./ExtractReceipt');
+// const ExtractReceipt = require('./ExtractReceipt'); // Removed: Azure Document Intelligence
 const { categorizeReceiptFull } = require('../../models/AppModel/TaxCategorizationServices');
 const { checkSubscriptionAccess } = require('../../models/AppModel/SubscriptionService');
 const { canUploadReceipt, recordReceiptUpload } = require('../../models/AppModel/ReceiptUsageService');
@@ -212,14 +212,8 @@ router.post("/single", auth(), checkSubscription, checkUploadLimit, upload.singl
             usage_info: req.uploadInfo.usage
         };
 
-        // Extract receipt data using Azure Document Intelligence
+        // Azure Document Intelligence removed — extraction skipped
         let extractedReceipt = null;
-        try {
-            extractedReceipt = await ExtractReceipt(fileUrl);
-        } catch (extractError) {
-            console.log("Receipt extraction error:", extractError);
-            // Continue without extraction - user can enter manually
-        }
 
         // Record the upload
         const usedFreeReceipt = req.uploadInfo.reason === 'free_receipt';
@@ -273,17 +267,9 @@ router.post("/receipt", auth(), checkUploadLimit, upload.single('file'), async (
             url: fileUrl
         };
 
-        // Step 2: Extract receipt data using Azure Document Intelligence
+        // Step 2: Azure Document Intelligence removed — extraction skipped
         let extractedReceipt = null;
         let extractionError = null;
-        
-        try {
-            extractedReceipt = await ExtractReceipt(fileUrl);
-            console.log("Receipt extracted successfully:", extractedReceipt?.MerchantName?.content);
-        } catch (extractError) {
-            console.log("Receipt extraction error:", extractError.message);
-            extractionError = extractError.message;
-        }
 
         // Step 3: Auto-categorize receipt to tax relief category
         let categorization = null;

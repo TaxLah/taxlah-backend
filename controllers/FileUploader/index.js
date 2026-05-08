@@ -7,7 +7,7 @@ const {
     BAD_REQUEST_API_RESPONSE,
     SUCCESS_API_RESPONSE
 } = require('../../configs/helper')
-const ExtractReceipt = require('./ExtractReceipt')
+// const ExtractReceipt = require('./ExtractReceipt') // Removed: Azure Document Intelligence
 
 /**
  * POST /file-uploader
@@ -97,11 +97,10 @@ router.post("/single", upload.single('file'), async(req, res) => {
             url: fileUrl
         }
 
-        let extract = await ExtractReceipt(fileUrl)
-
+        // Azure extraction removed
         res.status(response.status_code).json({
             file_image: response.data,
-            receipt: extract
+            receipt: null
         })
 
     } catch (error) {

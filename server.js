@@ -2,25 +2,17 @@ require("./envfunc")();
 const { PORT = 3000, SECRET = "secret", NODE_ENV = "development" } = process.env;
 console.log(PORT);
 
-const os 			= require("os")
+const os 				= require("os")
+const cors 				= require("cors");
+const corsOptions 		= require("./configs/cors.js");
+const express 			= require("express");
+const app 				= express();
+	
+const morgan 			= require("morgan");
+const fs 				= require("fs")
 
-const cors 			= require("cors");
-const corsOptions 	= require("./configs/cors.js");
-
-const express 		= require("express");
-const app 			= express();
-
-const morgan 		= require("morgan");
-const fs 			= require("fs")
-
-const winkNLP 		= require('wink-nlp');
-const model			= require('wink-eng-lite-web-model');
-const nlp 			= winkNLP(model);
-const its 			= nlp.its;
-const as 			= nlp.as;
-
-const { Logger } 							= require("./utils/logger.js");
-const { initCronJobs } = require("./cronjob/index.js");
+const { Logger } 		= require("./utils/logger.js");
+const { initCronJobs } 	= require("./cronjob/index.js");
 require("./queue/worker.js");
 
 NODE_ENV === "production" ? app.use(cors(corsOptions)) : app.use(cors());
