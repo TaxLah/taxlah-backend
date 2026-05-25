@@ -42,6 +42,8 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
     const user   = req.user || null;
 
+    console.log("Log User >> ", user)
+    
     if (CHECK_EMPTY(user)) {
         response = UNAUTHORIZED_API_RESPONSE;
         response.message = ERROR_UNAUTHENTICATED;
@@ -66,30 +68,28 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
             canUploadReceipt(account_id)
         ]);
 
-        const hasAIFeature = subscriptionResult.success
-            && subscriptionResult.has_access
-            && subscriptionResult.features?.ai_categorization;
+        const hasAIFeature = subscriptionResult.success && subscriptionResult.has_access && subscriptionResult.features?.ai_categorization;
 
-        if (!hasAIFeature) {
-            response = {
-                ...FORBIDDEN_API_RESPONSE,
-                message: 'AI receipt extraction is a premium feature. Please upgrade your subscription.',
-                data: { upgrade_required: true }
-            };
-            return res.status(response.status_code).json(response);
-        }
+        // if (!hasAIFeature) {
+        //     response = {
+        //         ...FORBIDDEN_API_RESPONSE,
+        //         message: 'AI receipt extraction is a premium feature. Please upgrade your subscription.',
+        //         data: { upgrade_required: true }
+        //     };
+        //     return res.status(response.status_code).json(response);
+        // }
 
-        if (!quotaResult.success || !quotaResult.can_upload) {
-            response = {
-                ...FORBIDDEN_API_RESPONSE,
-                message: quotaResult.message || 'Monthly receipt upload quota reached.',
-                data: {
-                    quota_exceeded: true,
-                    quota_info: quotaResult
-                }
-            };
-            return res.status(response.status_code).json(response);
-        }
+        // if (!quotaResult.success || !quotaResult.can_upload) {
+        //     response = {
+        //         ...FORBIDDEN_API_RESPONSE,
+        //         message: quotaResult.message || 'Monthly receipt upload quota reached.',
+        //         data: {
+        //             quota_exceeded: true,
+        //             quota_info: quotaResult
+        //         }
+        //     };
+        //     return res.status(response.status_code).json(response);
+        // }
 
         // --- Run OCR extraction (synchronous — user waits for preview) ---
         const extracted = await extractReceiptData(uploadedFile.path, uploadedFile.mimetype);
