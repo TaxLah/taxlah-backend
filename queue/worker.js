@@ -139,6 +139,16 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 	const NotificationService          = require("../services/NotificationService");
 
 	try {
+		// Guard: verify the expense still exists before doing anything
+		const expenseCheck = await db.raw(
+			`SELECT expenses_id FROM account_expenses WHERE expenses_id = ? LIMIT 1`,
+			[expenses_id]
+		);
+		if (!expenseCheck.length) {
+			console.warn(`[AI-Receipt Worker] Skipping job ${job.id} — expenses_id=${expenses_id} no longer exists`);
+			return { success: false, skipped: true, reason: 'expense_deleted' };
+		}
+
 		// Mark as Processing
 		await db.raw(
 			`UPDATE account_expenses SET ai_processing_status = 'Processing', last_modified = NOW() WHERE expenses_id = ?`,
