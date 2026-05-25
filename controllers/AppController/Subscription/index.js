@@ -160,7 +160,7 @@ router.get("/my-subscription", auth(), async (req, res) => {
         }
 
         // Check if subscription can be renewed (expiry within 3 days)
-        let canRenew = isExpiringSoonOrExpired(result.data.current_period_end) || false
+        let canRenew = isExpiringSoonOrExpired(result?.data?.current_period_end) || false
         // if (result.has_subscription && result.data && result.data.current_period_end) {
         //     const expiryDate    = new Date(result.data.current_period_end);
         //     const today         = new Date();

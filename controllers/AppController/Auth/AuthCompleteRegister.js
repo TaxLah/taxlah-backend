@@ -247,6 +247,15 @@ router.post("/", async(req , res) => {
                                 auth_status: "Active"
                             })
 
+                            let { subject, text, html } = OnboardingEmail(account.account_fullname || email, email)
+
+                            await mailService.sendMail({
+                                to: email,
+                                subject: subject,
+                                text: text,
+                                html: html
+                            })
+
                             response            = SUCCESS_API_RESPONSE
                             response.message    = "Account approved. Please continue to login your account."
                             return res.status(response.status_code).json(response)
