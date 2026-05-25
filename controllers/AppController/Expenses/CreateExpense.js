@@ -58,6 +58,9 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
     let user = req.user || null;
 
+    console.log("Log File : ", req.file)
+    console.log("Log Body : ", req.body)
+
     if (CHECK_EMPTY(user)) {
         response = UNAUTHORIZED_API_RESPONSE;
         response.message = ERROR_UNAUTHENTICATED;
