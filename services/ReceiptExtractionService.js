@@ -64,24 +64,60 @@ async function GetReceiptOCRPrompt() {
 
 /**
  * Convert the first page of a PDF to a base64 PNG.
- * Uses pdf2pic (ImageMagick-based) — no browser APIs required.
- * Server prerequisite: sudo apt-get install imagemagick ghostscript
+ * Uses pdf2pic (GraphicsMagick-based) — no browser APIs required.
+ * Server prerequisite: sudo apt-get install -y graphicsmagick ghostscript
  * @param {string} filePath
  * @returns {Promise<string>} base64-encoded PNG
  */
 async function convertPdfToImageBase64(filePath) {
     const { fromPath } = require("pdf2pic");
+    const os   = require("os");
+    const path = require("path");
+
+    const tmpFilename = `receipt_ocr_${Date.now()}`;
+    const tmpDir      = os.tmpdir();
+
     const converter = fromPath(filePath, {
-        density: 150,
-        saveFilename: "receipt_ocr",
-        savePath: require("os").tmpdir(),
-        format: "png",
-        width: 1200,
-        height: 1600
+        density:      150,
+        saveFilename: tmpFilename,
+        savePath:     tmpDir,
+        format:       "png",
+        width:        1200,
+        height:       1600
     });
-    const result = await converter(1, { responseType: "base64" });
-    if (!result || !result.base64) throw new Error("PDF conversion produced no output");
-    return result.base64;
+
+    let result;
+    try {
+        result = await converter(1, { responseType: "base64" });
+    } catch (e) {
+        throw new Error(
+            `pdf2pic conversion failed: ${e.message}. ` +
+            `Ensure graphicsmagick and ghostscript are installed on the server: ` +
+            `sudo apt-get install -y graphicsmagick ghostscript`
+        );
+    }
+
+    console.log("[ReceiptExtractionService] pdf2pic result keys:", JSON.stringify({
+        hasBase64: !!result?.base64,
+        hasPath:   !!result?.path,
+        page:      result?.page
+    }));
+
+    // Primary: responseType:"base64" returns result.base64
+    if (result?.base64) return result.base64;
+
+    // Fallback: read from the saved temp file
+    const savedPath = result?.path || path.join(tmpDir, `${tmpFilename}.1.png`);
+    if (fs.existsSync(savedPath)) {
+        const buffer = fs.readFileSync(savedPath);
+        try { fs.unlinkSync(savedPath); } catch (_) {}
+        return buffer.toString("base64");
+    }
+
+    throw new Error(
+        "PDF conversion produced no output. " +
+        "Run on server: sudo apt-get install -y graphicsmagick ghostscript"
+    );
 }
 
 /**
