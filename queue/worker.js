@@ -74,9 +74,11 @@ notificationQueue.process("pushMultiple", async (job) => {
 
 	const result = await fcm.sendToMultipleDevices(tokens, { title, body }, data);
 	if (!result.success) {
-		throw new Error(result.error);
+		// Only throw (trigger retry) on actual API/auth failures, not stale tokens
+		throw new Error(result.error || result.message || 'FCM multicast failed');
 	}
 
+	console.log(`[Notification Worker] Job ${job.id} done — ${result.data?.successCount ?? 0}/${tokens.length} delivered`);
 	return result;
 });
 

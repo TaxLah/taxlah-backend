@@ -85,7 +85,7 @@ class FCMService {
                 priority: 'high',
                 notification: {
                     sound: 'default',
-                    channelId: 'ezquran_notifications'
+                    channelId: 'taxlah_notifications'
                 }
             },
             apns: {
@@ -176,7 +176,7 @@ class FCMService {
                 priority: 'high',
                 notification: {
                     sound: 'default',
-                    channelId: 'ezquran_notifications'
+                    channelId: 'taxlah_notifications'
                 }
             },
             apns: {
@@ -206,8 +206,10 @@ class FCMService {
                 });
             }
 
+            // success=true as long as the API call completed — token-level failures
+            // (expired/invalid tokens) are not retryable job errors
             return {
-                success: response.successCount > 0,
+                success: true,
                 message: `Sent to ${response.successCount} of ${fcmTokens.length} devices`,
                 data: {
                     successCount: response.successCount,
@@ -264,7 +266,7 @@ class FCMService {
                 priority: 'high',
                 notification: {
                     sound: 'default',
-                    channelId: 'ezquran_notifications'
+                    channelId: 'taxlah_notifications'
                 }
             },
             apns: {
