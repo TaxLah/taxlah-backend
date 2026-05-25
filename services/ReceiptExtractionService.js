@@ -64,16 +64,24 @@ async function GetReceiptOCRPrompt() {
 
 /**
  * Convert the first page of a PDF to a base64 PNG.
+ * Uses pdf2pic (ImageMagick-based) — no browser APIs required.
+ * Server prerequisite: sudo apt-get install imagemagick ghostscript
  * @param {string} filePath
  * @returns {Promise<string>} base64-encoded PNG
  */
 async function convertPdfToImageBase64(filePath) {
-    const { pdf } = await import("pdf-to-img");
-    const pages = await pdf(filePath, { scale: 1.0 });
-    for await (const page of pages) {
-        return page.toString("base64");
-    }
-    throw new Error("PDF has no pages");
+    const { fromPath } = require("pdf2pic");
+    const converter = fromPath(filePath, {
+        density: 150,
+        saveFilename: "receipt_ocr",
+        savePath: require("os").tmpdir(),
+        format: "png",
+        width: 1200,
+        height: 1600
+    });
+    const result = await converter(1, { responseType: "base64" });
+    if (!result || !result.base64) throw new Error("PDF conversion produced no output");
+    return result.base64;
 }
 
 /**
