@@ -51,6 +51,17 @@ async function getActiveTokens(account_id) {
  */
 async function sendUserNotification(account_id, title, body, data = {}) {
     try {
+        // Guard: skip if account_id is missing or account no longer exists
+        if (!account_id) {
+            console.warn('[NotificationService] sendUserNotification skipped — no account_id');
+            return { success: false, error: 'No account_id' };
+        }
+        const accountCheck = await db.raw('SELECT account_id FROM account WHERE account_id = ? LIMIT 1', [account_id]);
+        if (!accountCheck.length) {
+            console.warn(`[NotificationService] sendUserNotification skipped — account_id ${account_id} not found`);
+            return { success: false, error: 'Account not found' };
+        }
+
         // Stringify all data values — FCM data payload must be string:string
         const safeData = Object.fromEntries(
             Object.entries({ ...data, account_id: String(account_id) }).map(([k, v]) => [k, String(v)])
