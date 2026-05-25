@@ -198,6 +198,8 @@ class FCMService {
                 response.responses.forEach((resp, idx) => {
                     if (!resp.success) {
                         const error = resp.error;
+                        // Log every per-token failure for diagnostics
+                        console.error(`[FCM] Token[${idx}] delivery failed — code: ${error?.code}, message: ${error?.message}`);
                         if (error.code === 'messaging/invalid-registration-token' ||
                             error.code === 'messaging/registration-token-not-registered') {
                             invalidTokens.push(fcmTokens[idx]);
