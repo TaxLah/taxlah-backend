@@ -216,6 +216,7 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
             useAI = true;
             console.log('[CreateExpense] AI tax classification will be queued for this expense');
         } else {
+            useAI = true;
             console.log('[CreateExpense] AI skipped: no active subscription or ai_categorization not enabled');
         }
 
