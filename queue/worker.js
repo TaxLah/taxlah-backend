@@ -1,22 +1,16 @@
 require("dotenv").config();
 
-const Queue = require("bull");
 const email = require("../services/MailService");
 const fcm   = require("../services/FirebaseService");
 
-// Redis configuration
-const redisConfig = {
-	host: process.env.REDIS_HOST || "127.0.0.1",
-	port: parseInt(process.env.REDIS_PORT) || 6379,
-	password: process.env.REDIS_PASSWORD || undefined,
-};
-
-// Create queue instances for worker
-const emailQueue 		= new Queue("email", { redis: redisConfig });
-const notificationQueue = new Queue("notification", { redis: redisConfig });
-const paymentQueue 		= new Queue("payment", { redis: redisConfig });
-const defaultQueue 		= new Queue("default", { redis: redisConfig });
-const aiReceiptQueue	= new Queue("ai-receipt", { redis: redisConfig });
+// Re-use the same queue instances (with environment prefix) as the rest of the app.
+// Creating separate instances here was the root cause of cross-environment job leakage.
+const queues            = require("./index");
+const emailQueue        = queues.email;
+const notificationQueue = queues.notification;
+const paymentQueue      = queues.payment;
+const defaultQueue      = queues.default;
+const aiReceiptQueue    = queues["ai-receipt"];
 
 // Email queue processor
 emailQueue.process("send", async (job) => {
