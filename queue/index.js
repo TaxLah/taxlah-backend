@@ -7,12 +7,17 @@ const redisConfig = {
 	password: process.env.REDIS_PASSWORD || undefined,
 };
 
+// Prefix queue names with the environment so production, staging and
+// development jobs are isolated even when they share the same Redis instance.
+const ENV_PREFIX = process.env.NODE_ENV || "development";
+const qName = (name) => `${ENV_PREFIX}:${name}`;
+
 // Create queues
-const emailQueue        = new Queue("email", { redis: redisConfig });
-const notificationQueue = new Queue("notification", { redis: redisConfig });
-const paymentQueue      = new Queue("payment", { redis: redisConfig });
-const defaultQueue      = new Queue("default", { redis: redisConfig });
-const aiReceiptQueue    = new Queue("ai-receipt", { redis: redisConfig });
+const emailQueue        = new Queue(qName("email"),        { redis: redisConfig });
+const notificationQueue = new Queue(qName("notification"), { redis: redisConfig });
+const paymentQueue      = new Queue(qName("payment"),      { redis: redisConfig });
+const defaultQueue      = new Queue(qName("default"),      { redis: redisConfig });
+const aiReceiptQueue    = new Queue(qName("ai-receipt"),   { redis: redisConfig });
 
 // Queue event handlers
 const setupQueueEvents = (queue, name) => {

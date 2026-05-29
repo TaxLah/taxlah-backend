@@ -8,6 +8,7 @@ taxlah-react-native-firebasesdk.json
 taxlah-fcmadmin.json
 *-adminsdk-*.json
 *firebasesdk*.json
+*fcmadmin*.json
 taxlah-smtp.json
 development.yaml
 production.yaml
