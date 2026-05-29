@@ -5,6 +5,7 @@ env.yaml
 # Firebase service account credentials — DO NOT COMMIT
 taxlah-adminsdk-fcm.json
 taxlah-react-native-firebasesdk.json
+taxlah-fcmadmin.json
 *-adminsdk-*.json
 *firebasesdk*.json
 taxlah-smtp.json

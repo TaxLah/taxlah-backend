@@ -4,6 +4,8 @@ const queues = require('../../queue')
 const router = express.Router()
 
 const SubscriptionService = require('../../models/AppModel/SubscriptionService');
+const { CHECK_EMPTY } = require('../../configs/helper');
+const { sendUserNotification } = require('../../services/NotificationService');
 
 router.post("/send-email", async (req, res) => {
 
@@ -72,6 +74,41 @@ router.get('/expiry-reminders', async (req, res) => {
             error: error.message
         });
     }
+})
+
+router.post("/send-notification", async(req, res) => {
+    let notification_title  = req.body.notification_title || "Title Notification"
+    let notification_body   = req.body.notification_body || "Body Notification"
+    let account_id          = req.body.account_id || null
+
+    try {
+
+        if(CHECK_EMPTY(account_id)) {
+            return res.status(400).json({
+                status: 'Not ok',
+                message: "Account not found."
+            })
+        }
+
+        await sendUserNotification(account_id, notification_title, notification_body)
+
+        return res.status(200).json({
+            status: 'ok',
+            message: 'Notification has been send'
+        })
+        
+    } catch (e) {
+        console.log("Error send notification to account >> ", e)
+        return res.status(500).json({
+            status: 'Not ok',
+            message: "Server error. Unable to send notification."
+        })
+    }
+
+    return res.status(200).json({
+        status: 'ok',
+        message: "Notification send."
+    })
 })
 
 module.exports = router
