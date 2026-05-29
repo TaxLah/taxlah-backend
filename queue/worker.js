@@ -80,12 +80,8 @@ notificationQueue.process("pushTopic", async (job) => {
 	const { topic, title, body, data } = job.data;
 	console.log(`[Notification Worker] Processing job ${job.id}: Sending to topic ${topic}`);
 
-	// const result = await fcm.sendToTopic(topic, title, body, data);
-	// if (!result.success) {
-	// 	throw new Error(result.error);
-	// }
-
-	return result;
+	// Topic messaging not yet implemented — complete when FCM topic support is added
+	return { success: true, skipped: true, reason: 'not_implemented' };
 });
 
 // Payment queue processor
@@ -221,16 +217,20 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 			const totalClaimed    = Number(sumResult[0]?.total_claimed) || 0;
 			const claimedAmount   = Math.min(totalClaimed, Number(taxMaxClaim));
 
+			// Use the DB-derived running total (capped at max) as the claimed_amount.
+			// LAST_INSERT_ID(claim_id) ensures insertId returns the existing row's PK
+			// on ON DUPLICATE KEY UPDATE so claim_id is never saved as 0.
 			let addTaxClaim = await db.raw(
 				`INSERT INTO account_tax_claim
 					(account_id, tax_year, tax_id, taxsub_id, claimed_amount, max_claimable, claim_for, claim_status, status)
 				VALUES
 					(?, ?, ?, ?, ?, ?, 'Self', 'Draft', 'Active')
 				ON DUPLICATE KEY UPDATE
+					claim_id       = LAST_INSERT_ID(claim_id),
 					claimed_amount = ?,
 					max_claimable  = VALUES(max_claimable),
 					last_modified  = NOW()`,
-				[account_id, claimYear, tax_id, taxsub_id, aiResult.eligible_amount, taxMaxClaim, aiResult.eligible_amount]
+				[account_id, claimYear, tax_id, taxsub_id, claimedAmount, taxMaxClaim, claimedAmount]
 			);
 			console.log(`[AI-Receipt Worker] Tax claim upserted: account_id=${account_id}, tax_id=${tax_id}, year=${claimYear}, claimed=${claimedAmount}/${taxMaxClaim}`);
 
@@ -296,30 +296,19 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 	}
 });
 
-// Worker event handlers
-const setupWorkerEvents = (queue, name) => {
-	queue.on("completed", (job, result) => {
-		console.log(`[${name}] Job ${job.id} completed successfully`);
-	});
-
-	queue.on("failed", (job, err) => {
-		console.error(`[${name}] Job ${job.id} failed:`, err.message);
-	});
-
+// Stalled-job handler (queue/index.js already covers completed/failed/error).
+// Stalled means the worker crashed mid-job — Bull will re-queue it automatically.
+const setupStalledHandler = (queue, name) => {
 	queue.on("stalled", (job) => {
-		console.warn(`[${name}] Job ${job.id} stalled`);
-	});
-
-	queue.on("error", (error) => {
-		console.error(`[${name}] Queue error:`, error);
+		console.warn(`[${name}] Job ${job.id} stalled — will be re-queued`);
 	});
 };
 
-setupWorkerEvents(emailQueue, "Email");
-setupWorkerEvents(notificationQueue, "Notification");
-setupWorkerEvents(paymentQueue, "Payment");
-setupWorkerEvents(defaultQueue, "Default");
-setupWorkerEvents(aiReceiptQueue, "AI-Receipt");
+setupStalledHandler(emailQueue, "Email");
+setupStalledHandler(notificationQueue, "Notification");
+setupStalledHandler(paymentQueue, "Payment");
+setupStalledHandler(defaultQueue, "Default");
+setupStalledHandler(aiReceiptQueue, "AI-Receipt");
 
 console.log("🚀 Worker started and listening for jobs...");
 console.log("   - Email queue");
