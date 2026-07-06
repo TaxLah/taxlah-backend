@@ -329,13 +329,13 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
         );
         if (duplicateCheck.isDuplicate) {
             console.log('[ExpensesModel] Duplicate detected via:', duplicateCheck.matchedBy);
-            return {
-                status: false,
-                duplicate: true,
-                existingExpenseId: duplicateCheck.existingExpense.expenses_id,
-                message: 'Duplicate expense detected. A similar receipt or record already exists.',
-                matchedBy: duplicateCheck.matchedBy
-            };
+            // return {
+            //     status: false,
+            //     duplicate: true,
+            //     existingExpenseId: duplicateCheck.existingExpense.expenses_id,
+            //     message: 'Duplicate expense detected. A similar receipt or record already exists.',
+            //     matchedBy: duplicateCheck.matchedBy
+            // };
         }
 
         // Step 0.1: Create receipt record if file is uploaded

@@ -20,7 +20,7 @@ const authRateLimiter = rateLimit({
 	}
 })
 
-router.use(authRateLimiter)
+// router.use(authRateLimiter)
 
 router.use("/onboard",          Onboarding)
 router.use("/signin",           SignIn)
