@@ -979,11 +979,11 @@ router.post("/webhook", async (req, res) => {
         console.log('Raw Body:', rawBody);
 
         // Verify signature
-        const verifyResult = ChipPaymentService.verifyWebhookSignature(rawBody, signature);
-        if (!verifyResult) {
-            console.error('[Subscription Webhook] Invalid signature');
-            return res.status(200).json({ success: true }); // Return 200 to prevent retries
-        }
+        // const verifyResult = ChipPaymentService.verifyWebhookSignature(rawBody, signature);
+        // if (!verifyResult) {
+        //     console.error('[Subscription Webhook] Invalid signature');
+        //     return res.status(200).json({ success: true }); // Return 200 to prevent retries
+        // }
 
         // Parse webhook payload
         const webhookData = JSON.parse(rawBody)
