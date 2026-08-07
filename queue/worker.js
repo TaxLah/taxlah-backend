@@ -154,6 +154,11 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 		// Map AI tax_category code → tax_id in DB
 		let tax_id      = null;
 		let taxsub_id   = null;
+		// The AI classifier works from the receipt alone and has no notion of who a
+		// receipt is for, so claims it produces are always the account holder's own.
+		// Declared explicitly rather than left to default: omitting it wrote NULL, and
+		// NULLs are what stopped the unique key from ever matching.
+		let dependant_id = null;
 		let taxEligible = 'No';
 		let taxMaxClaim = 0;
 
@@ -203,36 +208,49 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 		if (taxEligible == 'Yes' && tax_id) {
 			const claimYear = date ? new Date(date).getFullYear() : new Date().getFullYear();
 
-			// Sum all eligible expenses for this account/tax category/year from DB (source of truth)
-			const sumResult = await db.raw(
-				`SELECT COALESCE(SUM(expenses_total_amount), 0) AS total_claimed
-				FROM account_expenses
-				WHERE account_id = ?
-					AND expenses_tax_category = ?
-					AND expenses_tax_eligible = 'Yes'
-					AND YEAR(expenses_date) = ?
-					AND ai_processing_status = 'Completed'`,
-				[account_id, tax_id, claimYear]
-			);
-			const totalClaimed    = Number(sumResult[0]?.total_claimed) || 0;
-			const claimedAmount   = Math.min(totalClaimed, Number(taxMaxClaim));
+			// The running total is recomputed inside the INSERT below rather than read
+			// here and passed in. Reading it in JS first opened a lost-update race:
+			// two jobs for the same account and category could both read the total
+			// before either wrote, and the slower one would then overwrite the other's
+			// result with a figure that omitted its receipt. Doing the read inside the
+			// write statement makes the pair atomic without needing a transaction —
+			// which matters, because sqlbuilder has no transaction support.
+			const CLAIMED_SQL = `
+				SELECT LEAST(COALESCE(SUM(expenses_total_amount), 0), ?)
+				  FROM account_expenses
+				 WHERE account_id = ?
+				   AND expenses_tax_category = ?
+				   AND expenses_tax_eligible = 'Yes'
+				   AND YEAR(expenses_date) = ?
+				   AND ai_processing_status = 'Completed'`;
+			const claimedArgs = [taxMaxClaim, account_id, tax_id, claimYear];
 
-			// Use the DB-derived running total (capped at max) as the claimed_amount.
-			// LAST_INSERT_ID(claim_id) ensures insertId returns the existing row's PK
-			// on ON DUPLICATE KEY UPDATE so claim_id is never saved as 0.
+			// dependant_id is listed explicitly. Leaving it out let it default to NULL,
+			// and because MySQL treats every NULL in a unique index as distinct, the
+			// unique_claim key never fired — so this upsert only ever inserted. It now
+			// matches on unique_claim_v2, which is built over NULL-folded generated
+			// columns (migration 021), so ON DUPLICATE KEY UPDATE actually runs.
+			//
+			// LAST_INSERT_ID(claim_id) makes insertId return the existing row's PK on
+			// the update branch, so claim_id is never stored as 0.
 			let addTaxClaim = await db.raw(
 				`INSERT INTO account_tax_claim
-					(account_id, tax_year, tax_id, taxsub_id, claimed_amount, max_claimable, claim_for, claim_status, status)
+					(account_id, tax_year, tax_id, taxsub_id, dependant_id, claimed_amount, max_claimable, claim_for, claim_status, status)
 				VALUES
-					(?, ?, ?, ?, ?, ?, 'Self', 'Draft', 'Active')
+					(?, ?, ?, ?, ?, (${CLAIMED_SQL}), ?, 'Self', 'Draft', 'Active')
 				ON DUPLICATE KEY UPDATE
 					claim_id       = LAST_INSERT_ID(claim_id),
-					claimed_amount = ?,
+					claimed_amount = (${CLAIMED_SQL}),
 					max_claimable  = VALUES(max_claimable),
 					last_modified  = NOW()`,
-				[account_id, claimYear, tax_id, taxsub_id, claimedAmount, taxMaxClaim, claimedAmount]
+				[
+					account_id, claimYear, tax_id, taxsub_id, dependant_id,
+					...claimedArgs,      // subquery in VALUES
+					taxMaxClaim,
+					...claimedArgs       // subquery in the update branch
+				]
 			);
-			console.log(`[AI-Receipt Worker] Tax claim upserted: account_id=${account_id}, tax_id=${tax_id}, year=${claimYear}, claimed=${claimedAmount}/${taxMaxClaim}`);
+			console.log(`[AI-Receipt Worker] Tax claim upserted: account_id=${account_id}, tax_id=${tax_id}, year=${claimYear}, cap=${taxMaxClaim}`);
 
 			await db.update("account_expenses", { claim_id: addTaxClaim.insertId }, { expenses_id })
 		}
