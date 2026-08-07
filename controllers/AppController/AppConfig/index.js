@@ -22,6 +22,7 @@ const { auth } = require('../../../configs/auth')
 const ConfigService = require('../../../services/ConfigService')
 const Advertisement = require('../../../models/AppModel/AdvertisementService')
 const { getAccountUsage } = require('../../../models/AppModel/UsageService')
+const { getSstRate } = require('../../../services/TaxRateService')
 
 const DEFAULT_AD_LIMIT = 5
 
@@ -76,6 +77,9 @@ router.get('/', auth(), async (req, res) => {
             // Lets the app decide whether "See all" is worth rendering at all.
             advertisement_total: totalLive,
             usage,
+            // So the app can show the same total the payment gateway will charge,
+            // rather than the tax-exclusive price it used to display.
+            sst_rate: await getSstRate(),
         }
         return res.status(response.status_code).json(response)
     } catch (e) {

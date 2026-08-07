@@ -172,6 +172,44 @@ jobs:
                   scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no /tmp/env.yaml $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/env.yaml
                   rm -f /tmp/env.yaml
 
+            - name: Install Firebase service account on server
+              env:
+                  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+                  SERVER_HOST: ${{ secrets.SERVER_HOST }}
+                  DEPLOY_PATH: ${{ steps.vars.outputs.deploy_path }}
+                  FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+              run: |
+                  # The service account holds a private key, so it is gitignored and also
+                  # excluded from the rsync above. That is correct — but it meant the file
+                  # never existed on any server, so Firebase never initialised and every
+                  # push notification failed with FCM_NOT_INITIALIZED, silently.
+                  #
+                  # Writing it from a secret on every deploy fixes that permanently: a
+                  # deploy can no longer leave the server without credentials, and the key
+                  # still never enters git.
+                  if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+                    echo "::error::FIREBASE_SERVICE_ACCOUNT is not set for the ${{ matrix.environment }} environment."
+                    echo "::error::Push notifications will not work. Add the service account JSON as an Environment secret."
+                    exit 1
+                  fi
+
+                  printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > /tmp/taxlah-fcmadmin.json
+
+                  # Fail before shipping rather than deploying a file that cannot be parsed.
+                  if ! python3 -c "import json,sys; json.load(open('/tmp/taxlah-fcmadmin.json'))"; then
+                    echo "::error::FIREBASE_SERVICE_ACCOUNT is not valid JSON."
+                    rm -f /tmp/taxlah-fcmadmin.json
+                    exit 1
+                  fi
+
+                  scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+                    /tmp/taxlah-fcmadmin.json $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/taxlah-fcmadmin.json
+                  ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_HOST \
+                    "chmod 600 $DEPLOY_PATH/taxlah-fcmadmin.json"
+                  rm -f /tmp/taxlah-fcmadmin.json
+
+                  echo "Firebase service account installed."
+
             - name: Install dependencies and restart PM2
               env:
                   DEPLOY_USER: ${{ secrets.DEPLOY_USER }}

@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const path = require('path');
+const fs = require('fs');
 
 /**
  * Firebase Cloud Messaging Service
@@ -15,23 +16,67 @@ class FCMService {
     /**
      * Initialize Firebase Admin SDK
      */
+    /**
+     * Loads the service account from the environment, then from disk.
+     *
+     * The env variable exists because the JSON file is gitignored — correctly, it holds
+     * a private key — and the deploy workflow also excludes it from rsync, so it never
+     * reached any server. Every push therefore failed with FCM_NOT_INITIALIZED, silently,
+     * for as long as the servers have been running. Reading it from an environment
+     * variable lets the deploy inject it the same way it already injects env.yaml,
+     * without the key ever entering git.
+     */
+    loadServiceAccount() {
+        const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+        if (raw && raw.trim()) {
+            try {
+                return { source: 'FIREBASE_SERVICE_ACCOUNT', account: JSON.parse(raw) };
+            } catch (e) {
+                // Malformed JSON here is worth shouting about: it looks configured but
+                // silently disables every notification the app sends.
+                console.error('[FCM] FIREBASE_SERVICE_ACCOUNT is set but is not valid JSON:', e.message);
+            }
+        }
+
+        const serviceAccountPath = path.join(__dirname, '../taxlah-fcmadmin.json');
+        if (fs.existsSync(serviceAccountPath)) {
+            try {
+                return { source: serviceAccountPath, account: require(serviceAccountPath) };
+            } catch (e) {
+                console.error('[FCM] Could not read', serviceAccountPath, '-', e.message);
+            }
+        }
+
+        return null;
+    }
+
     initializeFirebase() {
         try {
-            const serviceAccountPath    = path.join(__dirname, '../taxlah-fcmadmin.json');
-            const serviceAccount        = require(serviceAccountPath);
-
-            if (!admin.apps.length) {
-                admin.initializeApp({
-                    credential: admin.credential.cert(serviceAccount)
-                });
+            if (admin.apps.length) {
                 this.initialized = true;
-                console.log('✓ Firebase Admin SDK initialized successfully');
-            } else {
-                this.initialized = true;
-                console.log('✓ Firebase Admin SDK already initialized');
+                console.log('[FCM] Firebase Admin SDK already initialized');
+                return;
             }
+
+            const loaded = this.loadServiceAccount();
+
+            if (!loaded) {
+                // Stated plainly rather than as a generic failure, because the symptom —
+                // notifications simply never arriving — gives no clue where to look.
+                console.error(
+                    '[FCM] No Firebase credentials found. Push notifications are DISABLED.\n' +
+                    '      Set the FIREBASE_SERVICE_ACCOUNT environment variable to the service\n' +
+                    '      account JSON, or place taxlah-fcmadmin.json in the project root.'
+                );
+                this.initialized = false;
+                return;
+            }
+
+            admin.initializeApp({ credential: admin.credential.cert(loaded.account) });
+            this.initialized = true;
+            console.log(`[FCM] Firebase Admin SDK initialized (from ${loaded.source})`);
         } catch (error) {
-            console.error('Failed to initialize Firebase Admin SDK:', error.message);
+            console.error('[FCM] Failed to initialize Firebase Admin SDK:', error.message);
             this.initialized = false;
         }
     }

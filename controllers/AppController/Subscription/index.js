@@ -18,6 +18,7 @@ const {
 
 const SubscriptionService = require('../../../models/AppModel/SubscriptionService');
 const SubscriptionPaymentService = require('../../../models/AppModel/SubscriptionPaymentService');
+const { priceBreakdown } = require('../../../services/TaxRateService')
 const ChipPaymentService = require('../../../services/ChipPaymentService');
 const NotificationService = require('../../../services/NotificationService');
 const { auth } = require('../../../configs/auth');
@@ -336,14 +337,15 @@ router.post("/subscribe", auth(), async (req, res) => {
             paymentResult.data.payment_ref
         ]);
 
-        // Create CHIP payment URL — amount must include 6% SST
-        const SST_RATE = 0.06;
-        const chipAmount = parseFloat((parseFloat(pkg.price_amount) * (1 + SST_RATE)).toFixed(2));
+        // Amount charged must include service tax. The rate comes from configuration so
+        // this cannot drift from the breakdown the app shows the customer.
+        const priced = await priceBreakdown(pkg.price_amount);
+        const chipAmount = priced.total;
         const paymentGatewayResult = await ChipPaymentService.createSubscriptionPayment({
             payment_ref:    paymentResult.data.payment_ref,
             account_id:     user.account_id,
             amount:         chipAmount,
-            description:    `${pkg.package_name} - ${pkg.billing_period} Subscription (incl. 6% SST)`,
+            description:    `${pkg.package_name} - ${pkg.billing_period} Subscription (incl. ${(priced.sst_rate * 100).toFixed(0)}% SST)`,
             customer_email: user.account_email || '',
             customer_name:  user.account_name || user.account_fullname || ''
         });

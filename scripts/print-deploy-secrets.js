@@ -24,6 +24,9 @@ const read = (k) => { try { return e[k]; } catch { return null; } };
 // Only the ones the workflow did not previously write. Everything else is already set.
 const NEEDED = [
     "CONFIG_ENCRYPTION_KEY",
+    // Not in env.yaml: the deploy writes it to taxlah-fcmadmin.json on the server.
+    // Without it Firebase never initialises and every push silently fails.
+    "FIREBASE_SERVICE_ACCOUNT",
     "GMAIL_USER",
     "GMAIL_CLIENT_ID",
     "GMAIL_CLIENT_SECRET",
