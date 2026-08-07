@@ -12,6 +12,7 @@ const {
     SUCCESS_API_RESPONSE,
     UNAUTHORIZED_API_RESPONSE,
     NOT_FOUND_API_RESPONSE,
+    FORBIDDEN_API_RESPONSE,
     ERROR_UNAUTHENTICATED,
     CHECK_EMPTY
 } = require('../../../configs/helper');
@@ -19,6 +20,7 @@ const {
 const SubscriptionService = require('../../../models/AppModel/SubscriptionService');
 const SubscriptionPaymentService = require('../../../models/AppModel/SubscriptionPaymentService');
 const { priceBreakdown } = require('../../../services/TaxRateService')
+const { ensureReceiptPdf } = require('../../../services/ReceiptPdfService')
 const ChipPaymentService = require('../../../services/ChipPaymentService');
 const NotificationService = require('../../../services/NotificationService');
 const { auth } = require('../../../configs/auth');
@@ -950,6 +952,53 @@ router.get("/payment-receipt/:paymentRef", auth(), async (req, res) => {
  *
  * The app is logged in, so this variant requires auth() and checks ownership instead.
  */
+/**
+ * GET /api/subscription/receipt-pdf/:paymentRef
+ *
+ * Streams the receipt as a PDF, writing it on first request and serving the stored file
+ * afterwards. Ownership is checked exactly as the JSON receipt does — a payment
+ * reference is guessable enough that it must not be the only thing protecting someone
+ * else's name, email and payment history.
+ */
+router.get("/receipt-pdf/:paymentRef", auth(), async (req, res) => {
+    let response = DEFAULT_API_RESPONSE
+    try {
+        const result = await SubscriptionPaymentService.getPaymentReceipt(req.params.paymentRef)
+
+        if (!result.success || !result.data) {
+            response = { ...NOT_FOUND_API_RESPONSE, message: 'Receipt not found.' }
+            return res.status(response.status_code).json(response)
+        }
+
+        if (String(result.data.account_id) !== String(req.user.account_id)) {
+            response = { ...FORBIDDEN_API_RESPONSE, message: 'Access denied.' }
+            return res.status(response.status_code).json(response)
+        }
+
+        // An unpaid payment has no receipt to issue.
+        if (String(result.data.payment_status).toLowerCase() !== 'paid') {
+            response = {
+                ...BAD_REQUEST_API_RESPONSE,
+                message: 'A receipt is available once the payment has completed.'
+            }
+            return res.status(response.status_code).json(response)
+        }
+
+        const { filepath } = await ensureReceiptPdf(result.data)
+
+        res.setHeader('Content-Type', 'application/pdf')
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="TaxLah-Receipt-${result.data.invoice_no || result.data.payment_ref}.pdf"`
+        )
+        return res.sendFile(filepath)
+    } catch (e) {
+        console.error('[Subscription] receipt-pdf error:', e)
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE, message: 'Could not produce the receipt.' }
+        return res.status(response.status_code).json(response)
+    }
+})
+
 router.get("/public-receipt/:paymentRef", auth(), async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
 

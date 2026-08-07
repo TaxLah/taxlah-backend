@@ -907,11 +907,25 @@ async function getPaymentReceipt(paymentRef) {
                 a.account_name,
                 a.account_fullname,
                 a.account_email,
-                a.account_contact
+                a.account_contact,
+                -- The bill is the authoritative record: these figures were captured at
+                -- billing time. A receipt must show what was actually charged, so they
+                -- are read rather than recomputed — a rate change later must not rewrite
+                -- history on receipts already issued.
+                b.bill_id,
+                b.bill_no,
+                b.invoice_no,
+                b.subtotal        AS bill_subtotal,
+                b.sst_rate        AS bill_sst_rate,
+                b.sst_amount      AS bill_sst_amount,
+                b.total_amount    AS bill_total,
+                b.receipt_pdf_path
             FROM subscription_payment sp
             LEFT JOIN account_subscription s ON sp.subscription_id = s.subscription_id
             LEFT JOIN subscription_package pkg ON s.sub_package_id = pkg.sub_package_id
             LEFT JOIN account a ON sp.account_id = a.account_id
+            LEFT JOIN bill b ON b.chip_purchase_id = sp.gateway_transaction_id
+                            AND b.account_id = sp.account_id
             WHERE sp.payment_ref = ?
         `;
         
@@ -947,7 +961,24 @@ async function getPaymentReceipt(paymentRef) {
             transaction_id: payment.gateway_transaction_id,
             
             // Amount Information
-            amount: parseFloat(payment.amount),
+            // amount stays the charged total, because that is what the customer paid —
+            // it previously returned sp.amount, the tax-exclusive figure, so a receipt
+            // for a RM15.79 payment read RM14.90.
+            amount: parseFloat(payment.bill_total ?? payment.amount),
+            subtotal: payment.bill_subtotal !== undefined && payment.bill_subtotal !== null
+                ? parseFloat(payment.bill_subtotal)
+                : parseFloat(payment.amount),
+            sst_rate: payment.bill_sst_rate !== undefined && payment.bill_sst_rate !== null
+                ? parseFloat(payment.bill_sst_rate)
+                : null,
+            sst_amount: payment.bill_sst_amount !== undefined && payment.bill_sst_amount !== null
+                ? parseFloat(payment.bill_sst_amount)
+                : null,
+            bill_no: payment.bill_no || null,
+            invoice_no: payment.invoice_no || null,
+            // Selected above but previously not mapped through, so the PDF cache check
+            // never saw it and rebuilt the file on every download.
+            receipt_pdf_path: payment.receipt_pdf_path || null,
             currency: payment.currency,
             
             // Subscription Information
