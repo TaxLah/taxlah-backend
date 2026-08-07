@@ -118,8 +118,12 @@ async function broadcastNotification(title, body, data = {}) {
             AND ad.device_enable_fcm = 'Yes'
             AND ad.device_fcm_token IS NOT NULL
             AND ad.device_fcm_token != ''
-            AND a.status = 'Active'
+            AND a.account_status = 'Active'
         `;
+        // account has no 'status' column — it is account_status. The old reference threw
+        // ER_BAD_FIELD_ERROR, which the catch below swallowed into a logged failure, so
+        // every broadcast ever sent reached nobody: not the tax-relief announcement cron,
+        // not the admin transaction notice, not admin tax management.
         const devices = await db.raw(sql);
 
         if (devices.length === 0) {

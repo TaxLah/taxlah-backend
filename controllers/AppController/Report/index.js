@@ -20,6 +20,38 @@ const {
 const { generateTaxReport, getTaxReportData, REPORT_CONFIG } = require('../../../models/AppModel/ReportGenerationServices');
 
 /**
+ * Where a user's generated reports live, plus the legacy flat folder.
+ *
+ * ReportGenerationServices writes to asset/document/<account_id>/, but the list,
+ * download and delete handlers were all reading assets/document/ — a different,
+ * pluralised, flat directory. So a report generated today succeeded, notified the user
+ * it was ready, and then never appeared in their list and could not be deleted.
+ * Reports written before the writer moved still sit in the old folder, so both are
+ * searched rather than orphaning them.
+ */
+const reportDirs = (accountId) => [
+    {
+        dir: path.join(__dirname, '../../../asset/document', String(accountId)),
+        urlPrefix: `/asset/document/${accountId}`,
+    },
+    {
+        // Legacy flat folder, served from a different static mount.
+        dir: path.join(__dirname, '../../../assets/document'),
+        urlPrefix: '/assets/document',
+    },
+];
+
+/** First existing path for a report filename, or null when it is in neither folder. */
+const findReportFile = (accountId, filename) => {
+    for (const { dir } of reportDirs(accountId)) {
+        const candidate = path.join(dir, filename);
+        if (fs.existsSync(candidate)) return candidate;
+    }
+    return null;
+};
+
+
+/**
  * GET /api/report/types
  * Get available report types and their credits cost
  */
@@ -261,10 +293,9 @@ router.get("/download/:filename", async (req, res) => {
             });
         }
 
-        const filepath = path.join(__dirname, '../../../assets/document', filename);
+        const filepath = findReportFile(user.account_id, filename);
 
-        // Check if file exists
-        if (!fs.existsSync(filepath)) {
+        if (!filepath) {
             return res.status(404).json({
                 status_code: 404,
                 status: 'Not Found',
@@ -308,22 +339,31 @@ router.get("/history", async (req, res) => {
     }
 
     try {
-        // List generated reports from filesystem
-        const documentDir = path.join(__dirname, '../../../assets/document');
-        const files = fs.readdirSync(documentDir);
-        
-        const userReports = files
-            .filter(f => f.startsWith(`tax_report_`) && f.includes(`_${user.account_id}_`) && f.endsWith('.pdf'))
-            .map(filename => {
+        // Both the per-account folder reports are written to and the legacy flat one.
+        // A directory that does not exist yet simply contributes nothing.
+        const found = [];
+        for (const { dir, urlPrefix } of reportDirs(user.account_id)) {
+            if (!fs.existsSync(dir)) continue;
+            for (const f of fs.readdirSync(dir)) {
+                if (f.startsWith('tax_report_') && f.includes(`_${user.account_id}_`) && f.endsWith('.pdf')) {
+                    found.push({ filename: f, dir, urlPrefix });
+                }
+            }
+        }
+
+        const userReports = found
+            .map(({ filename, dir, urlPrefix }) => {
                 const parts = filename.replace('.pdf', '').split('_');
                 const taxYear = parts[2];
                 const timestamp = parseInt(parts[4]);
-                const stats = fs.statSync(path.join(documentDir, filename));
-                
+                const stats = fs.statSync(path.join(dir, filename));
+
                 return {
                     filename,
                     tax_year: parseInt(taxYear),
-                    download_url: `/document/${filename}`,
+                    // Host-relative and complete: the previous value omitted the
+                    // per-account folder the file actually lives in, so every link 404'd.
+                    download_url: `${urlPrefix}/${filename}`,
                     generated_at: new Date(timestamp).toISOString(),
                     file_size: stats.size
                 };
@@ -378,10 +418,9 @@ router.delete("/:filename", async (req, res) => {
             return res.status(response.status_code).json(response);
         }
 
-        const filepath = path.join(__dirname, '../../../assets/document', filename);
+        const filepath = findReportFile(user.account_id, filename);
 
-        // Check if file exists
-        if (!fs.existsSync(filepath)) {
+        if (!filepath) {
             response = NOT_FOUND_API_RESPONSE;
             response.message = 'Report not found.';
             return res.status(response.status_code).json(response);

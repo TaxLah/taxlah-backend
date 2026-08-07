@@ -11,6 +11,7 @@
 
 const express = require('express')
 const axios = require('axios')
+const NotificationService = require('../../../services/NotificationService')
 const router = express.Router()
 
 const {
@@ -26,7 +27,19 @@ const db = require('../../../utils/sqlbuilder')
 const secretbox = require('../../../utils/secretbox')
 const ConfigService = require('../../../services/ConfigService')
 
-const GROUPS = ['chip', 'gmail', 'openai']
+const GROUPS = ['app', 'chip', 'gmail', 'openai']
+
+/**
+ * Keys whose value must be one of a fixed set.
+ *
+ * APP_MODE drives whether the beta banner shows and whether switching sends a go-live
+ * broadcast, but the row is a free-text string — so "Beta Testing" saved cleanly and the
+ * app quietly treated it as Live, hiding the banner with nothing to indicate why.
+ * Anything that behaves as a switch has to be validated like one.
+ */
+const ENUM_KEYS = {
+    APP_MODE: ['Beta', 'Live']
+}
 
 /** Shapes a row for the client. Secret values are replaced by a masked hint. */
 function presentRow(row) {
@@ -191,7 +204,19 @@ router.put('/:group', superauth(), async (req, res) => {
             return res.status(response.status_code).json(response)
         }
 
-        if (!secretbox.isConfigured()) {
+        const rows = await loadGroupRows(group)
+        if (!rows.length) {
+            response = { ...NOT_FOUND_API_RESPONSE, message: `No configuration group '${group}'.` }
+            return res.status(response.status_code).json(response)
+        }
+
+        // The encryption key is only needed when this update actually touches a secret.
+        // Gating every group on it meant a missing key blocked non-sensitive settings
+        // like APP_MODE, which are stored as plain text and need no key at all.
+        const touchesSecret = rows.some(
+            (r) => r.is_secret && Object.prototype.hasOwnProperty.call(incoming, r.config_key)
+        )
+        if (touchesSecret && !secretbox.isConfigured()) {
             response = {
                 ...INTERNAL_SERVER_ERROR_API_RESPONSE,
                 message: 'CONFIG_ENCRYPTION_KEY is not set on the server, so credentials cannot be stored.'
@@ -199,15 +224,17 @@ router.put('/:group', superauth(), async (req, res) => {
             return res.status(response.status_code).json(response)
         }
 
-        const rows = await loadGroupRows(group)
-        if (!rows.length) {
-            response = { ...NOT_FOUND_API_RESPONSE, message: `No configuration group '${group}'.` }
-            return res.status(response.status_code).json(response)
-        }
-
         const admin = req.payload || {}
         const ip = req.ip
         const changed = []
+
+        // Read before the loop rewrites it: the Beta -> Live announcement below needs
+        // to know which direction the switch went, and by then the row holds the new
+        // value. APP_MODE is not a secret, so config_value is already plaintext.
+        const previousModeBeforeUpdate =
+            group === 'app'
+                ? (rows.find((r) => r.config_key === 'APP_MODE')?.config_value ?? null)
+                : null
 
         for (const row of rows) {
             if (!Object.prototype.hasOwnProperty.call(incoming, row.config_key)) continue
@@ -219,7 +246,16 @@ router.put('/:group', superauth(), async (req, res) => {
             // so both mean "leave it alone".
             if (raw === null || raw === undefined || raw === '' || String(raw).startsWith('••••')) continue
 
-            const next = String(raw)
+            const next = String(raw).trim()
+
+            const allowed = ENUM_KEYS[row.config_key]
+            if (allowed && !allowed.includes(next)) {
+                response = {
+                    ...BAD_REQUEST_API_RESPONSE,
+                    message: `${row.config_key} must be one of: ${allowed.join(', ')}.`
+                }
+                return res.status(response.status_code).json(response)
+            }
 
             let previousPlain = null
             if (row.config_value) {
@@ -263,6 +299,38 @@ router.put('/:group', superauth(), async (req, res) => {
         // Reaches every PM2 worker, so the new credentials are live without a restart.
         const invalidation = await ConfigService.invalidate(group)
 
+        // ── Beta → Live announcement ─────────────────────────────────────────
+        //
+        // Leaving beta is the one config change users need to hear about, so it is the
+        // one that carries a side effect. Guarded tightly: only when APP_MODE actually
+        // changed, and only in the Beta → Live direction. Switching back to Beta, or
+        // saving Live over Live, must never re-blast 1,400+ people.
+        //
+        // Deliberately not awaited. broadcastNotification writes an in-app row per
+        // account, which for the current user base takes far longer than an admin
+        // request should hang for; the FCM sends are queued to Bull either way.
+        let announcement = null
+        if (group === 'app' && changed.includes('APP_MODE')) {
+            const previousMode = String(previousModeBeforeUpdate || '').toLowerCase()
+            const nextMode = String(incoming.APP_MODE || '').toLowerCase()
+
+            if (previousMode === 'beta' && nextMode === 'live') {
+                const body = await ConfigService.get(
+                    'app',
+                    'LIVE_ANNOUNCEMENT_TEXT',
+                    'Our beta has ended — TaxLah is now live.'
+                )
+
+                NotificationService.broadcastNotification('TaxLah is now live', body, {
+                    type: 'AppWentLive',
+                })
+                    .then((r) => console.log(`[SystemConfig] go-live broadcast queued for ${r.total_accounts} accounts.`))
+                    .catch((e) => console.error('[SystemConfig] go-live broadcast failed:', e.message))
+
+                announcement = 'Go-live announcement is being sent to all active users.'
+            }
+        }
+
         response = {
             ...SUCCESS_API_RESPONSE,
             message: changed.length
@@ -270,6 +338,7 @@ router.put('/:group', superauth(), async (req, res) => {
                 : 'No changes to apply.',
             data: {
                 changed,
+                announcement,
                 propagated: invalidation.published,
                 // If Redis is down the write still succeeded, it just reaches other
                 // workers on their next cache expiry instead of instantly. Say so.

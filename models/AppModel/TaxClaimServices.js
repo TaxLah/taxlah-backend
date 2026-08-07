@@ -544,8 +544,9 @@ async function createLimitNotification(accountId, taxId, message) {
             status: 'Active'
         };
 
-        await db.insert('account_notification', notificationData);
-
+        // No direct insert here: sendUserNotification already persists the in-app row
+        // via UserNotificationCreate. Doing both wrote every limit alert twice — all
+        // 534 'Limit Reached' rows in production are duplicate pairs.
         await NotificationService.sendUserNotification(
             accountId, 
             notificationData.notification_title, 

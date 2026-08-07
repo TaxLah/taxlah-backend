@@ -1,10 +1,53 @@
 const express = require('express')
-const { DEFAULT_API_RESPONSE, INTERNAL_SERVER_ERROR_API_RESPONSE, CHECK_EMPTY, BAD_REQUEST_API_RESPONSE, FORBIDDEN_API_RESPONSE, SUCCESS_API_RESPONSE, SEND_EMAIL_NOTIFICATION } = require('../../../configs/helper')
-const { CheckApprovalAccountByEmail, AccountCreate, UpdateApprovalAccount, CheckAccountByEmail, AccountUpdate } = require('../../../models/AppModel/Account')
+const { DEFAULT_API_RESPONSE, INTERNAL_SERVER_ERROR_API_RESPONSE, CHECK_EMPTY, BAD_REQUEST_API_RESPONSE, FORBIDDEN_API_RESPONSE, SUCCESS_API_RESPONSE, SEND_EMAIL_NOTIFICATION, CREATE_ACCESS_TOKEN, CREATE_REFRESH_TOKEN } = require('../../../configs/helper')
+const { CheckApprovalAccountByEmail, AccountCreate, UpdateApprovalAccount, CheckAccountByEmail, AccountUpdate, AccountGetInfo } = require('../../../models/AppModel/Account')
 const router = express.Router()
 
 const moment = require('moment')
-const { AuthCreateAccessAccount, AuthUpdateAccessAccount, AuthUpdateAccessAccountByAccountId } = require('../../../models/AppModel/Auth')
+const { AuthCreateAccessAccount, AuthUpdateAccessAccount, AuthUpdateAccessAccountByAccountId, AuthGetByEmail } = require('../../../models/AppModel/Auth')
+const { addAutoClaimReliefs } = require('../../../models/AppModel/TaxClaimServices')
+
+/**
+ * Issues a session for an account that has just verified its email, so the app can drop
+ * the user straight into the dashboard instead of bouncing them to the sign-in form to
+ * type the password they entered a minute earlier.
+ *
+ * Verification is a sufficient basis for a session: the account was created with a
+ * password moments ago, and the one-time code proves control of the mailbox. That is
+ * the same evidence a password reset accepts.
+ *
+ * Returns null rather than throwing if anything is missing — the caller then falls back
+ * to the old "please sign in" response, so a lookup failure costs the shortcut, not the
+ * verification itself.
+ */
+async function issueSessionForEmail(email) {
+    try {
+        const auth = await AuthGetByEmail(email)
+        if (!auth?.status || !auth?.data?.account_id) return null
+
+        const user_profile = await AccountGetInfo(auth.data.account_id)
+        const profile = {
+            uid: auth.data.auth_id,
+            aid: auth.data.account_id,
+            username: auth.data.auth_username,
+            usermail: auth.data.auth_usermail,
+            ...user_profile.data
+        }
+
+        const access_token  = await CREATE_ACCESS_TOKEN(profile)
+        const refresh_token = await CREATE_REFRESH_TOKEN(profile)
+
+        // Mirrors what login does, so the dashboard the user lands on is already
+        // populated with this year's claim rows.
+        addAutoClaimReliefs(auth.data.account_id, new Date().getFullYear())
+            .catch(err => console.error('[AuthCompleteRegister] Tax init error:', err.message))
+
+        return { profile, access_token, refresh_token, status: "Approved" }
+    } catch (e) {
+        console.error('[AuthCompleteRegister] issueSessionForEmail failed:', e.message)
+        return null
+    }
+}
 
 const EmailService = require("../../../services/MailService")
 const { ApprovalCodeEmail, OnboardingEmail } = require('../../../services/MailTemplate')
@@ -219,8 +262,15 @@ router.post("/", async(req , res) => {
                                     status: 'Active'
                                 })
 
-                                response            = SUCCESS_API_RESPONSE
-                                response.message    = "Account approved. Please continue to login your account."
+                                // Spread, not assign: SUCCESS_API_RESPONSE is a shared
+                                // module-level object, and mutating it leaks the message
+                                // and data into whatever request reads it next.
+                                response            = { ...SUCCESS_API_RESPONSE }
+                                const session       = await issueSessionForEmail(email)
+                                response.message    = session
+                                    ? "Account verified."
+                                    : "Account approved. Please continue to login your account."
+                                response.data       = session
                                 return res.status(response.status_code).json(response)
                             } else {
                                 response            = INTERNAL_SERVER_ERROR_API_RESPONSE
@@ -256,8 +306,12 @@ router.post("/", async(req , res) => {
                                 html: html
                             })
 
-                            response            = SUCCESS_API_RESPONSE
-                            response.message    = "Account approved. Please continue to login your account."
+                            response            = { ...SUCCESS_API_RESPONSE }
+                            const session       = await issueSessionForEmail(email)
+                            response.message    = session
+                                ? "Account verified."
+                                : "Account approved. Please continue to login your account."
+                            response.data       = session
                             return res.status(response.status_code).json(response)
                         }
 

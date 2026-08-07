@@ -23,6 +23,7 @@ router.use('/payment-gateways',      require('../../controllers/AdminController/
 router.use('/bills',                 require('../../controllers/AdminController/Bill'))
 router.use('/billing-transactions',  require('../../controllers/AdminController/BillingTransaction'))
 router.use('/config',              require('../../controllers/AdminController/SystemConfig'))
+router.use('/advertisements',      require('../../controllers/AdminController/Advertisement'))
 router.use('/blaster',               require('../../controllers/AdminController/Blaster'))
 router.use("/ai", require("../../controllers/AdminRouter/AI"))
 

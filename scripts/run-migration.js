@@ -46,6 +46,57 @@ function stripComments(sql) {
     return sql.replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
+/**
+ * Splits a migration into statements on semicolons that are not inside a string or a
+ * backtick-quoted identifier.
+ *
+ * A plain sql.split(";") looks fine until a COMMENT or a default value contains a
+ * semicolon, at which point it silently cuts a CREATE TABLE in half and the migration
+ * fails partway through — after earlier statements have already committed. That is a
+ * bad failure mode for something that runs against production, so the semicolon has to
+ * be read in context rather than matched blindly.
+ */
+function splitStatements(sql) {
+    const out = [];
+    let current = "";
+    let quote = null; // "'", '"' or "`" while inside one
+
+    for (let i = 0; i < sql.length; i++) {
+        const ch = sql[i];
+
+        if (quote) {
+            current += ch;
+            if (ch === "\\" && quote !== "`") {
+                // Escaped character inside a string — consume the next one verbatim so
+                // a \' does not read as the closing quote.
+                if (i + 1 < sql.length) current += sql[++i];
+            } else if (ch === quote) {
+                // '' inside a '-string is an escaped quote, not the end of it.
+                if (sql[i + 1] === quote) current += sql[++i];
+                else quote = null;
+            }
+            continue;
+        }
+
+        if (ch === "'" || ch === '"' || ch === "`") {
+            quote = ch;
+            current += ch;
+            continue;
+        }
+
+        if (ch === ";") {
+            if (current.trim()) out.push(current.trim());
+            current = "";
+            continue;
+        }
+
+        current += ch;
+    }
+
+    if (current.trim()) out.push(current.trim());
+    return out;
+}
+
 (async () => {
     let sql = fs.readFileSync(filePath, "utf8");
 
@@ -78,10 +129,7 @@ function stripComments(sql) {
         console.log(`  USE statement: already ${target}`);
     }
 
-    const statements = stripComments(sql)
-        .split(";")
-        .map((s) => s.trim())
-        .filter(Boolean);
+    const statements = splitStatements(stripComments(sql));
     console.log(`  statements   : ${statements.length}`);
     for (const s of statements) {
         console.log(`    - ${s.split("\n")[0].slice(0, 76)}${s.length > 76 ? "…" : ""}`);
