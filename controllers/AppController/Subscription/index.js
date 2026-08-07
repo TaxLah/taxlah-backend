@@ -24,8 +24,14 @@ const { auth } = require('../../../configs/auth');
 const moment = require('moment');
 const crypto = require('crypto');
 
-// Receipt token secret - used for generating secure public receipt URLs
+// Receipt token secret - used for generating secure public receipt URLs.
+// The fallback literal is committed to this repo, so anyone reading it could mint valid
+// tokens for any payment_ref. RECEIPT_TOKEN_SECRET must be set in every environment.
 const RECEIPT_TOKEN_SECRET = process.env.RECEIPT_TOKEN_SECRET || 'taxlah-receipt-secret-key-2026';
+
+if (!process.env.RECEIPT_TOKEN_SECRET && process.env.NODE_ENV === 'production') {
+    console.warn('[Subscription] RECEIPT_TOKEN_SECRET is not set — public receipt links are using the committed fallback secret.');
+}
 
 /**
  * Generate a secure token for public receipt access
@@ -47,8 +53,15 @@ function generateReceiptToken(paymentRef) {
  * @returns {boolean} - True if valid
  */
 function verifyReceiptToken(paymentRef, token) {
+    if (typeof token !== 'string') return false;
+
     const validToken = generateReceiptToken(paymentRef);
-    return token === validToken;
+    const a = Buffer.from(validToken, 'utf8');
+    const b = Buffer.from(token, 'utf8');
+
+    // Length must match before timingSafeEqual, which throws on differing lengths.
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
 }
 
 // ============================================================================
@@ -926,18 +939,64 @@ router.get("/payment-receipt/:paymentRef", auth(), async (req, res) => {
  * No authentication required - uses secure token instead
  * For use in browser receipt pages, email links, etc.
  */
-router.get("/public-receipt/:paymentRef", async (req, res) => {
+/**
+ * GET /api/subscription/public-receipt/:paymentRef
+ *
+ * The mobile app reaches the receipt screen holding only the payment_ref (it scrapes it
+ * out of the checkout URL), so it cannot supply a token. Left unauthenticated this let
+ * anyone enumerate payment refs and read other customers' names, emails and amounts.
+ *
+ * The app is logged in, so this variant requires auth() and checks ownership instead.
+ */
+router.get("/public-receipt/:paymentRef", auth(), async (req, res) => {
+    let response = DEFAULT_API_RESPONSE;
+
+    try {
+        const { paymentRef } = req.params;
+
+        const result = await SubscriptionPaymentService.getPaymentReceipt(paymentRef);
+
+        if (!result.success) {
+            response = NOT_FOUND_API_RESPONSE;
+            response.message = result.error || "Payment receipt not found.";
+            return res.status(response.status_code).json(response);
+        }
+
+        // Do not distinguish "not yours" from "not found" — that would still confirm
+        // which payment refs exist.
+        if (String(result.data.account_id) !== String(req.user.account_id)) {
+            response = NOT_FOUND_API_RESPONSE;
+            response.message = "Payment receipt not found.";
+            return res.status(response.status_code).json(response);
+        }
+
+        response = SUCCESS_API_RESPONSE;
+        response.message = "Payment receipt retrieved successfully.";
+        response.data = result.data;
+
+        return res.status(response.status_code).json(response);
+    } catch (error) {
+        console.error("Error Get Receipt:", error);
+        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response.message = "An error occurred while retrieving payment receipt.";
+        return res.status(response.status_code).json(response);
+    }
+});
+
+// The token variant previously declared only :paymentRef while every generated link
+// carries /:paymentRef/:token — so req.params.token was always undefined and the
+// two-segment links 404'd. Both segments are declared now and the token is enforced.
+router.get("/public-receipt/:paymentRef/:token", async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
 
     try {
         const { paymentRef, token } = req.params;
 
-        // Verify token
-        // if (!verifyReceiptToken(paymentRef, token)) {
-        //     response = UNAUTHORIZED_API_RESPONSE;
-        //     response.message = "Invalid or expired receipt token.";
-        //     return res.status(response.status_code).json(response);
-        // }
+        if (!verifyReceiptToken(paymentRef, token)) {
+            response = UNAUTHORIZED_API_RESPONSE;
+            response.message = "Invalid or expired receipt token.";
+            return res.status(response.status_code).json(response);
+        }
 
         // Get payment receipt
         const result = await SubscriptionPaymentService.getPaymentReceipt(paymentRef);
@@ -975,15 +1034,19 @@ router.post("/webhook", async (req, res) => {
         const rawBody = req.body.toString('utf8');
 
         console.log('[Subscription Webhook] Received webhook');
-        console.log('Signature:', signature);
-        console.log('Raw Body:', rawBody);
 
-        // Verify signature
-        // const verifyResult = ChipPaymentService.verifyWebhookSignature(rawBody, signature);
-        // if (!verifyResult) {
-        //     console.error('[Subscription Webhook] Invalid signature');
-        //     return res.status(200).json({ success: true }); // Return 200 to prevent retries
-        // }
+        // Signature verification. Without it anyone can POST {"event_type":"purchase.paid"}
+        // with a payment_ref from their own /subscribe call and activate a paid plan free.
+        // The public key is loaded from services/chip.pem, so it is present in every env.
+        if (!signature) {
+            console.error('[Subscription Webhook] Rejected: missing X-Signature header');
+            return res.status(200).json({ success: true }); // 200 so CHIP does not retry a malformed call
+        }
+
+        if (!await ChipPaymentService.verifyWebhookSignature(rawBody, signature)) {
+            console.error('[Subscription Webhook] Rejected: invalid signature');
+            return res.status(200).json({ success: true });
+        }
 
         // Parse webhook payload
         const webhookData = JSON.parse(rawBody)

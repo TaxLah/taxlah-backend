@@ -1,4 +1,5 @@
 const { google } = require("googleapis");
+const ConfigService = require("./ConfigService");
 
 /**
  * Email Utility using Gmail API (googleapis)
@@ -7,30 +8,62 @@ const { google } = require("googleapis");
 
 class MailService {
     constructor() {
-        this.oauth2Client = null;
-        this.gmail = null;
-        this.user = process.env.GMAIL_USER || 'admin@taxlah.com';
-        this.initializeClient();
+        // Nothing is resolved here on purpose. The client used to be built in the
+        // constructor from process.env, which meant credentials were frozen at require()
+        // time and a rotation in the admin portal needed a restart to take effect.
+        this._client = null;
+        this._fingerprint = null;
     }
 
     /**
-     * Initialize Gmail API client using OAuth2
+     * Resolves Gmail credentials, preferring the database and falling back to the
+     * environment for anything not yet seeded.
+     *
+     * The previous hardcoded fallbacks (a real client secret and refresh token committed
+     * in this file) have been removed — they are seeded into system_config instead.
      */
-    initializeClient() {
+    async getConfig() {
+        const c = await ConfigService.getGroup('gmail');
+
+        return {
+            user: c.GMAIL_USER || process.env.GMAIL_USER || 'admin@taxlah.com',
+            clientId: c.GMAIL_CLIENT_ID || process.env.GMAIL_CLIENT_ID || null,
+            clientSecret: c.GMAIL_CLIENT_SECRET || process.env.GMAIL_CLIENT_SECRET || null,
+            refreshToken: c.GMAIL_REFRESH_TOKEN || process.env.GMAIL_REFRESH_TOKEN || null,
+        };
+    }
+
+    /**
+     * Returns a Gmail client for the current credentials.
+     *
+     * Cached, but keyed on a fingerprint of the values — so when an admin rotates the
+     * refresh token the next send rebuilds the client automatically rather than reusing a
+     * client bound to the old one.
+     */
+    async getClient() {
+        const cfg = await this.getConfig();
+
+        if (!cfg.clientId || !cfg.clientSecret || !cfg.refreshToken) {
+            return { client: null, cfg, error: 'Gmail credentials are not configured' };
+        }
+
+        const fingerprint = `${cfg.clientId}|${cfg.clientSecret}|${cfg.refreshToken}`;
+        if (this._client && this._fingerprint === fingerprint) {
+            return { client: this._client, cfg };
+        }
+
         try {
-            this.oauth2Client = new google.auth.OAuth2(
-                process.env.GMAIL_CLIENT_ID || '883174192008-bc1ifscgtqskro7r571b8ju2q3gb6dhn.apps.googleusercontent.com',
-                process.env.GMAIL_CLIENT_SECRET || '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'
-            );
+            const oauth2Client = new google.auth.OAuth2(cfg.clientId, cfg.clientSecret);
+            oauth2Client.setCredentials({ refresh_token: cfg.refreshToken });
 
-            this.oauth2Client.setCredentials({
-                refresh_token: process.env.GMAIL_REFRESH_TOKEN || '1//04i9FHDKtT_k3CgYIARAAGAQSNwF-L9IrGhvn9bJ0AXFGWqzj931DvOkPlUGcvTAON4nI03ZIZPYUMIDKguuwzfXQCcIRj6GISFs'
-            });
+            this._client = google.gmail({ version: 'v1', auth: oauth2Client });
+            this._fingerprint = fingerprint;
 
-            this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
-            console.log('✓ Mail service initialized successfully (Gmail API)');
+            console.log('✓ Gmail client built for', cfg.user);
+            return { client: this._client, cfg };
         } catch (error) {
-            console.error('Failed to initialize mail service:', error);
+            console.error('Failed to build Gmail client:', error.message);
+            return { client: null, cfg, error: error.message };
         }
     }
 
@@ -96,10 +129,12 @@ class MailService {
      * @returns {object} - Result with success status and info
      */
     async sendMail({ to, subject, text = '', html = '', from = null }) {
-        if (!this.gmail) {
+        const { client: gmail, cfg, error: clientError } = await this.getClient();
+
+        if (!gmail) {
             return {
                 success: false,
-                message: 'Mail service not initialized. Check Gmail API configuration.',
+                message: clientError || 'Mail service not initialized. Check Gmail API configuration.',
                 error: 'CLIENT_NOT_INITIALIZED'
             };
         }
@@ -114,11 +149,11 @@ class MailService {
             return { success: false, message: 'Email body (text or html) is required', error: 'MISSING_BODY' };
         }
 
-        const sender = from || `"TaxLah" <${this.user}>`;
+        const sender = from || `"TaxLah" <${cfg.user}>`;
 
         try {
             const raw = this._buildRawMessage({ from: sender, to, subject, text, html });
-            const response = await this.gmail.users.messages.send({
+            const response = await gmail.users.messages.send({
                 userId: 'me',
                 requestBody: { raw }
             });
@@ -147,12 +182,14 @@ class MailService {
      * @returns {object} - Result with connection status
      */
     async verifyConnection() {
-        if (!this.gmail) {
-            return { success: false, message: 'Mail service not initialized' };
+        const { client: gmail, error: clientError } = await this.getClient();
+
+        if (!gmail) {
+            return { success: false, message: clientError || 'Mail service not initialized' };
         }
 
         try {
-            const profile = await this.gmail.users.getProfile({ userId: 'me' });
+            const profile = await gmail.users.getProfile({ userId: 'me' });
             return {
                 success: true,
                 message: `Gmail API connection verified. Authenticated as: ${profile.data.emailAddress}`

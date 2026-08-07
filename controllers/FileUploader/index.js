@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const { upload, getFileUrl } = require('../../configs/fileUpload')
+const { upload, verifyUploadedFiles, getFileUrl } = require('../../configs/fileUpload')
 const { 
     DEFAULT_API_RESPONSE, 
     INTERNAL_SERVER_ERROR_API_RESPONSE,
@@ -17,7 +17,7 @@ const {
  *  - upload_type (optional: 'image', 'document', default: 'document')
  *  - allowed_types (optional: comma-separated mime types)
  */
-router.post("/", upload.array('files', 10), async(req, res) => {
+router.post("/", upload.array('files', 10), verifyUploadedFiles, async(req, res) => {
     let response = DEFAULT_API_RESPONSE
 
     try {
@@ -70,7 +70,7 @@ router.post("/", upload.array('files', 10), async(req, res) => {
  *  - upload_type (optional: 'image', 'document', default: 'document')
  *  - allowed_types (optional: comma-separated mime types)
  */
-router.post("/single", upload.single('file'), async(req, res) => {
+router.post("/single", upload.single('file'), verifyUploadedFiles, async(req, res) => {
     let response = DEFAULT_API_RESPONSE
 
     try {

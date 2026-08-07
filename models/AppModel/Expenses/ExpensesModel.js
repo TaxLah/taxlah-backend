@@ -474,21 +474,42 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
 };
 
 /**
+ * account_expenses columns that may appear in ORDER BY.
+ *
+ * sort_by / sort_order / limit / offset are interpolated into the SQL string below
+ * (MySQL will not accept them as bound parameters), so they are constrained here rather
+ * than trusting the caller. Callers should validate too, but this is the last line.
+ */
+const SORTABLE_COLUMNS = [
+    'created_date',
+    'last_modified',
+    'expenses_date',
+    'expenses_total_amount',
+    'expenses_merchant_name',
+    'expenses_year',
+    'expenses_mapping_confidence',
+    'expenses_mapping_date',
+    'expenses_mapping_status'
+];
+
+/**
  * Get all expenses for a user with filters
  */
 const getAllExpenses = async (account_id, filters = {}) => {
     try {
         const {
-            offset = 0,
-            limit = 20,
             search = '',
             year = null,
             mapping_status = null,
             tax_category = null,
-            min_confidence = null,
-            sort_by = 'expenses_date',
-            sort_order = 'DESC'
+            min_confidence = null
         } = filters;
+
+        // Interpolated values — coerce before they reach the query string.
+        const sort_by    = SORTABLE_COLUMNS.includes(filters.sort_by) ? filters.sort_by : 'expenses_date';
+        const sort_order = String(filters.sort_order).toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+        const limit      = Math.min(Math.max(parseInt(filters.limit, 10) || 20, 1), 100);
+        const offset     = Math.max(parseInt(filters.offset, 10) || 0, 0);
 
         let whereConditions = ['ae.status = ? AND ae.account_id = ?'];
         let params = ['Active', account_id];

@@ -27,7 +27,7 @@ const {
     ERROR_UNAUTHENTICATED,
     CHECK_EMPTY
 } = require('../../../configs/helper');
-const { upload, getFileUrl }                    = require('../../../configs/fileUpload');
+const { upload, verifyUploadedFiles, getFileUrl }                    = require('../../../configs/fileUpload');
 const { extractReceiptData }                    = require('../../../services/ReceiptExtractionService');
 const { checkSubscriptionAccess }               = require('../../../models/AppModel/SubscriptionService');
 const { canUploadReceipt, recordReceiptUpload } = require('../../../models/AppModel/ReceiptUsageService');
@@ -38,7 +38,7 @@ const { canUploadReceipt, recordReceiptUpload } = require('../../../models/AppMo
  * Multipart form-data:
  *   receipt_file  — required: image (jpg/png/webp) or PDF
  */
-router.post('/', upload.single('receipt_file'), async (req, res) => {
+router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
     const user   = req.user || null;
 

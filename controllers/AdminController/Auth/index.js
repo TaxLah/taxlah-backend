@@ -17,6 +17,12 @@ const {
 
 const { superauth }               = require('../../../configs/auth')
 const {
+    COOKIE_NAME,
+    cookieOptions,
+    newSessionId,
+    csrfTokenFor
+}                                 = require('../../../configs/adminSession')
+const {
     AdminAuthGetByIdentifier,
     AdminAuthGetAccess,
     AdminAuthUpdateAccess
@@ -63,22 +69,31 @@ router.post('/login', async (req, res) => {
         // Fetch admin profile
         const [adminProfile] = await db.raw(`SELECT admin_id, admin_name, admin_fullname, admin_email, admin_phone, admin_role FROM admin WHERE admin_id = ? LIMIT 1`, [adminAuth.data.admin_id])
 
+        const sid = newSessionId()
+
         const tokenPayload = {
             aauth_id: adminAuth.data.aauth_id,
             admin_id: adminAuth.data.admin_id,
             username: adminAuth.data.aauth_username,
             email:    adminAuth.data.aauth_usermail,
             role:     adminAuth.data.aauth_role,
-            type:     'admin'
+            type:     'admin',
+            sid
         }
 
         const token = jwt.sign(tokenPayload, ADMIN_SECRET, { expiresIn: '24h' })
+
+        // The token goes into an httpOnly cookie and is deliberately NOT returned in the
+        // body — nothing in the browser should ever be able to read it.
+        res.cookie(COOKIE_NAME, token, cookieOptions(req))
 
         response = {
             ...SUCCESS_API_RESPONSE,
             message: 'Login successful.',
             data: {
-                token,
+                // Not a secret on its own: useless without the httpOnly cookie. The SPA
+                // echoes it back as X-CSRF-Token on every mutating request.
+                csrf_token: csrfTokenFor(sid),
                 admin: {
                     aauth_id:   adminAuth.data.aauth_id,
                     admin_id:   adminAuth.data.admin_id,
@@ -116,6 +131,9 @@ router.get('/me', superauth(), async (req, res) => {
         response = {
             ...SUCCESS_API_RESPONSE,
             data: {
+                // The SPA cannot read the session cookie, so it bootstraps identity from
+                // here on every load and recovers the CSRF token at the same time.
+                csrf_token: req.payload?.sid ? csrfTokenFor(req.payload.sid) : null,
                 auth:    authData.data,
                 profile: profile || null
             }
@@ -125,6 +143,24 @@ router.get('/me', superauth(), async (req, res) => {
         response = INTERNAL_SERVER_ERROR_API_RESPONSE
     }
     return res.status(response.status_code).json(response)
+})
+
+/* ─────────────────────────────────────────────
+   POST /superadmin/auth/logout
+   Clears the session cookie server-side. Previously logout was purely client-side, so
+   the token stayed valid for its full 24h after the admin "logged out".
+──────────────────────────────────────────────── */
+router.post('/logout', (req, res) => {
+    // clearCookie must be given the same attributes the cookie was set with, otherwise
+    // the browser will not match and remove it.
+    const { maxAge, ...attrs } = cookieOptions(req)
+    res.clearCookie(COOKIE_NAME, attrs)
+
+    return res.status(200).json({
+        ...SUCCESS_API_RESPONSE,
+        message: 'Logged out.',
+        data: null
+    })
 })
 
 /* ─────────────────────────────────────────────

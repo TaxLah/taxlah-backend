@@ -23,7 +23,7 @@ const {
     sanitize
 } = require('../../../configs/helper');
 const ExpensesModel = require('../../../models/AppModel/Expenses');
-const { upload, getFileUrl } = require('../../../configs/fileUpload');
+const { upload, verifyUploadedFiles, getFileUrl } = require('../../../configs/fileUpload');
 const NotificationService = require('../../../services/NotificationService');
 const { checkSubscriptionAccess } = require('../../../models/AppModel/SubscriptionService');
 const { computeFileHash, computePerceptualHash } = require('../../../utils/receiptHash');
@@ -54,7 +54,7 @@ const { computeFileHash, computePerceptualHash } = require('../../../utils/recei
  *   ]
  * }
  */
-router.post('/', upload.single('receipt_file'), async (req, res) => {
+router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
     let user = req.user || null;
 

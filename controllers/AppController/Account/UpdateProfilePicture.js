@@ -10,7 +10,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { upload, getFileUrl } = require('../../../configs/fileUpload');
+const { upload, verifyUploadedFiles, getFileUrl } = require('../../../configs/fileUpload');
 const { 
     DEFAULT_API_RESPONSE, 
     INTERNAL_SERVER_ERROR_API_RESPONSE,
@@ -34,7 +34,7 @@ const { UserNotificationCreate } = require('../../../models/AppModel/Notificatio
  * Body (multipart/form-data):
  * - profile_picture: File (image only - jpeg, jpg, png, gif, webp)
  */
-router.put('/', upload.single('profile_picture'), async (req, res) => {
+router.put('/', upload.single('profile_picture'), verifyUploadedFiles, async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
     let user = req.user || null;
 

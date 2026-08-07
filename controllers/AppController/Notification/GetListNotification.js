@@ -7,8 +7,9 @@ router.get("/", async(req , res) => {
     let response    = DEFAULT_API_RESPONSE
     let user        = req.user
 
-    let page        = req.query.page || 1
-    let limit       = req.query.limit || 10
+    // page/limit end up interpolated into LIMIT/OFFSET downstream — coerce them here.
+    let page        = Math.max(parseInt(req.query.page, 10) || 1, 1)
+    let limit       = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100)
     let offset      = (page - 1) * limit
 
     try {

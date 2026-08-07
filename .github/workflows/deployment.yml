@@ -125,6 +125,22 @@ jobs:
                   CHIP_WEBHOOK_PUBLIC_KEY: ${{ secrets.CHIP_WEBHOOK_PUBLIC_KEY }}
                   CHIP_CALLBACK_URL: ${{ secrets.CHIP_CALLBACK_URL }}
                   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+                  # Master key for credentials stored in system_config. Without it the
+                  # server cannot decrypt them and the admin configuration screen is
+                  # inoperable. Set per GitHub Environment — each environment encrypts
+                  # with its own key, so one shared value would break that isolation.
+                  CONFIG_ENCRYPTION_KEY: ${{ secrets.CONFIG_ENCRYPTION_KEY }}
+                  # Gmail was never written into env.yaml by this workflow. It worked only
+                  # because MailService carried hardcoded credentials in source; those have
+                  # been removed, so these are now the fallback when system_config cannot
+                  # be read.
+                  GMAIL_USER: ${{ secrets.GMAIL_USER }}
+                  GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+                  GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+                  GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+                  # Signs public payment-receipt links. Falls back to a value committed in
+                  # this repo when unset, which would let anyone mint valid receipt links.
+                  RECEIPT_TOKEN_SECRET: ${{ secrets.RECEIPT_TOKEN_SECRET }}
               run: |
                   # Build env.yaml locally on the runner, then SCP it to the server
                   {
@@ -145,6 +161,12 @@ jobs:
                     echo "  BASE_URL: \"${BASE_URL}\""
                     echo "  CHIP_API_URL: \"https://gate.chip-in.asia/api/v1\""
                     echo "  OPENAI_API_KEY: \"${OPENAI_API_KEY}\""
+                    echo "  CONFIG_ENCRYPTION_KEY: \"${CONFIG_ENCRYPTION_KEY}\""
+                    echo "  GMAIL_USER: \"${GMAIL_USER}\""
+                    echo "  GMAIL_CLIENT_ID: \"${GMAIL_CLIENT_ID}\""
+                    echo "  GMAIL_CLIENT_SECRET: \"${GMAIL_CLIENT_SECRET}\""
+                    echo "  GMAIL_REFRESH_TOKEN: \"${GMAIL_REFRESH_TOKEN}\""
+                    echo "  RECEIPT_TOKEN_SECRET: \"${RECEIPT_TOKEN_SECRET}\""
                   } > /tmp/env.yaml
 
                   scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no /tmp/env.yaml $DEPLOY_USER@$SERVER_HOST:$DEPLOY_PATH/env.yaml

@@ -13,7 +13,39 @@ const db = require("../utils/sqlbuilder")
 const OpenAI = require("openai");
 const fs     = require("fs");
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const ConfigService = require("./ConfigService");
+
+/**
+ * OpenAI client, resolved per call.
+ *
+ * Previously this module ran `new OpenAI({ apiKey: process.env.OPENAI_API_KEY })` at
+ * require() time. The SDK throws when the key is absent, so a missing key did not degrade
+ * OCR — it crashed the whole API during boot. And because production supplies the key
+ * from the shell PM2 was launched with rather than env.yaml, a `pm2 restart` from a clean
+ * shell was enough to trigger it.
+ *
+ * Reading through ConfigService also means a rotated key takes effect without a restart.
+ */
+let _client = null;
+let _key = null;
+
+async function getOpenAI() {
+    const apiKey = await ConfigService.get("openai", "OPENAI_API_KEY");
+
+    if (!apiKey) {
+        throw new Error(
+            "OPENAI_API_KEY is not configured. Set it in the admin portal under System Configuration, or in the environment."
+        );
+    }
+
+    // Rebuild only when the key actually changes.
+    if (!_client || _key !== apiKey) {
+        _client = new OpenAI({ apiKey });
+        _key = apiKey;
+    }
+
+    return _client;
+}
 
 const EXTRACTION_SYSTEM_PROMPT = `
 You are a receipt data extraction assistant.
@@ -146,6 +178,7 @@ async function extractReceiptData(filePath, mimeType) {
     let getPrompt = await GetReceiptOCRPrompt()
     console.log("Log Prompt : ", getPrompt)
 
+    const openai = await getOpenAI();
     const response = await openai.chat.completions.create({
         model: "gpt-5-mini",
         max_completion_tokens: 5000,

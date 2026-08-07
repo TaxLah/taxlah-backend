@@ -20,6 +20,25 @@ const {
 const ExpensesModel = require('../../../models/AppModel/Expenses');
 
 /**
+ * Columns the client is allowed to sort by.
+ *
+ * sort_by is interpolated straight into `ORDER BY ae.${sort_by}` in ExpensesModel
+ * (it cannot be a bound parameter), so it must be matched against a fixed list here.
+ * Every entry must be a real account_expenses column.
+ */
+const SORTABLE_COLUMNS = [
+    'created_date',
+    'last_modified',
+    'expenses_date',
+    'expenses_total_amount',
+    'expenses_merchant_name',
+    'expenses_year',
+    'expenses_mapping_confidence',
+    'expenses_mapping_date',
+    'expenses_mapping_status'
+];
+
+/**
  * GET /api/expenses/list
  * Get paginated list of expenses with filters
  * 
@@ -56,7 +75,7 @@ router.get('/', async (req, res) => {
             mapping_status: req.query.mapping_status || null,
             tax_category: req.query.tax_category ? parseInt(req.query.tax_category) : null,
             min_confidence: req.query.min_confidence ? parseFloat(req.query.min_confidence) : null,
-            sort_by: req.query.sort_by || 'created_date',
+            sort_by: SORTABLE_COLUMNS.includes(req.query.sort_by) ? req.query.sort_by : 'created_date',
             sort_order: (req.query.sort_order || 'DESC').toUpperCase()
         };
 

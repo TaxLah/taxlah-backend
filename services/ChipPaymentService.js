@@ -11,36 +11,61 @@ const crypto    = require('crypto');
 const fs        = require('fs');
 const path      = require('path');
 
-// CHIP API Configuration
-const CHIP_CONFIG = {
-    baseUrl: process.env.CHIP_API_URL || 'https://gate.chip-in.asia/api/v1',
-    brandId: process.env.CHIP_BRAND_ID || '3661e896-89cc-43b5-93db-54fc8d5da00e',
-    apiKey: process.env.CHIP_API_KEY || 'xGFwSV3Vch9PkQdIBSW5JgHr-MN5qBSoK0Q9RG5R7RPMEXNjfdLXiCW0dWhibewYQeIcNGBaoukwGPP_-iNA4w==',
-    webhookPublicKey: fs.readFileSync(path.join(__dirname, 'chip.pem'), 'utf8'),
-    currency: 'MYR',
-    testMode: process.env.NODE_ENV !== 'production'
-};
+const ConfigService = require('./ConfigService');
 
-// Validate CHIP configuration
-if (!CHIP_CONFIG.apiKey) {
-    console.error('[CHIP] ERROR: CHIP_API_KEY environment variable is not set!');
-    console.error('[CHIP] Please add CHIP_API_KEY to your .env file');
+/**
+ * Configuration is resolved per call rather than at module load.
+ *
+ * That is what makes credential rotation take effect without a restart: the previous
+ * version froze the API key into a module-level const and an axios instance built once at
+ * require() time, so a key changed in the admin portal would not be used until the whole
+ * process was restarted.
+ *
+ * ConfigService caches in memory and invalidates across every PM2 worker via Redis
+ * pub/sub, so this is a map lookup on the hot path, not a database round trip.
+ *
+ * Every value falls back to the environment, and the webhook key falls back to the bundled
+ * chip.pem, so the service keeps working before the database has been seeded.
+ */
+async function getConfig() {
+    const c = await ConfigService.getGroup('chip');
+
+    return {
+        baseUrl: c.CHIP_API_URL || process.env.CHIP_API_URL || 'https://gate.chip-in.asia/api/v1',
+        brandId: c.CHIP_BRAND_ID || process.env.CHIP_BRAND_ID || null,
+        apiKey: c.CHIP_API_KEY || process.env.CHIP_API_KEY || null,
+        webhookPublicKey: c.CHIP_WEBHOOK_PUBLIC_KEY || readBundledPem(),
+        callbackUrl: c.CHIP_CALLBACK_URL || process.env.CHIP_CALLBACK_URL || null,
+        currency: 'MYR',
+        testMode: process.env.NODE_ENV !== 'production'
+    };
 }
 
-if (!CHIP_CONFIG.brandId) {
-    console.error('[CHIP] ERROR: CHIP_BRAND_ID environment variable is not set!');
-    console.error('[CHIP] Please add CHIP_BRAND_ID to your .env file');
+/** Legacy fallback: the PEM committed alongside this service. */
+function readBundledPem() {
+    try {
+        return fs.readFileSync(path.join(__dirname, 'chip.pem'), 'utf8');
+    } catch (e) {
+        return null;
+    }
 }
 
-// Create axios instance for CHIP API
-const chipApi = axios.create({
-    baseURL: CHIP_CONFIG.baseUrl,
-    headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${CHIP_CONFIG.apiKey}`
-    },
-    timeout: 30000
-});
+/** A client bound to the current configuration. Cheap next to the network call it makes. */
+async function chipClient() {
+    const cfg = await getConfig();
+
+    if (!cfg.apiKey) console.error('[CHIP] No API key configured (checked system_config and env)');
+    if (!cfg.brandId) console.error('[CHIP] No brand ID configured (checked system_config and env)');
+
+    return axios.create({
+        baseURL: cfg.baseUrl,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${cfg.apiKey}`
+        },
+        timeout: 30000
+    });
+}
 
 /**
  * Create a purchase (payment) in CHIP
@@ -63,11 +88,14 @@ async function createPurchase(params) {
     } = params;
 
     try {
+        const cfg = await getConfig();
+        const chipApi = await chipClient();
+
         // Amount must be in smallest currency unit (sen for MYR)
         const amountInSen = Math.round(amount * 100);
 
         const purchaseData = {
-            brand_id: CHIP_CONFIG.brandId,
+            brand_id: cfg.brandId,
             client: {
                 email: customerEmail,
                 full_name: customerName,
@@ -75,7 +103,7 @@ async function createPurchase(params) {
             },
             reference: orderId,
             purchase: {
-                currency: CHIP_CONFIG.currency,
+                currency: cfg.currency,
                 products: [
                     {
                         name: productName,
@@ -129,6 +157,7 @@ async function createPurchase(params) {
  */
 async function getPurchase(purchaseId) {
     try {
+        const chipApi = await chipClient();
         const response = await chipApi.get(`/purchases/${purchaseId}/`);
 
         return {
@@ -161,8 +190,10 @@ async function getPurchase(purchaseId) {
  * @param {string} signature - X-Signature header value
  * @returns {boolean} - Whether signature is valid
  */
-function verifyWebhookSignature(payload, signature) {
-    if (!CHIP_CONFIG.webhookPublicKey) {
+async function verifyWebhookSignature(payload, signature) {
+    const cfg = await getConfig();
+
+    if (!cfg.webhookPublicKey) {
         console.warn('[CHIP] Webhook public key not configured');
         return false;
     }
@@ -171,10 +202,10 @@ function verifyWebhookSignature(payload, signature) {
         console.log('[CHIP] Verifying signature...');
         console.log('[CHIP] Payload length:', payload.length);
         console.log('[CHIP] Signature:', signature.substring(0, 50) + '...');
-        console.log('[CHIP] Public key loaded:', CHIP_CONFIG.webhookPublicKey.substring(0, 50) + '...');
+        console.log('[CHIP] Public key loaded:', cfg.webhookPublicKey.substring(0, 50) + '...');
 
         const publicKey = crypto.createPublicKey({
-            key: CHIP_CONFIG.webhookPublicKey,
+            key: cfg.webhookPublicKey,
             format: 'pem',
             type: 'spki'
         });
@@ -253,9 +284,11 @@ function ParseWebhookPayload(payload) {
  * @param {string} rawBody - Raw request body for signature verification
  * @returns {Object} - Processed webhook data
  */
-function processWebhook(body, signature, rawBody) {
+async function processWebhook(body, signature, rawBody) {
     // Verify signature in production
-    if (!CHIP_CONFIG.testMode && signature) {
+    const cfg = await getConfig();
+
+    if (!cfg.testMode && signature) {
         const isValid = verifyWebhookSignature(rawBody, signature);
         if (!isValid) {
             console.error('[CHIP] Invalid webhook signature');
@@ -342,10 +375,12 @@ function processWebhook(body, signature, rawBody) {
  */
 async function getPaymentMethods() {
     try {
+        const cfg = await getConfig();
+        const chipApi = await chipClient();
         const response = await chipApi.get('/payment_methods/', {
             params: {
-                brand_id: CHIP_CONFIG.brandId,
-                currency: CHIP_CONFIG.currency
+                brand_id: cfg.brandId,
+                currency: cfg.currency
             }
         });
 
@@ -379,6 +414,7 @@ async function refundPurchase(purchaseId, amount = null) {
             refundData.amount = Math.round(amount * 100);
         }
 
+        const chipApi = await chipClient();
         const response = await chipApi.post(`/purchases/${purchaseId}/refund/`, refundData);
 
         return {
@@ -470,5 +506,5 @@ module.exports = {
     getPaymentMethods,
     refundPurchase,
     createSubscriptionPayment,
-    CHIP_CONFIG
+    getConfig
 };

@@ -10,6 +10,7 @@ const { superauth } = require('../../../configs/auth')
 
 const {
     AdminGetSubscriptionsList, AdminGetSubscriptionDetails,
+    AdminGetSubscriptionHistory, AdminGetSubscriptionPayments,
     AdminGetUserSubscription, AdminUpdateSubscription, AdminRemoveSubscription
 } = require('../../../models/AdminModel/Subscription')
 
@@ -38,6 +39,34 @@ router.get('/user/:account_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'No subscription found for this user.' }
     } catch (e) {
         console.error('[AdminController/Subscription] UserSub:', e)
+        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+    }
+    return res.status(response.status_code).json(response)
+})
+
+/* ─── GET /superadmin/subscriptions/:subscription_id/history ───
+   Declared before the bare /:subscription_id route: Express matches in order, so a
+   param route registered first would capture "123/history" and never reach this. */
+router.get('/:subscription_id/history', superauth(), async (req, res) => {
+    let response = DEFAULT_API_RESPONSE
+    try {
+        const result = await AdminGetSubscriptionHistory(req.params.subscription_id, req.query.limit)
+        response = { ...SUCCESS_API_RESPONSE, message: 'Subscription history retrieved.', data: { events: result.data } }
+    } catch (e) {
+        console.error('[AdminController/Subscription] History:', e)
+        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+    }
+    return res.status(response.status_code).json(response)
+})
+
+/* ─── GET /superadmin/subscriptions/:subscription_id/payments ─── */
+router.get('/:subscription_id/payments', superauth(), async (req, res) => {
+    let response = DEFAULT_API_RESPONSE
+    try {
+        const result = await AdminGetSubscriptionPayments(req.params.subscription_id, req.query.limit)
+        response = { ...SUCCESS_API_RESPONSE, message: 'Subscription payments retrieved.', data: { payments: result.data } }
+    } catch (e) {
+        console.error('[AdminController/Subscription] Payments:', e)
         response = INTERNAL_SERVER_ERROR_API_RESPONSE
     }
     return res.status(response.status_code).json(response)

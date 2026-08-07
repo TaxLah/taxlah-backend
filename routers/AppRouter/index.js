@@ -82,7 +82,7 @@ router.post("/credit/webhook", express.raw({ type: 'application/json' }), async 
         console.log("Log Raw Body : ", rawBody)
 
         // Step 1: Verify signature (optional but recommended for production)
-        const verifyResult = ChipPaymentService.verifyWebhookSignature(rawBody, signature)
+        const verifyResult = await ChipPaymentService.verifyWebhookSignature(rawBody, signature)
         if (!verifyResult) {
             console.error('Invalid webhook signature')
             return res.status(200).json({ success: true }) // Always return 200 to CHIP
@@ -146,11 +146,15 @@ router.post("/billing/webhook", express.raw({ type: 'application/json' }), async
 
         console.log('[BillingWebhook] Received');
 
-        // const verifyResult = ChipPaymentService.verifyWebhookSignature(rawBody, signature);
-        // if (!verifyResult) {
-        //     console.error('[BillingWebhook] Invalid signature');
-        //     return res.status(200).json({ success: true });
-        // }
+        if (!signature) {
+            console.error('[BillingWebhook] Rejected: missing X-Signature header');
+            return res.status(200).json({ success: true });
+        }
+
+        if (!await ChipPaymentService.verifyWebhookSignature(rawBody, signature)) {
+            console.error('[BillingWebhook] Rejected: invalid signature');
+            return res.status(200).json({ success: true });
+        }
 
         const webhookData = JSON.parse(rawBody);
         const parseResult = ChipPaymentService.ParseWebhookPayload(webhookData);
@@ -168,7 +172,7 @@ router.post("/billing/webhook", express.raw({ type: 'application/json' }), async
             BillingMarkBillPaid,
             BillingUpdateBillStatus,
             BillingCreateTransaction,
-        } = require('../models/AppModel/BillingService');
+        } = require('../../models/AppModel/BillingService');
 
         const billResult = await BillingGetBillByChipPurchaseId(data.purchase_id);
         if (!billResult.success || !billResult.data) {

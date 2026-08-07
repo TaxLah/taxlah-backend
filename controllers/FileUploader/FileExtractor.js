@@ -6,7 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { upload, getFileUrl } = require('../../configs/fileUpload');
+const { upload, verifyUploadedFiles, getFileUrl } = require('../../configs/fileUpload');
 const {
     DEFAULT_API_RESPONSE,
     INTERNAL_SERVER_ERROR_API_RESPONSE,
@@ -128,7 +128,7 @@ const checkUploadLimit = async (req, res, next) => {
  * Upload single or multiple files
  * Requires authentication and active subscription
  */
-router.post("/", auth(), checkSubscription, checkUploadLimit, upload.array('files', 10), async (req, res) => {
+router.post("/", auth(), checkSubscription, checkUploadLimit, upload.array('files', 10), verifyUploadedFiles, async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
 
     try {
@@ -183,7 +183,7 @@ router.post("/", auth(), checkSubscription, checkUploadLimit, upload.array('file
  * Upload single file with OCR extraction
  * Requires authentication and active subscription
  */
-router.post("/single", auth(), checkSubscription, checkUploadLimit, upload.single('file'), async (req, res) => {
+router.post("/single", auth(), checkSubscription, checkUploadLimit, upload.single('file'), verifyUploadedFiles, async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
 
     try {
@@ -238,8 +238,8 @@ router.post("/single", auth(), checkSubscription, checkUploadLimit, upload.singl
  * This is the new endpoint for full receipt processing
  * Requires authentication and active subscription
  */
-// router.post("/receipt", auth(), checkSubscription, checkUploadLimit, upload.single('file'), async (req, res) => {
-router.post("/receipt", auth(), checkUploadLimit, upload.single('file'), async (req, res) => {
+// router.post("/receipt", auth(), checkSubscription, checkUploadLimit, upload.single('file'), verifyUploadedFiles, async (req, res) => {
+router.post("/receipt", auth(), checkUploadLimit, upload.single('file'), verifyUploadedFiles, async (req, res) => {
     let response = DEFAULT_API_RESPONSE;
 
     try {

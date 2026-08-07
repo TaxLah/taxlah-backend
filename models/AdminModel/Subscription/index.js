@@ -50,9 +50,20 @@ async function AdminGetSubscriptionsList(params = {}) {
 // ----- Subscription details -----
 async function AdminGetSubscriptionDetails(subscription_id) {
     try {
+        // Columns are listed explicitly rather than `a.*`: the account table holds IC
+        // numbers, salary bands and the account secret key, and this payload goes to a
+        // browser. Only what the screen actually renders is selected.
         const sql = `
-            SELECT s.*, a.account_name, a.account_email, a.account_contact,
-                   p.package_name, p.package_code, p.price_amount AS pkg_price, p.features
+            SELECT s.*,
+                   a.account_name, a.account_fullname, a.account_email, a.account_contact,
+                   a.account_ic, a.account_gender, a.account_dob, a.account_status,
+                   a.account_verified, a.account_is_employed, a.account_is_tax_declared,
+                   a.account_salary_range, a.account_address_1, a.account_address_2,
+                   a.account_address_3, a.account_address_postcode, a.account_address_city,
+                   a.account_address_state, a.created_date AS account_created_date,
+                   p.package_name, p.package_code, p.price_amount AS pkg_price,
+                   p.features, p.storage_limit_mb, p.max_receipts, p.max_reports,
+                   p.package_badge, p.package_color
             FROM account_subscription s
             JOIN account a ON s.account_id = a.account_id
             JOIN subscription_package p ON s.sub_package_id = p.sub_package_id
@@ -64,6 +75,51 @@ async function AdminGetSubscriptionDetails(subscription_id) {
     } catch (e) {
         console.error('[AdminModel/Subscription] AdminGetSubscriptionDetails:', e)
         return { status: false, data: null }
+    }
+}
+
+/**
+ * Event timeline for a subscription.
+ *
+ * subscription_history is written by SubscriptionService on every state change but has
+ * never been exposed to the admin API, so this data existed with no way to read it.
+ */
+async function AdminGetSubscriptionHistory(subscription_id, limit = 50) {
+    try {
+        const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200)
+        const sql = `
+            SELECT history_id, subscription_id, account_id, event_type, event_description,
+                   old_status, new_status, metadata, event_date
+            FROM subscription_history
+            WHERE subscription_id = ?
+            ORDER BY event_date DESC, history_id DESC
+            LIMIT ${safeLimit}
+        `
+        const rows = await db.raw(sql, [subscription_id])
+        return { status: true, data: rows }
+    } catch (e) {
+        console.error('[AdminModel/Subscription] AdminGetSubscriptionHistory:', e)
+        return { status: false, data: [] }
+    }
+}
+
+/** Payments recorded against a subscription, newest first. */
+async function AdminGetSubscriptionPayments(subscription_id, limit = 50) {
+    try {
+        const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200)
+        const sql = `
+            SELECT payment_id, payment_ref, amount, currency, payment_gateway,
+                   payment_status, period_start, period_end, paid_date, created_date
+            FROM subscription_payment
+            WHERE subscription_id = ?
+            ORDER BY created_date DESC
+            LIMIT ${safeLimit}
+        `
+        const rows = await db.raw(sql, [subscription_id])
+        return { status: true, data: rows }
+    } catch (e) {
+        console.error('[AdminModel/Subscription] AdminGetSubscriptionPayments:', e)
+        return { status: false, data: [] }
     }
 }
 
@@ -108,4 +164,12 @@ async function AdminRemoveSubscription(subscription_id) {
     }
 }
 
-module.exports = { AdminGetSubscriptionsList, AdminGetSubscriptionDetails, AdminGetUserSubscription, AdminUpdateSubscription, AdminRemoveSubscription }
+module.exports = {
+    AdminGetSubscriptionsList,
+    AdminGetSubscriptionDetails,
+    AdminGetSubscriptionHistory,
+    AdminGetSubscriptionPayments,
+    AdminGetUserSubscription,
+    AdminUpdateSubscription,
+    AdminRemoveSubscription
+}

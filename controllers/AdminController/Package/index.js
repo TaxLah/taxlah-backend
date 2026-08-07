@@ -53,7 +53,9 @@ router.post('/', superauth(), async (req, res) => {
         const {
             package_code, package_name, billing_period, price_amount,
             features, max_receipts, max_reports, storage_limit_mb,
-            sort_order = 0, status = 'Active', package_description
+            sort_order = 0, status = 'Active', package_description,
+            currency = 'MYR', trial_days = 0, is_featured = 'No',
+            package_badge = null, package_color = null
         } = req.body
 
         if (CHECK_EMPTY(package_code) || CHECK_EMPTY(package_name) || CHECK_EMPTY(billing_period) || price_amount === undefined) {
@@ -72,9 +74,16 @@ router.post('/', superauth(), async (req, res) => {
             price_amount: parseFloat(price_amount),
             package_description:  package_description || null,
             features:             features ? JSON.stringify(features) : null,
+            // null means "unlimited" in this schema, so an empty field must stay null
+            // rather than becoming 0, which would mean "none allowed".
             max_receipts:         max_receipts   || null,
             max_reports:          max_reports    || null,
             storage_limit_mb:     storage_limit_mb || null,
+            currency,
+            trial_days,
+            is_featured,
+            package_badge,
+            package_color,
             sort_order,
             status,
             created_date: new Date()
@@ -94,9 +103,15 @@ router.post('/', superauth(), async (req, res) => {
 router.put('/:package_id', superauth(), async (req, res) => {
     let response = DEFAULT_API_RESPONSE
     try {
+        // package_code is deliberately absent: the mobile app and SubscriptionService
+        // match on it, so letting it be edited would silently detach live subscriptions
+        // from their package.
         const allowed = [
-            'package_name','package_description','billing_period','price_amount',
-            'features','max_receipts','max_reports','storage_limit_mb','sort_order','status'
+            'package_name','package_description','billing_period','price_amount','currency',
+            'features','max_receipts','max_reports','storage_limit_mb','sort_order','status',
+            // Added so the admin screen can manage them — trial length and which plan the
+            // app highlights are business decisions, not deploy-time constants.
+            'trial_days','is_featured','package_badge','package_color'
         ]
         const update = {}
         allowed.forEach(k => {

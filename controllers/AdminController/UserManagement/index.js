@@ -140,7 +140,9 @@ router.put('/:account_id', superauth(), async (req, res) => {
             'account_contact',
             'account_gender',
             'account_ic',
-            'accocunt_dob',
+            // was 'accocunt_dob' — the typo meant account_dob was filtered out of every
+            // update, so date of birth could never be changed through this endpoint
+            'account_dob',
             'account_is_employed',
             'account_is_tax_declared',
             'account_salary_range',

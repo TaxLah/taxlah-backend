@@ -1,5 +1,8 @@
 /node_modules
 env.yaml
+# Timestamped backups of env.yaml hold every secret in plaintext
+env.yaml.bak-*
+*.bak-*
 .env
 
 # Firebase service account credentials — DO NOT COMMIT

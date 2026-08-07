@@ -3,18 +3,24 @@ const db = require("../../../utils/sqlbuilder")
 async function UserNotificationGetList(params = { account_id, offset: 0, limit: 10 }) {
     let result = null
     try {
-        let sql     = `SELECT notification_id, notification_title, read_status, archive_status, created_at FROM account_notification WHERE account_id LIKE ? ORDER BY created_at DESC LIMIT ${params.limit} OFFSET ${params.offset}`
+        // LIMIT/OFFSET cannot be bound parameters, so they are coerced before interpolation.
+        const limit  = Math.min(Math.max(parseInt(params.limit, 10) || 10, 1), 100)
+        const offset = Math.max(parseInt(params.offset, 10) || 0, 0)
+
+        let sql     = `SELECT notification_id, notification_title, read_status, archive_status, created_at FROM account_notification WHERE account_id LIKE ? ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
         let query   = await db.raw(sql, [params.account_id])
 
-        let sql2    = `SELECT COUNT(*) FROM account_notification WHERE account_id LIKE ?`
+        let sql2    = `SELECT COUNT(*) AS total FROM account_notification WHERE account_id LIKE ?`
         let query2  = await db.raw(sql2, [params.account_id])
+
+        const total = Number(query2[0]?.total) || 0
 
         result = {
             status: true,
             data: {
                 row: query,
-                total: query2[0]["TOTAL"],
-                totalPages: Math.ceil(query2[0]["TOTAL"] / params.limit)
+                total,
+                totalPages: Math.ceil(total / limit)
             }
         }
     } catch (e) {
@@ -33,7 +39,11 @@ async function UserNotificationGetInfo(account_id, notification_id) {
             status: true,
             data: sql.length ? sql[0] : null
         }
-        await UserNotifiactionUpdate({notification_id, read_status: 'Yes'})
+        // Only mark read when the notification actually belongs to this account —
+        // otherwise any account_id could flip another user's notification to read.
+        if (sql.length) {
+            await UserNotifiactionUpdate({ account_id, notification_id, read_status: 'Yes' })
+        }
     } catch (e) {
         result = { status: false, data: null }
     }  finally {
@@ -58,12 +68,20 @@ async function UserNotificationCreate(params = { account_id, notification_title:
     }
 }
 
-async function UserNotifiactionUpdate(params = { notification_id, read_status: 'No', archive_status: 'No', status: 'Active' }) {
+async function UserNotifiactionUpdate(params = { account_id, notification_id, read_status: 'No', archive_status: 'No', status: 'Active' }) {
     let result = null
     try {
-        let sql = await db.update('account_notification', params, { notification_id: params.notification_id })
-        if(sql.insertId) {
-            result = { status: true, data: sql.insertId }
+        // account_id and notification_id identify the row; everything else is the update.
+        const { account_id, notification_id, ...fields } = params
+
+        const where = { notification_id }
+        if (account_id) where.account_id = account_id
+
+        // db.update returns the affectedRows count itself, not a result object —
+        // the previous `sql.insertId` read a property off a number and was always undefined.
+        let affectedRows = await db.update('account_notification', fields, where)
+        if(affectedRows) {
+            result = { status: true, data: affectedRows }
         } else {
             result = { status: false, data: null }
         }
