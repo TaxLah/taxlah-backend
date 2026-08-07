@@ -281,8 +281,93 @@ ${paragraph('If this was not you, you can safely ignore this email — your acco
     };
 };
 
+
+/**
+ * Payment receipt.
+ *
+ * Subscription activation previously sent a push and an in-app row and nothing else —
+ * no email was ever written for it. People expect a receipt in their inbox they can
+ * file, and it is the only copy that survives uninstalling the app.
+ *
+ * Every figure is passed in from the bill, never recomputed here.
+ */
+const PaymentReceiptEmail = (receipt) => {
+    const cur = receipt.currency || 'MYR';
+    const amt = (n) => Number(n || 0).toFixed(2);
+    const date = (d) => d
+        ? new Date(d).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
+        : '—';
+
+    const reference = receipt.invoice_no || receipt.payment_ref;
+
+    const line = (label, value, strong = false) => `
+    <tr>
+      <td style="padding:7px 0;font-size:14px;color:${BRAND.body};">${label}</td>
+      <td align="right" style="padding:7px 0;font-size:${strong ? '17px' : '14px'};font-weight:${strong ? '800' : '600'};color:${BRAND.inkSoft};">${value}</td>
+    </tr>`;
+
+    return {
+        subject: `Your TaxLah receipt — ${reference}`,
+        text: `${greetingText(receipt.customer_name)}
+
+Thank you for your payment.
+
+Receipt:     ${reference}
+Plan:        ${receipt.package_name}
+Period:      ${date(receipt.period_start)} to ${date(receipt.period_end)}
+Paid on:     ${date(receipt.payment_date)}
+Method:      ${receipt.payment_method || 'Online'}
+
+Subtotal:    ${cur} ${amt(receipt.subtotal)}
+${receipt.sst_amount !== null && receipt.sst_amount !== undefined ? `SST:         ${cur} ${amt(receipt.sst_amount)}\n` : ''}Total paid:  ${cur} ${amt(receipt.amount)}
+
+A PDF copy is attached for your records.
+
+Best regards,
+The TaxLah Team`,
+
+        html: layout({
+            heading: 'Payment receipt',
+            preheader: `${cur} ${amt(receipt.amount)} for ${receipt.package_name}. Receipt ${reference}.`,
+            body: `
+${paragraph(greeting(receipt.customer_name))}
+${paragraph('Thank you for your payment. Here is your receipt — a PDF copy is attached for your records.')}
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0;">
+<tr><td bgcolor="${BRAND.tint}" style="background-color:${BRAND.tint};border-radius:14px;padding:20px 22px;">
+  <div style="font-size:11.5px;font-weight:700;letter-spacing:1px;color:${BRAND.body};text-transform:uppercase;">Total paid</div>
+  <div style="margin-top:6px;font-size:30px;font-weight:800;color:${BRAND.deep};">${cur} ${amt(receipt.amount)}</div>
+  <div style="margin-top:4px;font-size:12.5px;color:${BRAND.body};">Receipt ${reference}</div>
+</td></tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  ${line('Plan', receipt.package_name)}
+  ${line('Type', receipt.subscription_type || 'Subscription')}
+  ${line('Period', `${date(receipt.period_start)} — ${date(receipt.period_end)}`)}
+  ${line('Paid on', date(receipt.payment_date))}
+  ${line('Method', receipt.payment_method || 'Online')}
+</table>
+
+<div style="height:1px;background:${BRAND.border};margin:18px 0;"></div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  ${line('Subtotal', `${cur} ${amt(receipt.subtotal)}`)}
+  ${receipt.sst_amount !== null && receipt.sst_amount !== undefined
+      ? line(`SST${receipt.sst_rate ? ` (${(Number(receipt.sst_rate) * 100).toFixed(0)}%)` : ''}`, `${cur} ${amt(receipt.sst_amount)}`)
+      : ''}
+  ${line('Total paid', `${cur} ${amt(receipt.amount)}`, true)}
+</table>
+
+${paragraph('Keep this receipt as proof of payment for this subscription period. Payment was processed by CHIP.', 'margin-top:20px;')}
+`,
+        }),
+    };
+};
+
 module.exports = {
     OnboardingEmail,
+    PaymentReceiptEmail,
     ForgotPasswordEmail,
     ApprovalCodeEmail,
 };

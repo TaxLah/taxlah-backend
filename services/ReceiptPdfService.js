@@ -16,6 +16,18 @@ const db = require('../utils/sqlbuilder');
 
 const RECEIPT_ROOT = path.join(__dirname, '../asset/receipt');
 
+/**
+ * The brand mark, embedded in the header.
+ *
+ * Kept under services/ rather than asset/, because the deploy's rsync excludes asset/
+ * and assets/ — a logo placed there would never reach a server, and the receipt would
+ * silently fall back to the wordmark in production while looking right locally.
+ *
+ * Resized to 240px: the 1024px original is 312KB, which would dwarf the 2.5KB document
+ * it is being stamped on.
+ */
+const LOGO_PATH = path.join(__dirname, 'assets/taxlah-logo.jpg');
+
 // Brand palette, matching the app. #17739B carries white text at 5.30:1.
 const BRAND = '#17739B';
 const BRAND_LIGHT = '#E8F7FB';
@@ -54,9 +66,19 @@ function render(doc, r) {
 
     // ── Header band ──
     doc.rect(0, 0, 595, 110).fill(BRAND);
-    doc.fillColor('#FFFFFF').fontSize(22).font('Helvetica-Bold').text('TaxLah', left, 34);
+
+    // The mark sits on a white tile: the icon is itself a light cyan gradient, so placed
+    // straight onto the brand band the two would merge into one soft shape.
+    let textX = left;
+    if (fs.existsSync(LOGO_PATH)) {
+        doc.roundedRect(left, 28, 54, 54, 12).fill('#FFFFFF');
+        doc.image(LOGO_PATH, left + 5, 33, { width: 44, height: 44 });
+        textX = left + 68;
+    }
+
+    doc.fillColor('#FFFFFF').fontSize(22).font('Helvetica-Bold').text('TaxLah', textX, 38);
     doc.fontSize(9).font('Helvetica')
-        .text('Malaysian tax relief, tracked automatically', left, 62);
+        .text('Malaysian tax relief, tracked automatically', textX, 64);
 
     doc.fontSize(16).font('Helvetica-Bold')
         .text('RECEIPT', left, 34, { width: right - left, align: 'right' });

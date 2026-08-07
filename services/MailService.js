@@ -80,7 +80,73 @@ class MailService {
     /**
      * Build a base64url-encoded RFC 2822 raw email message
      */
-    _buildRawMessage({ from, to, subject, text, html }) {
+    /** multipart/mixed wrapper: body alternatives first, then each file. */
+    _buildRawMessageWithAttachments({ from, to, subject, text, html, attachments }) {
+        const stamp = Date.now();
+        const mixed = `mixed_taxlah_${stamp}`;
+        const alt = `alt_taxlah_${stamp}`;
+        const lines = [];
+
+        lines.push(`From: ${from}`);
+        lines.push(`To: ${to}`);
+        lines.push(`Subject: ${this._encodeHeader(subject)}`);
+        lines.push('MIME-Version: 1.0');
+        lines.push(`Content-Type: multipart/mixed; boundary="${mixed}"`);
+        lines.push('');
+
+        lines.push(`--${mixed}`);
+        lines.push(`Content-Type: multipart/alternative; boundary="${alt}"`);
+        lines.push('');
+
+        if (text) {
+            lines.push(`--${alt}`);
+            lines.push('Content-Type: text/plain; charset="UTF-8"');
+            lines.push('');
+            lines.push(text);
+        }
+
+        if (html) {
+            lines.push(`--${alt}`);
+            lines.push('Content-Type: text/html; charset="UTF-8"');
+            lines.push('');
+            lines.push(html);
+        }
+
+        lines.push(`--${alt}--`);
+
+        for (const file of attachments) {
+            const body = Buffer.isBuffer(file.content) ? file.content : Buffer.from(file.content);
+            lines.push(`--${mixed}`);
+            lines.push(`Content-Type: ${file.contentType || 'application/octet-stream'}; name="${file.filename}"`);
+            lines.push('Content-Transfer-Encoding: base64');
+            lines.push(`Content-Disposition: attachment; filename="${file.filename}"`);
+            lines.push('');
+            // Wrapped at 76 characters, as base64 in MIME requires.
+            lines.push(body.toString('base64').replace(/(.{76})/g, '$1\n'));
+        }
+
+        lines.push(`--${mixed}--`);
+
+        return Buffer.from(lines.join('\r\n'))
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+    }
+
+    /**
+     * @param {Array<{filename: string, content: Buffer, contentType?: string}>} attachments
+     *
+     * With attachments the body has to be wrapped in multipart/mixed, with the
+     * text/html alternative nested inside it — a bare multipart/alternative has no
+     * place to put a file, and clients would either ignore the attachment or show the
+     * whole message as an unreadable blob.
+     */
+    _buildRawMessage({ from, to, subject, text, html, attachments = [] }) {
+        if (attachments.length) {
+            return this._buildRawMessageWithAttachments({ from, to, subject, text, html, attachments });
+        }
+
         const boundary = `boundary_taxlah_${Date.now()}`;
         const lines = [];
 
@@ -128,7 +194,7 @@ class MailService {
      * @param {string} options.from - Sender email (optional, defaults to GMAIL_USER)
      * @returns {object} - Result with success status and info
      */
-    async sendMail({ to, subject, text = '', html = '', from = null }) {
+    async sendMail({ to, subject, text = '', html = '', from = null, attachments = [] }) {
         const { client: gmail, cfg, error: clientError } = await this.getClient();
 
         if (!gmail) {
@@ -152,7 +218,7 @@ class MailService {
         const sender = from || `"TaxLah" <${cfg.user}>`;
 
         try {
-            const raw = this._buildRawMessage({ from: sender, to, subject, text, html });
+            const raw = this._buildRawMessage({ from: sender, to, subject, text, html, attachments });
             const response = await gmail.users.messages.send({
                 userId: 'me',
                 requestBody: { raw }

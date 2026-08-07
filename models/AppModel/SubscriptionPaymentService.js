@@ -442,6 +442,10 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                         amount:      String(payment.amount)
                     }
                 );
+
+                // Emailed receipt with the PDF attached. Not awaited: the payment is
+                // already settled and the gateway is waiting on this response.
+                sendReceiptEmail(paymentRef);
             } catch (notifError) {
                 console.error('[SubscriptionPaymentService] Failed to create renewal notification:', notifError);
             }
@@ -532,9 +536,13 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                     await NotificationService.sendUserNotification(
                         payment.account_id,
                         '🎉 Subscription Activated',
-                        `Your payment of ${payment.currency} ${payment.amount} has been processed and your subscription is now active.`,
+                        `Your payment of ${payment.currency} ${await chargedTotal(paymentRef, payment.amount)} has been processed and your subscription is now active.`,
                         { type: 'SubscriptionActivated', payment_ref: paymentRef, amount: String(payment.amount) }
                     );
+
+                    // Emailed receipt with the PDF attached. Not awaited: the payment is
+                    // already settled and the gateway is waiting on this response.
+                    sendReceiptEmail(paymentRef);
                 } catch (notifError) {
                     console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
                 }
@@ -615,13 +623,17 @@ async function processSuccessfulPayment(paymentRef, gatewayTransactionId, gatewa
                     await NotificationService.sendUserNotification(
                         payment.account_id,
                         '🎉 Subscription Activated',
-                        `Welcome to TaxLah Premium! Your payment of ${payment.currency} ${payment.amount} has been processed and your subscription is now active.`,
+                        `Welcome to TaxLah Premium! Your payment of ${payment.currency} ${await chargedTotal(paymentRef, payment.amount)} has been processed and your subscription is now active.`,
                         {
                             type:        'SubscriptionActivated',
                             payment_ref: paymentRef,
                             amount:      String(payment.amount)
                         }
                     );
+
+                    // Emailed receipt with the PDF attached. Not awaited: the payment is
+                    // already settled and the gateway is waiting on this response.
+                    sendReceiptEmail(paymentRef);
                 } catch (notifError) {
                     console.error('[SubscriptionPaymentService] Failed to create notification:', notifError);
                 }
@@ -1015,7 +1027,95 @@ async function getPaymentReceipt(paymentRef) {
     }
 }
 
+
+/**
+ * Emails the receipt, with the PDF attached.
+ *
+ * Activation used to send only a push and an in-app row. Both live inside the app, so
+ * uninstalling it takes the only record of the payment with them — and the push itself
+ * never arrived at all while Firebase was uninitialised on the servers. An emailed
+ * receipt is the copy people can actually file.
+ *
+ * Failures are logged and swallowed: a payment is already complete by this point, and
+ * an SMTP problem must not roll it back or block the response to the gateway.
+ */
+/**
+ * The figure to quote to a customer: what the card was actually charged.
+ *
+ * subscription_payment.amount is the tax-exclusive price, so notifications quoting it
+ * told someone who paid RM15.79 that their "payment of MYR 14.90" had gone through.
+ * The bill carries the charged total, captured when it was issued.
+ */
+async function chargedTotal(paymentRef, fallbackAmount) {
+    try {
+        const rows = await db.raw(
+            `SELECT b.total_amount
+               FROM bill b
+               JOIN subscription_payment sp
+                 ON b.chip_purchase_id = sp.gateway_transaction_id
+                AND b.account_id = sp.account_id
+              WHERE sp.payment_ref = ?
+              LIMIT 1`,
+            [paymentRef]
+        );
+        if (rows.length && rows[0].total_amount !== null) return Number(rows[0].total_amount).toFixed(2);
+    } catch (e) {
+        console.error('[chargedTotal] falling back for', paymentRef, '-', e.message);
+    }
+    return Number(fallbackAmount || 0).toFixed(2);
+}
+
+async function sendReceiptEmail(paymentRef) {
+    try {
+        const result = await getPaymentReceipt(paymentRef);
+        if (!result.success || !result.data) {
+            console.error('[Receipt email] no receipt for', paymentRef);
+            return;
+        }
+
+        const receipt = result.data;
+        if (!receipt.customer_email) {
+            console.warn('[Receipt email] account has no email address:', receipt.account_id);
+            return;
+        }
+
+        const { PaymentReceiptEmail } = require('../../services/MailTemplate');
+        const { ensureReceiptPdf } = require('../../services/ReceiptPdfService');
+        const mailService = require('../../services/MailService');
+        const fs = require('fs');
+
+        const mail = PaymentReceiptEmail(receipt);
+
+        // Attach the same PDF the app serves, so both copies are identical.
+        let attachments = [];
+        try {
+            const { filepath } = await ensureReceiptPdf(receipt);
+            attachments = [{
+                filename: `TaxLah-Receipt-${receipt.invoice_no || receipt.payment_ref}.pdf`,
+                content: fs.readFileSync(filepath),
+                contentType: 'application/pdf',
+            }];
+        } catch (e) {
+            // Send the email regardless — the figures are in the body either way.
+            console.error('[Receipt email] PDF unavailable, sending without it:', e.message);
+        }
+
+        await mailService.sendMail({
+            to: receipt.customer_email,
+            subject: mail.subject,
+            text: mail.text,
+            html: mail.html,
+            attachments,
+        });
+
+        console.log(`[Receipt email] sent to ${receipt.customer_email} for ${paymentRef}`);
+    } catch (e) {
+        console.error('[Receipt email] failed for', paymentRef, '-', e.message);
+    }
+}
+
 module.exports = {
+    sendReceiptEmail,
     createPaymentRecord,
     getPaymentByRef,
     getPaymentHistory,
