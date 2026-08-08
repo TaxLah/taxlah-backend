@@ -116,7 +116,11 @@ router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req,
                     date:         extracted.date,
                     total_amount: extracted.total_amount,
                     currency:     extracted.currency,
+                    receipt_no:   extracted.receipt_no,
                     items:        extracted.items,
+                    discount_amount:       extracted.discount_amount,
+                    service_charge_amount: extracted.service_charge_amount,
+                    tax_amount:            extracted.tax_amount,
                     notes:        extracted.notes
                 },
                 file: {

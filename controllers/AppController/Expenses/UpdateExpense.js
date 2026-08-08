@@ -21,6 +21,11 @@ const {
     sanitize
 } = require('../../../configs/helper');
 const ExpensesModel = require('../../../models/AppModel/Expenses');
+const { validateSubmittedItems } = require('../../../utils/expenseItems');
+const { upload, verifyUploadedFiles, getFileUrl } = require('../../../configs/fileUpload');
+const { CreateReceipt } = require('../../../models/AppModel/Receipt');
+const { computeFileHash, computePerceptualHash } = require('../../../utils/receiptHash');
+const db = require('../../../utils/sqlbuilder');
 
 /**
  * PUT /api/expenses/update/:id
@@ -47,7 +52,7 @@ const ExpensesModel = require('../../../models/AppModel/Expenses');
  *   ]
  * }
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', upload.single('receipt_file'), verifyUploadedFiles, async (req, res) => {
     let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
@@ -68,7 +73,17 @@ router.put('/:id', async (req, res) => {
             return res.status(response.status_code).json(response);
         }
 
-        console.log('[UpdateExpense] Request:', { account_id, expenses_id, params });
+        // Ownership is established here, before anything is written. It used to be
+        // checked only inside updateExpense — so a request that sent items and nothing
+        // else skipped the check entirely, and any authenticated user could replace
+        // any other user's expense items by guessing an id.
+        const owned = await ExpensesModel.getExpenseById(account_id, expenses_id);
+        if (!owned.status) {
+            response = { ...NOT_FOUND_API_RESPONSE, message: 'Expense not found' };
+            return res.status(response.status_code).json(response);
+        }
+
+        console.log('[UpdateExpense] Request:', { account_id, expenses_id });
 
         // Build update object (only include provided fields)
         const updateData = {};
@@ -118,47 +133,78 @@ router.put('/:id', async (req, res) => {
             updateData.dependant_id = params.dependant_id ? parseInt(params.dependant_id) : null;
         }
 
-        // Validate and sanitize items if provided
+        // Items go through the same strict validator as create: positive prices,
+        // quantity of at least one, a name per line — a bad line is a 400 naming it.
         let items = null;
         let shouldUpdateItems = false;
-        
+
         if (params.items !== undefined) {
             shouldUpdateItems = true;
-            
-            if (Array.isArray(params.items)) {
-                items = params.items.map(item => {
-                    // Validate required fields for items
-                    if (!item.item_name || item.item_name.trim() === '') {
-                        throw new Error('Item name is required for each item');
-                    }
 
-                    return {
-                        item_sku_unit: sanitize(item.item_sku_unit || ''),
-                        item_name: sanitize(item.item_name),
-                        item_unit_price: parseFloat(item.item_unit_price || 0),
-                        item_quantity: parseInt(item.item_quantity || 0),
-                        item_total_price: parseFloat(item.item_total_price || 0)
-                    };
-                });
-            } else if (typeof params.items === 'string') {
-                // Parse items if sent as JSON string (common in multipart form data)
+            let rawItems = params.items;
+            if (typeof rawItems === 'string') {
                 try {
-                    const parsedItems = JSON.parse(params.items);
-                    if (Array.isArray(parsedItems)) {
-                        items = parsedItems.map(item => ({
-                            item_sku_unit: sanitize(item.item_sku_unit || ''),
-                            item_name: sanitize(item.item_name),
-                            item_unit_price: parseFloat(item.item_unit_price || 0),
-                            item_quantity: parseInt(item.item_quantity || 0),
-                            item_total_price: parseFloat(item.item_total_price || 0)
-                        }));
-                    }
+                    rawItems = JSON.parse(rawItems);
                 } catch (jsonError) {
-                    console.warn('[UpdateExpense] Failed to parse items JSON:', jsonError);
-                    response = { ...BAD_REQUEST_API_RESPONSE };
-                    response.message = 'Invalid items format. Must be an array or valid JSON string';
+                    response = { ...BAD_REQUEST_API_RESPONSE, message: 'items is not valid JSON.' };
                     return res.status(response.status_code).json(response);
                 }
+            }
+
+            const validated = validateSubmittedItems(rawItems);
+            if (validated.errors) {
+                response = { ...BAD_REQUEST_API_RESPONSE, message: validated.errors.join(' ') };
+                return res.status(response.status_code).json(response);
+            }
+            items = validated.items.map(item => ({
+                ...item,
+                item_sku_unit: item.item_sku_unit ? sanitize(item.item_sku_unit) : null,
+                item_name: item.item_name ? sanitize(item.item_name) : null
+            }));
+        }
+
+        // Optional replacement receipt. The new file becomes a new receipt row and the
+        // expense repoints to it; the old row is archived, never deleted, so the
+        // original upload stays on record.
+        if (req.file) {
+            const receipt_file_url = getFileUrl(req.file.path);
+            let receipt_hash = null, receipt_phash = null;
+            try {
+                receipt_hash  = computeFileHash(req.file.path);
+                receipt_phash = await computePerceptualHash(req.file.path, req.file.mimetype);
+            } catch (hashErr) {
+                console.warn('[UpdateExpense] Hashing replacement receipt failed (non-fatal):', hashErr.message);
+            }
+
+            const receiptResult = await CreateReceipt({
+                account_id: parseInt(account_id),
+                receipt_name: params.expenses_merchant_name || owned.data.expenses_merchant_name || 'Expense Receipt',
+                receipt_description: `Replacement receipt for expense ${expenses_id}`,
+                receipt_amount: parseFloat(params.expenses_total_amount || owned.data.expenses_total_amount) || 0,
+                receipt_image_url: receipt_file_url,
+                receipt_metadata: JSON.stringify({
+                    original_name: req.file.originalname,
+                    mimetype: req.file.mimetype,
+                    size: req.file.size,
+                    replaces_receipt_id: owned.data.receipt_id || null,
+                    uploaded_date: new Date().toISOString()
+                }),
+                receipt_hash,
+                receipt_phash: receipt_phash !== null ? receipt_phash.toString() : null,
+                status: 'Active'
+            });
+
+            if (receiptResult.status) {
+                updateData.receipt_id = receiptResult.data;
+                if (owned.data.receipt_id) {
+                    await db.raw(
+                        `UPDATE receipt SET status = 'Inactive', last_modified = NOW()
+                          WHERE receipt_id = ? AND account_id = ?`,
+                        [owned.data.receipt_id, account_id]
+                    ).catch((e) => console.warn('[UpdateExpense] old receipt archive failed:', e.message));
+                }
+            } else {
+                console.warn('[UpdateExpense] Replacement receipt row failed — file kept, expense unchanged');
             }
         }
 

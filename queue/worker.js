@@ -204,55 +204,29 @@ aiReceiptQueue.process("analyseReceipt", async (job) => {
 		console.log("Log Tax Eligible : ", taxEligible)
 		console.log("Log Confidence Score : ", confidenceScore)
 
-		// Upsert account_tax_claim if expense is tax eligible (Self claim for that year)
+		// Maintain the claim row the green Tax Relief figure reads.
+		//
+		// This runs in its own try/catch, deliberately: the analysis itself has already
+		// succeeded and been written to the expense. The previous shape let a claim
+		// failure fall into the outer catch, which stamped ai_processing_status='Failed'
+		// onto an expense that was already marked tax-eligible — a state the app then
+		// showed as "eligible" on the row and RM0.00 on the summary, permanently,
+		// because nothing ever reconciled the two. A claim failure now logs loudly and
+		// leaves the job Completed; scripts/repair-tax-claims.js can heal any residue.
 		if (taxEligible == 'Yes' && tax_id) {
+			const { recomputeClaim } = require("../services/TaxClaimService");
 			const claimYear = date ? new Date(date).getFullYear() : new Date().getFullYear();
 
-			// The running total is recomputed inside the INSERT below rather than read
-			// here and passed in. Reading it in JS first opened a lost-update race:
-			// two jobs for the same account and category could both read the total
-			// before either wrote, and the slower one would then overwrite the other's
-			// result with a figure that omitted its receipt. Doing the read inside the
-			// write statement makes the pair atomic without needing a transaction —
-			// which matters, because sqlbuilder has no transaction support.
-			const CLAIMED_SQL = `
-				SELECT LEAST(COALESCE(SUM(expenses_total_amount), 0), ?)
-				  FROM account_expenses
-				 WHERE account_id = ?
-				   AND expenses_tax_category = ?
-				   AND expenses_tax_eligible = 'Yes'
-				   AND YEAR(expenses_date) = ?
-				   AND ai_processing_status = 'Completed'`;
-			const claimedArgs = [taxMaxClaim, account_id, tax_id, claimYear];
-
-			// dependant_id is listed explicitly. Leaving it out let it default to NULL,
-			// and because MySQL treats every NULL in a unique index as distinct, the
-			// unique_claim key never fired — so this upsert only ever inserted. It now
-			// matches on unique_claim_v2, which is built over NULL-folded generated
-			// columns (migration 021), so ON DUPLICATE KEY UPDATE actually runs.
-			//
-			// LAST_INSERT_ID(claim_id) makes insertId return the existing row's PK on
-			// the update branch, so claim_id is never stored as 0.
-			let addTaxClaim = await db.raw(
-				`INSERT INTO account_tax_claim
-					(account_id, tax_year, tax_id, taxsub_id, dependant_id, claimed_amount, max_claimable, claim_for, claim_status, status)
-				VALUES
-					(?, ?, ?, ?, ?, (${CLAIMED_SQL}), ?, 'Self', 'Draft', 'Active')
-				ON DUPLICATE KEY UPDATE
-					claim_id       = LAST_INSERT_ID(claim_id),
-					claimed_amount = (${CLAIMED_SQL}),
-					max_claimable  = VALUES(max_claimable),
-					last_modified  = NOW()`,
-				[
-					account_id, claimYear, tax_id, taxsub_id, dependant_id,
-					...claimedArgs,      // subquery in VALUES
-					taxMaxClaim,
-					...claimedArgs       // subquery in the update branch
-				]
-			);
-			console.log(`[AI-Receipt Worker] Tax claim upserted: account_id=${account_id}, tax_id=${tax_id}, year=${claimYear}, cap=${taxMaxClaim}`);
-
-			await db.update("account_expenses", { claim_id: addTaxClaim.insertId }, { expenses_id })
+			try {
+				const claim = await recomputeClaim(account_id, tax_id, claimYear);
+				if (claim.status) {
+					console.log(`[AI-Receipt Worker] Tax claim recomputed: account_id=${account_id}, tax_id=${tax_id}, year=${claimYear}, claimed=${claim.claimed_amount}`);
+				} else {
+					console.error(`[AI-Receipt Worker] Claim recompute FAILED (analysis kept): expenses_id=${expenses_id} — ${claim.message}`);
+				}
+			} catch (claimErr) {
+				console.error(`[AI-Receipt Worker] Claim recompute threw (analysis kept): expenses_id=${expenses_id} —`, claimErr.message);
+			}
 		}
 
 

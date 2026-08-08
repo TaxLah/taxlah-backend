@@ -47,6 +47,14 @@ async function getOpenAI() {
     return _client;
 }
 
+/**
+ * Fallback prompt, used when the prompt_templates table has no receipt_ocr row.
+ *
+ * The previous version of this constant was never actually used as a fallback —
+ * a missing DB row sent a null system prompt to the model — and its JSON example
+ * was itself invalid (a missing comma and a missing colon), which taught the
+ * model the wrong shape on the rare occasion someone pasted it into the DB.
+ */
 const EXTRACTION_SYSTEM_PROMPT = `
 You are a receipt data extraction assistant.
 Your ONLY job is to read the receipt image and extract the raw data.
@@ -58,23 +66,30 @@ Return ONLY valid JSON with this exact structure:
     "date": "YYYY-MM-DD or null",
     "total_amount": number or null,
     "currency": "MYR",
+    "receipt_no": "string or null",
     "items": [
-        { 
+        {
             "item_name": "string",
-            "item_quantity": "string"
-            "item_description": "string", 
+            "item_quantity": number,
             "item_unit_price": number,
-            "item_total_price" number
+            "item_total_price": number
         }
     ],
     "notes": "any ambiguity or unreadable parts, or null"
 }
 
-Rules:
+Rules for items:
+- items contains ONLY purchasable goods and services, each with a POSITIVE unit price and total.
+- NEVER put these in items: discounts, vouchers, rebates, rounding adjustments, service charges, SST/GST/tax lines, subtotals, change due, payment lines.
+- item_quantity is a number; default to 1 when not shown.
+- Never output a negative number anywhere.
+
+General rules:
+- total_amount is the final amount actually paid, after discounts and including charges.
 - If the receipt is unreadable or not a receipt image, return all fields as null and explain in notes.
-- Use MYR as default currency. If another currency is shown, convert if possible and note it.
+- Use MYR as default currency. If another currency is shown, note it.
 - Do not invent data — if a field is unclear, set it to null.
-- Include ALL line items found on the receipt in the items array.
+- Include ALL purchasable line items found on the receipt in the items array.
 `;
 
 async function GetReceiptOCRPrompt() {
@@ -135,15 +150,33 @@ async function convertPdfToImageBase64(filePath) {
         page:      result?.page
     }));
 
+    /**
+     * pdf2pic reports success even when GraphicsMagick emitted a zero-byte or
+     * truncated PNG, and that "image" then went to the model as the receipt.
+     * Decoding through sharp is the check: a corrupt buffer fails to decode, a
+     * blank page decodes but is caught by size.
+     */
+    const validated = async (buffer) => {
+        if (!buffer || buffer.length < 1024) {
+            throw new Error('PDF conversion produced an empty or truncated image.');
+        }
+        const sharp = require("sharp");
+        const meta = await sharp(buffer).metadata();
+        if (!meta.width || !meta.height || meta.width < 50 || meta.height < 50) {
+            throw new Error('PDF conversion produced an unreadable image.');
+        }
+        return buffer.toString("base64");
+    };
+
     // Primary: responseType:"base64" returns result.base64
-    if (result?.base64) return result.base64;
+    if (result?.base64) return validated(Buffer.from(result.base64, "base64"));
 
     // Fallback: read from the saved temp file
     const savedPath = result?.path || path.join(tmpDir, `${tmpFilename}.1.png`);
     if (fs.existsSync(savedPath)) {
         const buffer = fs.readFileSync(savedPath);
         try { fs.unlinkSync(savedPath); } catch (_) {}
-        return buffer.toString("base64");
+        return validated(buffer);
     }
 
     throw new Error(
@@ -165,21 +198,54 @@ async function extractReceiptData(filePath, mimeType) {
 
     let base64Image;
     let imageMimeType = mimeType;
+    let pdfFilePart = null;
 
     if (mimeType === "application/pdf") {
-        console.log("[ReceiptExtractionService] Converting PDF to image...");
-        base64Image   = await convertPdfToImageBase64(filePath);
-        imageMimeType = "image/png";
+        // Preferred: hand the PDF to the model as a file. OpenAI renders the pages
+        // itself, so nothing on this server can corrupt the intermediate image —
+        // pdf2pic needs GraphicsMagick and Ghostscript installed and healthy, and its
+        // output used to go to the model unchecked. Conversion is now only the
+        // fallback, and its output is verified before use.
+        const pdfBuffer = fs.readFileSync(filePath);
+        pdfFilePart = {
+            type: "file",
+            file: {
+                filename: "receipt.pdf",
+                file_data: `data:application/pdf;base64,${pdfBuffer.toString("base64")}`
+            }
+        };
     } else {
-        const fileBuffer = fs.readFileSync(filePath);
-        base64Image      = fileBuffer.toString("base64");
+        // Normalise the photo before sending: resize to a readable width and
+        // re-encode as JPEG. A raw 12MP camera photo is a ~10MB base64 payload —
+        // slow to ship — while 1600px preserves receipt print comfortably. Falls
+        // back to the raw file if sharp cannot read it.
+        try {
+            const sharp = require("sharp");
+            const prepared = await sharp(filePath)
+                .rotate() // honour EXIF orientation — sideways receipts OCR terribly
+                .resize({ width: 1600, withoutEnlargement: true })
+                .jpeg({ quality: 85 })
+                .toBuffer();
+            base64Image   = prepared.toString("base64");
+            imageMimeType = "image/jpeg";
+        } catch (prepErr) {
+            console.warn("[ReceiptExtractionService] Image preparation failed, sending original:", prepErr.message);
+            const fileBuffer = fs.readFileSync(filePath);
+            base64Image      = fileBuffer.toString("base64");
+        }
     }
 
+    // Prefer the editable DB template; fall back to the built-in prompt rather than
+    // sending the model a null system message.
     let getPrompt = await GetReceiptOCRPrompt()
-    console.log("Log Prompt : ", getPrompt)
+    if (!getPrompt) {
+        console.warn("[ReceiptExtractionService] prompt_templates.receipt_ocr missing — using built-in prompt");
+        getPrompt = EXTRACTION_SYSTEM_PROMPT;
+    }
 
     const openai = await getOpenAI();
-    const response = await openai.chat.completions.create({
+
+    const buildRequest = (contentPart) => ({
         model: "gpt-5-mini",
         max_completion_tokens: 5000,
         messages: [
@@ -194,18 +260,40 @@ async function extractReceiptData(filePath, mimeType) {
                         type: "text",
                         text: "Please extract all data from this receipt."
                     },
-                    {
-                        type: "image_url",
-                        image_url: {
-                            url: `data:${imageMimeType};base64,${base64Image}`,
-                            detail: "low"
-                        }
-                    }
+                    contentPart
                 ]
             }
         ],
         response_format: { type: "json_object" }
     });
+
+    const imagePart = () => ({
+        type: "image_url",
+        image_url: {
+            url: `data:${imageMimeType};base64,${base64Image}`,
+            // "low" fed the model a 512px thumbnail of a document made of small
+            // print — the direct cause of misread digits, merged lines and RM0.00
+            // unit prices. The image is already downscaled to 1600px above, so
+            // "high" stays affordable.
+            detail: "high"
+        }
+    });
+
+    let response;
+    if (pdfFilePart) {
+        try {
+            response = await openai.chat.completions.create(buildRequest(pdfFilePart));
+        } catch (pdfErr) {
+            // Only if the API refuses the PDF do we fall back to local conversion —
+            // whose output is now validated before being trusted.
+            console.warn("[ReceiptExtractionService] Direct PDF input rejected, converting locally:", pdfErr.message);
+            base64Image   = await convertPdfToImageBase64(filePath);
+            imageMimeType = "image/png";
+            response = await openai.chat.completions.create(buildRequest(imagePart()));
+        }
+    } else {
+        response = await openai.chat.completions.create(buildRequest(imagePart()));
+    }
 
     console.log("[ReceiptExtractionService] OCR complete.");
 
@@ -217,14 +305,37 @@ async function extractReceiptData(filePath, mimeType) {
     }
 
     const parsed = JSON.parse(rawContent);
-    console.log('Log Parsed : ', parsed)
+
+    // The model's output is treated as untrusted input: negative or zero prices are
+    // repaired from the figures that are present, unusable lines are dropped, and a
+    // negative total is never allowed through.
+    const { normaliseExtractedItems, parseAmount } = require("../utils/expenseItems");
+    const items = normaliseExtractedItems(parsed.items);
+
+    let total = parseAmount(parsed.total_amount);
+    if (!Number.isFinite(total) || total < 0) total = null;
+    if (total === null && items.length) {
+        // A missing total is recoverable from the lines; a fabricated 0.00 is not.
+        total = Math.round(items.reduce((s, i) => s + (i.item_total_price || 0), 0) * 100) / 100;
+    }
+
+    // Charge lines the prompt now routes out of items. Absolute-valued: a model
+    // that reports a discount as -5.00 still yields 5.00 here.
+    const charge = (v) => {
+        const n = parseAmount(v);
+        return Number.isFinite(n) && n !== 0 ? Math.abs(n) : null;
+    };
 
     return {
         merchant:      parsed.merchant      ?? null,
         date:          parsed.date          ?? null,
-        total_amount:  parsed.total_amount  ?? 0.00,
+        total_amount:  total,
         currency:      parsed.currency      ?? "MYR",
-        items:         Array.isArray(parsed.items) ? parsed.items : [],
+        receipt_no:    parsed.receipt_no    ?? null,
+        items,
+        discount_amount:       charge(parsed.discount_amount),
+        service_charge_amount: charge(parsed.service_charge_amount),
+        tax_amount:            charge(parsed.tax_amount),
         notes:         parsed.notes         ?? null,
         tokens_used:   response.usage.total_tokens
     };

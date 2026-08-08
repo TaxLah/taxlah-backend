@@ -27,6 +27,10 @@ const { upload, verifyUploadedFiles, getFileUrl } = require('../../../configs/fi
 const NotificationService = require('../../../services/NotificationService');
 const { checkSubscriptionAccess } = require('../../../models/AppModel/SubscriptionService');
 const { computeFileHash, computePerceptualHash } = require('../../../utils/receiptHash');
+const { validateSubmittedItems } = require('../../../utils/expenseItems');
+const path = require('path');
+const fs = require('fs');
+const { BASE_UPLOAD_DIR } = require('../../../configs/fileUpload');
 
 /**
  * POST /api/expenses/create
@@ -113,45 +117,33 @@ router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req,
             return res.status(response.status_code).json(response);
         }
 
-        // Validate and sanitize items if provided
-        let items = [];
-        if (params.items && Array.isArray(params.items)) {
-            items = params.items.map(item => {
-                // Validate required fields for items
-                if (!item.item_unit_price || isNaN(item.item_unit_price)) {
-                    throw new Error('Item unit price is required and must be a number');
-                }
-                if (!item.item_quantity || isNaN(item.item_quantity) || item.item_quantity < 1) {
-                    throw new Error('Item quantity is required and must be at least 1');
-                }
-                if (!item.item_total_price || isNaN(item.item_total_price)) {
-                    throw new Error('Item total price is required and must be a number');
-                }
-
-                return {
-                    item_sku_unit: item.item_sku_unit ? sanitize(item.item_sku_unit) : null,
-                    item_name: item.item_name ? sanitize(item.item_name) : null,
-                    item_unit_price: parseFloat(item.item_unit_price),
-                    item_quantity: parseInt(item.item_quantity),
-                    item_total_price: parseFloat(item.item_total_price)
-                };
-            });
-        } else if (params.items && typeof params.items === 'string') {
-            // Parse items if sent as JSON string (common in multipart form data)
+        // Items arrive either as an array (JSON body) or a JSON string (multipart).
+        // Both used to apply different — and different-ly incomplete — rules; the
+        // multipart path applied none at all, which is how negative and RM0.00 unit
+        // prices reached the database. One strict validator now covers both, and a
+        // bad line is a 400 naming the line rather than a stored corruption.
+        let rawItems = params.items;
+        if (typeof rawItems === 'string') {
             try {
-                const parsedItems = JSON.parse(params.items);
-                if (Array.isArray(parsedItems)) {
-                    items = parsedItems.map(item => ({
-                        item_sku_unit: item.item_sku_unit ? sanitize(item.item_sku_unit) : null,
-                        item_name: item.item_name ? sanitize(item.item_name) : null,
-                        item_unit_price: parseFloat(item.item_unit_price),
-                        item_quantity: parseInt(item.item_quantity),
-                        item_total_price: parseFloat(item.item_total_price)
-                    }));
-                }
+                rawItems = JSON.parse(rawItems);
             } catch (jsonError) {
-                console.warn('[CreateExpense] Failed to parse items JSON:', jsonError);
+                response = { ...BAD_REQUEST_API_RESPONSE, message: 'items is not valid JSON.' };
+                return res.status(response.status_code).json(response);
             }
+        }
+
+        let items = [];
+        if (rawItems !== undefined && rawItems !== null) {
+            const validated = validateSubmittedItems(rawItems);
+            if (validated.errors) {
+                response = { ...BAD_REQUEST_API_RESPONSE, message: validated.errors.join(' ') };
+                return res.status(response.status_code).json(response);
+            }
+            items = validated.items.map(item => ({
+                ...item,
+                item_sku_unit: item.item_sku_unit ? sanitize(item.item_sku_unit) : null,
+                item_name: item.item_name ? sanitize(item.item_name) : null
+            }));
         }
 
         // Process uploaded receipt file
@@ -191,8 +183,34 @@ router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req,
                 type: uploadedFile.mimetype
             });
         } else if (params.receipt_file_url) {
-            // File already uploaded at extract-receipt step — use the stored URL
+            // File already uploaded at the extract-receipt step — reference it rather
+            // than shipping the same photo a second time. This is the path the app
+            // takes after extraction, and it is what makes submit fast: the slow
+            // "loading forever then crash" reports came from re-uploading the original
+            // camera photo here and re-processing it end to end.
             receipt_file_url = params.receipt_file_url;
+
+            // Recover the on-disk path so duplicate-detection hashes still get
+            // computed. Resolved strictly inside this user's own upload directory —
+            // a URL pointing anywhere else is ignored, not followed.
+            try {
+                const urlPath = new URL(receipt_file_url, 'https://taxlah.com').pathname;
+                const relative = urlPath.replace(/^\/asset\//, '');
+                const candidate = path.resolve(BASE_UPLOAD_DIR, relative);
+                const ownDir = path.resolve(BASE_UPLOAD_DIR, String(account_id)) + path.sep;
+
+                if (candidate.startsWith(ownDir) && fs.existsSync(candidate)) {
+                    receipt_hash  = computeFileHash(candidate);
+                    receipt_phash = await computePerceptualHash(candidate, null);
+                    receipt_metadata = {
+                        original_name: path.basename(candidate),
+                        uploaded_date: new Date().toISOString(),
+                        source: 'extract-receipt'
+                    };
+                }
+            } catch (hashErr) {
+                console.warn('[CreateExpense] Stored-file hash failed (non-fatal):', hashErr.message);
+            }
         }
 
         console.log("Checking active subscription...")

@@ -404,7 +404,11 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
             expenses_mapping_version: mappingVersion,
             expenses_original_tax_category: categorization.tax_id || null,
             expenses_mapping_date: new Date(),
-            expenses_tax_eligible: useAI ? 'No' : 'Yes',
+            // Eligible only when a category was actually matched. The old expression
+            // hardcoded 'Yes' on the non-AI path even with tax_id NULL — the row then
+            // wore a green "Tax Relief" badge while belonging to no category at all,
+            // and could never be counted by any claim.
+            expenses_tax_eligible: useAI ? 'No' : (categorization.tax_id ? 'Yes' : 'No'),
             ai_processing_status: useAI ? 'Queued' : 'None',
             expenses_for,
             dependant_id,
@@ -437,6 +441,18 @@ const createExpenseEnhanced = async (expenseData, useAI = false) => {
             changed_by: 'System',
             changed_date: new Date()
         });
+
+        // Step 5.5: An NLP-categorised expense is eligible immediately, so its claim
+        // must be maintained here — the AI worker only runs for the useAI path, and
+        // relying on it alone is why NLP expenses never appeared in the green total.
+        if (insertData.expenses_tax_eligible === 'Yes' && insertData.expenses_tax_category) {
+            try {
+                const { recomputeClaim } = require('../../../services/TaxClaimService');
+                await recomputeClaim(account_id, insertData.expenses_tax_category, taxYear);
+            } catch (claimErr) {
+                console.error('[ExpensesModel] Claim recompute failed (expense kept):', claimErr.message);
+            }
+        }
 
         // Step 6: Get complete expense details
         const expense = await getExpenseById(account_id, insertResult.insertId);
@@ -502,7 +518,14 @@ const getAllExpenses = async (account_id, filters = {}) => {
             year = null,
             mapping_status = null,
             tax_category = null,
-            min_confidence = null
+            min_confidence = null,
+            tax_eligible = null,     // 'Yes' | 'No'
+            ai_status = null,        // 'None' | 'Queued' | 'Processing' | 'Completed' | 'Failed'
+            expenses_for = null,     // 'Self' | 'Spouse' | 'Child' | 'Parent'
+            date_from = null,        // YYYY-MM-DD, inclusive
+            date_to = null,
+            amount_min = null,
+            amount_max = null
         } = filters;
 
         // Interpolated values — coerce before they reach the query string.
@@ -550,17 +573,66 @@ const getAllExpenses = async (account_id, filters = {}) => {
             params.push(min_confidence);
         }
 
+        // Every value below is compared with a bound parameter after whitelist or
+        // format checks in the controller — nothing here is interpolated.
+        if (tax_eligible === 'Yes' || tax_eligible === 'No') {
+            whereConditions.push('ae.expenses_tax_eligible = ?');
+            params.push(tax_eligible);
+        }
+
+        if (ai_status) {
+            whereConditions.push('ae.ai_processing_status = ?');
+            params.push(ai_status);
+        }
+
+        if (expenses_for) {
+            whereConditions.push('ae.expenses_for = ?');
+            params.push(expenses_for);
+        }
+
+        if (date_from) {
+            whereConditions.push('ae.expenses_date >= ?');
+            params.push(date_from);
+        }
+        if (date_to) {
+            whereConditions.push('ae.expenses_date <= ?');
+            params.push(date_to);
+        }
+
+        if (amount_min !== null && Number.isFinite(amount_min)) {
+            whereConditions.push('ae.expenses_total_amount >= ?');
+            params.push(amount_min);
+        }
+        if (amount_max !== null && Number.isFinite(amount_max)) {
+            whereConditions.push('ae.expenses_total_amount <= ?');
+            params.push(amount_max);
+        }
+
         const whereClause = whereConditions.join(' AND ');
 
-        // Get total count
+        // Count and money over the whole filtered set, in one pass. The screen's
+        // header shows these; computing them from the visible page would answer a
+        // question nobody asked.
         const countSql = `
-            SELECT COUNT(*) as total
+            SELECT COUNT(*) as total,
+                   COALESCE(SUM(ae.expenses_total_amount), 0) as total_amount,
+                   COALESCE(SUM(CASE WHEN ae.expenses_tax_eligible = 'Yes'
+                                     THEN ae.expenses_total_amount ELSE 0 END), 0) as eligible_amount,
+                   SUM(ae.expenses_tax_eligible = 'Yes') as eligible_count,
+                   SUM(ae.ai_processing_status IN ('Queued','Processing')) as processing_count
             FROM account_expenses ae
             LEFT JOIN tax_category tc ON ae.expenses_tax_category = tc.tax_id
             WHERE ${whereClause}
         `;
         const countResult = await db.raw(countSql, params);
-        const total = countResult[0].total;
+        const total = Number(countResult[0].total) || 0;
+        const summary = {
+            total,
+            total_amount: parseFloat(countResult[0].total_amount) || 0,
+            eligible_amount: parseFloat(countResult[0].eligible_amount) || 0,
+            eligible_count: Number(countResult[0].eligible_count) || 0,
+            processing_count: Number(countResult[0].processing_count) || 0
+        };
 
         // Get expenses
         const sql = `
@@ -579,6 +651,9 @@ const getAllExpenses = async (account_id, filters = {}) => {
                 ae.expenses_mapping_version,
                 ae.expenses_mapping_date,
                 ae.expenses_for,
+                ae.ai_processing_status,
+                ae.ai_rerun_count,
+                r.receipt_image_url,
                 tc.tax_id,
                 tc.tax_code,
                 tc.tax_title,
@@ -592,8 +667,9 @@ const getAllExpenses = async (account_id, filters = {}) => {
             LEFT JOIN tax_category tc ON ae.expenses_tax_category = tc.tax_id
             LEFT JOIN tax_subcategory ts ON ae.expenses_tax_subcategory = ts.taxsub_id
             LEFT JOIN account_dependant ad ON ae.dependant_id = ad.dependant_id
+            LEFT JOIN receipt r ON ae.receipt_id = r.receipt_id
             WHERE ${whereClause}
-            ORDER BY ae.${sort_by} ${sort_order}
+            ORDER BY ae.${sort_by} ${sort_order}, ae.expenses_id DESC
             LIMIT ${limit} OFFSET ${offset}
         `;
 
@@ -604,6 +680,7 @@ const getAllExpenses = async (account_id, filters = {}) => {
             status: true,
             data: {
                 expenses,
+                summary,
                 pagination: {
                     total,
                     limit: parseInt(limit),
@@ -626,7 +703,7 @@ const getAllExpenses = async (account_id, filters = {}) => {
 const getExpenseById = async (account_id, expenses_id) => {
     try {
         const sql = `
-            SELECT 
+            SELECT
                 ae.*,
                 tc.tax_code,
                 tc.tax_title,
@@ -637,15 +714,18 @@ const getExpenseById = async (account_id, expenses_id) => {
                 ts.taxsub_max_claim,
                 ad.dependant_name,
                 ad.dependant_type,
-                (SELECT COUNT(*) FROM account_expenses_mapping_history 
+                r.receipt_image_url,
+                r.receipt_metadata,
+                (SELECT COUNT(*) FROM account_expenses_mapping_history
                 WHERE expenses_id = ae.expenses_id) as change_count,
-                (SELECT changed_date FROM account_expenses_mapping_history 
-                WHERE expenses_id = ae.expenses_id 
+                (SELECT changed_date FROM account_expenses_mapping_history
+                WHERE expenses_id = ae.expenses_id
                 ORDER BY changed_date DESC LIMIT 1) as last_change_date
             FROM account_expenses ae
             LEFT JOIN tax_category tc ON ae.expenses_tax_category = tc.tax_id
             LEFT JOIN tax_subcategory ts ON ae.expenses_tax_subcategory = ts.taxsub_id
             LEFT JOIN account_dependant ad ON ae.dependant_id = ad.dependant_id
+            LEFT JOIN receipt r ON ae.receipt_id = r.receipt_id
             WHERE ae.account_id = ? AND ae.expenses_id = ? AND ae.status = 'Active'
             LIMIT 1
         `;
@@ -690,13 +770,40 @@ const updateExpense = async (account_id, expenses_id, updateData) => {
         });
 
         if (result) {
-            // Get updated expense
-            const updated = await getExpenseById(account_id, expenses_id);
-            return {
-                status: true,
-                data: updated.data,
-                message: 'Expense updated successfully'
-            };
+            // An edit can move money between claims: a new amount changes the total, a
+            // new date can change the year, and either leaves the old claim overstated
+            // if only the new one is recomputed. Recompute every (category, year) pair
+            // the edit touched — before and after.
+            try {
+                const before = expenseCheck.data;
+                const updated = await getExpenseById(account_id, expenses_id);
+                const after = updated.data;
+
+                const pairs = new Set();
+                if (before.expenses_tax_category) {
+                    pairs.add(`${before.expenses_tax_category}:${before.expenses_year}`);
+                }
+                if (after?.expenses_tax_category) {
+                    pairs.add(`${after.expenses_tax_category}:${after.expenses_year}`);
+                }
+                if (pairs.size) {
+                    const { recomputeClaim } = require('../../../services/TaxClaimService');
+                    for (const pair of pairs) {
+                        const [tax_id, year] = pair.split(':').map(Number);
+                        await recomputeClaim(account_id, tax_id, year);
+                    }
+                }
+
+                return {
+                    status: true,
+                    data: after,
+                    message: 'Expense updated successfully'
+                };
+            } catch (claimErr) {
+                console.error('[ExpensesModel] Claim recompute after update failed:', claimErr.message);
+                const updated = await getExpenseById(account_id, expenses_id);
+                return { status: true, data: updated.data, message: 'Expense updated successfully' };
+            }
         }
 
         return { status: false, message: 'Failed to update expense' };
@@ -741,6 +848,20 @@ const overrideTaxCategory = async (account_id, expenses_id, tax_id, taxsub_id = 
         // Trigger will log to history, but we can also log explicitly for better control
         // The trigger handles this automatically
 
+        // A manual override moves the expense between claims — keep both sides true.
+        try {
+            const { recomputeClaim } = require('../../../services/TaxClaimService');
+            const year = oldExpense.expenses_year;
+            if (oldExpense.expenses_tax_category && oldExpense.expenses_tax_category !== tax_id) {
+                await recomputeClaim(account_id, oldExpense.expenses_tax_category, year);
+            }
+            if (tax_id) {
+                await recomputeClaim(account_id, tax_id, year);
+            }
+        } catch (claimErr) {
+            console.error('[ExpensesModel] Claim recompute after override failed:', claimErr.message);
+        }
+
         // Get updated expense
         const updated = await getExpenseById(account_id, expenses_id);
 
@@ -760,6 +881,14 @@ const overrideTaxCategory = async (account_id, expenses_id, tax_id, taxsub_id = 
  */
 const deleteExpense = async (account_id, expenses_id) => {
     try {
+        // Read first: the claim recompute below needs to know which (category, year)
+        // the expense counted towards, and the receipt row travels with it.
+        const existing = await getExpenseById(account_id, expenses_id);
+        if (!existing.status) {
+            return { status: false, message: 'Expense not found or access denied' };
+        }
+        const expense = existing.data;
+
         const result = await db.update('account_expenses', {
             status: 'Deleted',
             last_modified: new Date()
@@ -768,11 +897,37 @@ const deleteExpense = async (account_id, expenses_id) => {
             account_id
         });
 
-        if (result) {
-            return { status: true, message: 'Expense deleted successfully' };
+        if (!result) {
+            return { status: false, message: 'Failed to delete expense' };
         }
 
-        return { status: false, message: 'Failed to delete expense' };
+        // Everything below is a flag, never a DELETE — the rows and the file on disk
+        // remain, so a deletion is fully accountable and reversible by support.
+        await db.raw(
+            `UPDATE account_expenses_item SET status = 'Deleted', last_modified = NOW()
+              WHERE expenses_id = ? AND status = 'Active'`,
+            [expenses_id]
+        ).catch((e) => console.warn('[ExpensesModel] item archive failed:', e.message));
+
+        if (expense.receipt_id) {
+            await db.raw(
+                `UPDATE receipt SET status = 'Inactive', last_modified = NOW()
+                  WHERE receipt_id = ? AND account_id = ?`,
+                [expense.receipt_id, account_id]
+            ).catch((e) => console.warn('[ExpensesModel] receipt archive failed:', e.message));
+        }
+
+        // The deleted expense no longer counts towards its claim.
+        if (expense.expenses_tax_category) {
+            try {
+                const { recomputeClaim } = require('../../../services/TaxClaimService');
+                await recomputeClaim(account_id, expense.expenses_tax_category, expense.expenses_year);
+            } catch (claimErr) {
+                console.error('[ExpensesModel] Claim recompute after delete failed:', claimErr.message);
+            }
+        }
+
+        return { status: true, message: 'Expense deleted successfully' };
     } catch (error) {
         console.error('[ExpensesModel] deleteExpense error:', error);
         return { status: false, message: error.message };

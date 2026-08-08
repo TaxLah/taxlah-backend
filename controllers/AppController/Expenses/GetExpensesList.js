@@ -76,7 +76,22 @@ router.get('/', async (req, res) => {
             tax_category: req.query.tax_category ? parseInt(req.query.tax_category) : null,
             min_confidence: req.query.min_confidence ? parseFloat(req.query.min_confidence) : null,
             sort_by: SORTABLE_COLUMNS.includes(req.query.sort_by) ? req.query.sort_by : 'created_date',
-            sort_order: (req.query.sort_order || 'DESC').toUpperCase()
+            sort_order: (req.query.sort_order || 'DESC').toUpperCase(),
+
+            // Extended filters. Every one is checked against a fixed list or format
+            // here, then bound as a parameter in the model — nothing from the query
+            // string is ever interpolated.
+            tax_eligible: ['Yes', 'No'].includes(req.query.tax_eligible) ? req.query.tax_eligible : null,
+            ai_status: ['None', 'Queued', 'Processing', 'Completed', 'Failed'].includes(req.query.ai_status)
+                ? req.query.ai_status : null,
+            expenses_for: ['Self', 'Spouse', 'Child', 'Parent'].includes(req.query.expenses_for)
+                ? req.query.expenses_for : null,
+            date_from: /^\d{4}-\d{2}-\d{2}$/.test(req.query.date_from || '') ? req.query.date_from : null,
+            date_to: /^\d{4}-\d{2}-\d{2}$/.test(req.query.date_to || '') ? req.query.date_to : null,
+            amount_min: req.query.amount_min !== undefined && !isNaN(parseFloat(req.query.amount_min))
+                ? parseFloat(req.query.amount_min) : null,
+            amount_max: req.query.amount_max !== undefined && !isNaN(parseFloat(req.query.amount_max))
+                ? parseFloat(req.query.amount_max) : null
         };
 
         // Validate sort_order

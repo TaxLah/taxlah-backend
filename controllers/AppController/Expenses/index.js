@@ -36,9 +36,13 @@ const GetRequiringReview     = require('./GetRequiringReview');
 const GetMappingDashboard    = require('./GetMappingDashboard');
 const GetExpenseStats        = require('./GetExpenseStats');
 const GetDashboardSummary    = require('./GetDashboardSummary');
+const RerunAIAnalysis        = require('./RerunAIAnalysis');
+const DownloadReceipts       = require('./DownloadReceipts');
 
 // Mount routes
 router.use('/extract-receipt', ExtractReceipt);
+router.use('/rerun-ai', RerunAIAnalysis);
+router.use('/receipts-archive', DownloadReceipts);
 router.use('/create', CreateExpense);
 router.use('/list', GetExpensesList);
 router.use('/details', GetExpenseDetails);
