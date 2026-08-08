@@ -82,39 +82,6 @@ class FCMService {
     }
 
     /**
-     * Verifies a Firebase ID token and returns its decoded claims.
-     *
-     * This is the whole of social login's server-side trust: the app signs in with
-     * Google/Apple through Firebase, and the ID token it sends is verified here
-     * against the same project the FCM service account belongs to. No provider keys
-     * or JWKS handling of our own — firebase-admin checks the signature, expiry and
-     * audience (this project) itself.
-     *
-     * Returns { success, decoded } where decoded carries uid, email, email_verified,
-     * name and firebase.sign_in_provider. A tampered, expired or wrong-project token
-     * fails verification rather than throwing to the caller.
-     *
-     * @param {string} idToken - Firebase ID token from the app
-     * @returns {Promise<{success: boolean, decoded?: object, error?: string}>}
-     */
-    async verifyIdToken(idToken) {
-        if (!this.initialized) {
-            return { success: false, error: 'FCM_NOT_INITIALIZED' };
-        }
-        if (!idToken || typeof idToken !== 'string') {
-            return { success: false, error: 'MISSING_ID_TOKEN' };
-        }
-        try {
-            const decoded = await admin.auth().verifyIdToken(idToken);
-            return { success: true, decoded };
-        } catch (error) {
-            // Expected for expired/tampered tokens — a normal 401, not a server fault.
-            console.warn('[FCM] verifyIdToken rejected:', error.code || error.message);
-            return { success: false, error: error.code || 'INVALID_ID_TOKEN' };
-        }
-    }
-
-    /**
      * Send push notification to a single device
      * @param {string} fcmToken - Device FCM token
      * @param {object} notification - Notification payload

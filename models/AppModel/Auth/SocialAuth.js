@@ -1,11 +1,11 @@
 /**
  * Social login account resolution.
  *
- * Given the claims from a verified Firebase ID token, returns the account_id and
- * auth_id to issue tokens for — creating or linking as needed. The verification
- * itself lives in FirebaseService; this file only trusts an already-decoded token
- * and never touches the network, which is what makes it unit-testable with a
- * plain object.
+ * Given the normalised claims from a verified provider token, returns the
+ * account_id and auth_id to issue tokens for — creating or linking as needed. The
+ * verification itself lives in SocialTokenVerifier; this file only trusts an
+ * already-verified claim object and never touches the network, which is what makes
+ * it unit-testable with a plain object.
  *
  * Linking policy (decided with the product owner): a social login whose email is
  * verified by the provider auto-links to an existing account with the same email,
@@ -16,12 +16,10 @@
 const db = require('../../../utils/sqlbuilder');
 const bcrypt = require('bcrypt');
 
-const PROVIDER_LABEL = { 'google.com': 'Google', 'apple.com': 'Apple' };
-
-/** Turns Firebase's sign_in_provider into our stored label. */
+/** Normalises the verifier's provider name to our stored label. */
 function providerLabel(decoded) {
-    const p = decoded?.firebase?.sign_in_provider || '';
-    return PROVIDER_LABEL[p] || 'Google';
+    const p = String(decoded?.provider || '').toLowerCase();
+    return p === 'apple' ? 'Apple' : 'Google';
 }
 
 /** A readable, unique-enough username seed from the email or name. */
@@ -34,30 +32,32 @@ function deriveUsername(email, name) {
 }
 
 /**
- * Resolves a verified Firebase token to an { account_id, auth_id, isNew }.
+ * Resolves a verified provider claim object to an { account_id, auth_id, isNew }.
  *
- * @param {object} decoded - claims from FirebaseService.verifyIdToken (uid, email, …)
+ * @param {object} decoded - normalised claims from SocialTokenVerifier
+ *   ({ provider, uid, email, email_verified, name })
  * @returns {Promise<{status: boolean, data?: object, message?: string}>}
  */
 async function resolveSocialAccount(decoded) {
     try {
-        const firebaseUid = decoded.uid;
+        const providerUid = decoded.uid;
         const email = (decoded.email || '').toLowerCase().trim();
         const emailVerified = decoded.email_verified === true;
         const name = decoded.name || decoded.displayName || (email ? email.split('@')[0] : 'TaxLah User');
         const provider = providerLabel(decoded);
 
-        if (!firebaseUid) {
+        if (!providerUid) {
             return { status: false, message: 'Token is missing a user identifier.' };
         }
 
-        // 1. Returning social login — match on the Firebase UID, the one identifier
-        //    that is stable across sign-ins (this is how Apple's "email only once"
-        //    is a non-issue: we never need the email again to recognise them).
+        // 1. Returning social login — match on the provider's subject id, the one
+        //    identifier that is stable across sign-ins (this is how Apple's "email
+        //    only once" is a non-issue: we never need the email again to recognise
+        //    them).
         const byUid = await db.raw(
             `SELECT auth_id, account_id FROM auth_access
               WHERE auth_provider_uid = ? AND auth_status = 'Active' LIMIT 1`,
-            [firebaseUid]
+            [providerUid]
         );
         if (byUid.length) {
             return { status: true, data: { account_id: byUid[0].account_id, auth_id: byUid[0].auth_id, isNew: false } };
@@ -78,7 +78,7 @@ async function resolveSocialAccount(decoded) {
                         SET auth_provider = ?, auth_provider_uid = ?, auth_socmed = 'Yes',
                             auth_is_verified = 'Yes', last_modified = NOW()
                       WHERE auth_id = ?`,
-                    [provider, firebaseUid, byEmail[0].auth_id]
+                    [provider, providerUid, byEmail[0].auth_id]
                 );
                 return { status: true, data: { account_id: byEmail[0].account_id, auth_id: byEmail[0].auth_id, isNew: false, linked: true } };
             }
@@ -108,7 +108,7 @@ async function resolveSocialAccount(decoded) {
 
         // A random, unguessable password so the NOT NULL column is satisfied without
         // ever granting a password login to a social-only account.
-        const unusablePassword = await bcrypt.hash(`social:${firebaseUid}:${Math.random()}`, 12);
+        const unusablePassword = await bcrypt.hash(`social:${providerUid}:${Math.random()}`, 12);
 
         const authInsert = await db.insert('auth_access', {
             auth_username: deriveUsername(email, name),
@@ -120,7 +120,7 @@ async function resolveSocialAccount(decoded) {
             auth_status: 'Active',
             account_id,
             auth_provider: provider,
-            auth_provider_uid: firebaseUid,
+            auth_provider_uid: providerUid,
             created_date: now,
             last_modified: now,
             is_deleted: 0,

@@ -1,13 +1,17 @@
 /**
- * Social login — Google / Apple, brokered by Firebase.
+ * Social login — Google / Apple, verified directly.
  *
- * POST /api/auth/social   { id_token }
+ * POST /api/auth/social   { provider, id_token, nonce?, full_name? }
  *
- * The app signs in with Google or Apple through Firebase and sends the resulting
- * Firebase ID token. This verifies it with firebase-admin, resolves (or creates,
- * or links) the account, and returns exactly the same { profile, access_token,
- * refresh_token } envelope as password sign-in — so everything downstream is
- * identical whether the user came in by password or social.
+ * The app signs in with Google or Apple natively and sends the provider's own ID
+ * token. This verifies it against the provider's public JWKS (no Firebase),
+ * resolves (or creates, or links) the account, and returns exactly the same
+ * { profile, access_token, refresh_token } envelope as password sign-in — so
+ * everything downstream is identical whether the user came in by password or social.
+ *
+ *   - `nonce`     : the raw nonce the app generated (Apple only, replay protection)
+ *   - `full_name` : Apple hands the name only on the very first authorisation, so
+ *                   the app forwards it here to seed the account on first sign-in.
  *
  * No OTP: the provider has already verified the email.
  */
@@ -26,7 +30,7 @@ const {
 } = require('../../../configs/helper');
 
 const moment = require('moment');
-const fcm = require('../../../services/FirebaseService');
+const { verifySocialToken } = require('../../../services/SocialTokenVerifier');
 const { resolveSocialAccount } = require('../../../models/AppModel/Auth/SocialAuth');
 const { AccountGetInfo } = require('../../../models/AppModel/Account');
 const { UserNotificationCreate } = require('../../../models/AppModel/Notification');
@@ -36,22 +40,35 @@ router.post('/', async (req, res) => {
     let response = { ...DEFAULT_API_RESPONSE };
 
     try {
-        const idToken = req.body?.id_token || req.body?.firebase_id_token || null;
+        const provider = req.body?.provider || null;
+        const idToken = req.body?.id_token || null;
+        const nonce = req.body?.nonce || null;
+        const fullName = req.body?.full_name || null;
 
-        if (CHECK_EMPTY(idToken)) {
-            response = { ...BAD_REQUEST_API_RESPONSE, message: 'Missing id_token.', data: null };
+        if (CHECK_EMPTY(provider) || CHECK_EMPTY(idToken)) {
+            response = { ...BAD_REQUEST_API_RESPONSE, message: 'Missing provider or id_token.', data: null };
             return res.status(response.status_code).json(response);
         }
 
-        // 1. Verify the Firebase token. A bad token is a 401, never a 500.
-        const verified = await fcm.verifyIdToken(idToken);
-        if (!verified.success) {
-            response = { ...UNAUTHORIZED_API_RESPONSE, message: 'Invalid or expired sign-in token.', data: { error: verified.error } };
+        // 1. Verify the provider's token against its own JWKS. A bad token — wrong
+        //    signature, wrong audience, expired, nonce mismatch — is a 401, never a 500.
+        let claims;
+        try {
+            claims = await verifySocialToken(provider, idToken, nonce);
+        } catch (err) {
+            console.warn('[SocialLogin] token verification rejected:', err.message);
+            response = { ...UNAUTHORIZED_API_RESPONSE, message: 'Invalid or expired sign-in token.', data: null };
             return res.status(response.status_code).json(response);
+        }
+
+        // Apple gives the name only on first authorisation — let the app-supplied
+        // full_name seed it when the token itself has none.
+        if (!claims.name && fullName) {
+            claims.name = String(fullName).trim() || null;
         }
 
         // 2. Find / link / create the account behind this identity.
-        const resolved = await resolveSocialAccount(verified.decoded);
+        const resolved = await resolveSocialAccount(claims);
         if (!resolved.status) {
             response = { ...BAD_REQUEST_API_RESPONSE, message: resolved.message || 'Could not resolve the account.', data: null };
             return res.status(response.status_code).json(response);
