@@ -132,14 +132,26 @@ async function resolvePlan(accountId) {
 function metric(used, limit) {
     const cap = limit === null || limit === undefined ? null : Number(limit);
     const unlimited = cap === null;
+    const usedNum = Number(used) || 0;
 
     return {
-        used: Number(used) || 0,
+        used: usedNum,
         limit: cap,
         unlimited,
-        remaining: unlimited ? null : Math.max(cap - Number(used || 0), 0),
-        percentage: unlimited || cap <= 0 ? null : Math.min(Math.round((Number(used || 0) / cap) * 100), 100),
+        // Rounded because the subtraction is done in binary floating point, where
+        // 20 - 19.81 lands on 0.19000000000000128 — and the app prints this figure
+        // as it arrives, so the artefact reached the dashboard verbatim. Storage is
+        // reported to two decimals (see storageMb), so rounding to the same
+        // precision loses nothing; receipt and report counts are whole numbers and
+        // are unaffected.
+        remaining: unlimited ? null : Math.max(round2(cap - usedNum), 0),
+        percentage: unlimited || cap <= 0 ? null : Math.min(Math.round((usedNum / cap) * 100), 100),
     };
+}
+
+/** Two decimal places, without the float tail that plain subtraction leaves behind. */
+function round2(n) {
+    return Math.round(n * 100) / 100;
 }
 
 async function getAccountUsage(accountId) {
