@@ -1,12 +1,19 @@
 /**
  * Social login token verification — Google & Apple, verified directly.
  *
- * The app talks to Google / Apple natively and sends us the provider's own ID
+ * The app talks to Google / Apple natively and sends the provider's own ID
  * token. We verify that token against the provider's public JWKS ourselves — no
  * Firebase in the loop. (Firebase Auth would have pulled the FirebaseAuth Swift
  * pod into the iOS app, which does not integrate with the app's static-library
  * build; verifying the provider token directly keeps the mobile native build
  * unchanged and removes a whole SDK from the trust path.)
+ *
+ * Implementation note: this deliberately uses ONLY jsonwebtoken (already a
+ * dependency) plus Node's built-in `crypto` and `https`. It does not use jwks-rsa
+ * or jose — those drag in an ESM-only `jose` build, and `require()`-ing an ESM
+ * module crashes on the Node version production runs (ERR_REQUIRE_ESM), which took
+ * the whole API down on boot. Node can import a JWK straight into a public key via
+ * crypto.createPublicKey({ format: 'jwk' }), so no JWKS library is needed.
  *
  * What "verified" means here, and why it is enough to trust the identity:
  *   - signature checked against the provider's rotating public keys (RS256)
@@ -24,8 +31,8 @@
  */
 
 const jwt = require('jsonwebtoken');
-const jwksClient = require('jwks-rsa');
 const crypto = require('crypto');
+const https = require('https');
 
 // Client IDs / bundle id are public identifiers, not secrets — safe to default in
 // code, overridable per environment.
@@ -45,45 +52,80 @@ const GOOGLE_AUDIENCES = (
     .filter(Boolean);
 
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
+const GOOGLE_JWKS_URI = 'https://www.googleapis.com/oauth2/v3/certs';
 
 // Native "Sign in with Apple" mints a token whose `aud` is the app's bundle id.
 const APPLE_AUDIENCE = process.env.APPLE_BUNDLE_ID || 'com.taxlah';
 const APPLE_ISSUER = 'https://appleid.apple.com';
+const APPLE_JWKS_URI = 'https://appleid.apple.com/auth/keys';
 
-const googleKeys = jwksClient({
-    jwksUri: 'https://www.googleapis.com/oauth2/v3/certs',
-    cache: true,
-    cacheMaxAge: 6 * 60 * 60 * 1000, // 6h — providers rotate keys slowly
-    rateLimit: true,
-    jwksRequestsPerMinute: 10,
-});
+// In-memory JWKS cache: uri -> { keys: { kid: pemString }, exp: epochMs }.
+const jwksCache = {};
+const JWKS_TTL_MS = 6 * 60 * 60 * 1000; // providers rotate keys slowly
 
-const appleKeys = jwksClient({
-    jwksUri: 'https://appleid.apple.com/auth/keys',
-    cache: true,
-    cacheMaxAge: 6 * 60 * 60 * 1000,
-    rateLimit: true,
-    jwksRequestsPerMinute: 10,
-});
-
-/** jsonwebtoken key-resolver bound to a JWKS client. */
-function keyResolver(client) {
-    return (header, callback) => {
-        client.getSigningKey(header.kid, (err, key) => {
-            if (err) return callback(err);
-            callback(null, key.getPublicKey());
+/** GET a JSON document over https, with a short timeout. */
+function httpsGetJson(url) {
+    return new Promise((resolve, reject) => {
+        const req = https.get(url, (res) => {
+            if (res.statusCode !== 200) {
+                res.resume();
+                return reject(new Error(`JWKS fetch failed (${res.statusCode}) for ${url}`));
+            }
+            let data = '';
+            res.on('data', (chunk) => (data += chunk));
+            res.on('end', () => {
+                try {
+                    resolve(JSON.parse(data));
+                } catch (e) {
+                    reject(new Error('JWKS response was not valid JSON'));
+                }
+            });
         });
-    };
+        req.on('error', reject);
+        req.setTimeout(8000, () => req.destroy(new Error('JWKS fetch timed out')));
+    });
 }
 
-/** Promise wrapper around jwt.verify with a JWKS-backed key. */
-function verify(token, client, options) {
-    return new Promise((resolve, reject) => {
-        jwt.verify(token, keyResolver(client), { algorithms: ['RS256'], ...options }, (err, payload) => {
-            if (err) return reject(err);
-            resolve(payload);
-        });
-    });
+/**
+ * Resolves a `kid` to a PEM public key from the provider's JWKS, caching the whole
+ * key set. On a cache miss (unknown kid, e.g. after a provider key rotation) it
+ * refetches once.
+ */
+async function getSigningKeyPem(jwksUri, kid) {
+    const now = Date.now();
+    let entry = jwksCache[jwksUri];
+
+    if (!entry || entry.exp < now || !entry.keys[kid]) {
+        const jwks = await httpsGetJson(jwksUri);
+        const keys = {};
+        for (const jwk of jwks.keys || []) {
+            try {
+                keys[jwk.kid] = crypto
+                    .createPublicKey({ key: jwk, format: 'jwk' })
+                    .export({ type: 'spki', format: 'pem' });
+            } catch (e) {
+                // Skip a key we cannot import rather than failing the whole set.
+            }
+        }
+        entry = { keys, exp: now + JWKS_TTL_MS };
+        jwksCache[jwksUri] = entry;
+    }
+
+    const pem = entry.keys[kid];
+    if (!pem) throw new Error(`No matching JWKS key for kid ${kid}`);
+    return pem;
+}
+
+/** Verifies a token's signature + claims against a provider's JWKS. */
+async function verifyWithJwks(token, jwksUri, options) {
+    const decoded = jwt.decode(token, { complete: true });
+    if (!decoded || !decoded.header) throw new Error('Malformed token');
+    const kid = decoded.header.kid;
+    if (!kid) throw new Error('Token header is missing a kid');
+
+    const pem = await getSigningKeyPem(jwksUri, kid);
+    // jwt.verify with a PEM string is synchronous: returns the payload or throws.
+    return jwt.verify(token, pem, { algorithms: ['RS256'], ...options });
 }
 
 /** email_verified arrives as a boolean or the string "true" depending on provider. */
@@ -97,7 +139,7 @@ function isVerified(claim) {
  * @returns {Promise<{provider, uid, email, email_verified, name}>}
  */
 async function verifyGoogleToken(idToken) {
-    const payload = await verify(idToken, googleKeys, {
+    const payload = await verifyWithJwks(idToken, GOOGLE_JWKS_URI, {
         issuer: GOOGLE_ISSUERS,
         audience: GOOGLE_AUDIENCES,
     });
@@ -124,7 +166,7 @@ async function verifyGoogleToken(idToken) {
  * @returns {Promise<{provider, uid, email, email_verified, name}>}
  */
 async function verifyAppleToken(idToken, rawNonce) {
-    const payload = await verify(idToken, appleKeys, {
+    const payload = await verifyWithJwks(idToken, APPLE_JWKS_URI, {
         issuer: APPLE_ISSUER,
         audience: APPLE_AUDIENCE,
     });
