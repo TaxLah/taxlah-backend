@@ -55,7 +55,7 @@ function cleanupTempFile(filePath) {
  * List all prompt templates (metadata only, no template text).
  */
 router.get('/prompts', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await GetAllPromptTemplates()
         response = result.status
@@ -63,7 +63,7 @@ router.get('/prompts', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminAI] GET /prompts:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -73,7 +73,7 @@ router.get('/prompts', superauth(), async (req, res) => {
  * Get a single prompt template including its full template text.
  */
 router.get('/prompts/:id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const id = parseInt(req.params.id)
         if (!id || isNaN(id)) {
@@ -91,7 +91,7 @@ router.get('/prompts/:id', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminAI] GET /prompts/:id:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -103,7 +103,7 @@ router.get('/prompts/:id', superauth(), async (req, res) => {
  * Body: { template?: string, description?: string, is_active?: 0|1 }
  */
 router.put('/prompts/:id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const id = parseInt(req.params.id)
         if (!id || isNaN(id)) {
@@ -130,7 +130,7 @@ router.put('/prompts/:id', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminAI] PUT /prompts/:id:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -149,7 +149,7 @@ router.put('/prompts/:id', superauth(), async (req, res) => {
  * Use this to verify the OCR prompt before running tax classification.
  */
 router.post('/test/ocr', superauth(), tempUpload.single('file'), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     const uploadedFile = req.file
 
     try {
@@ -205,7 +205,7 @@ router.post('/test/ocr', superauth(), tempUpload.single('file'), async (req, res
  * Use this to test tax classification independently or with custom data.
  */
 router.post('/test/tax', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { merchant, date, total_amount, currency, items, notes } = req.body
 
@@ -257,7 +257,7 @@ router.post('/test/tax', superauth(), async (req, res) => {
  * Use this to test the entire AI flow end-to-end.
  */
 router.post('/test/pipeline', superauth(), tempUpload.single('file'), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     const uploadedFile = req.file
 
     try {
@@ -320,7 +320,7 @@ router.post('/test/pipeline', superauth(), tempUpload.single('file'), async (req
  * permissions (e.g. restricted keys), but the other section will still be returned.
  */
 router.get('/account', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         if (!process.env.OPENAI_API_KEY) {
             return res.status(500).json({
@@ -434,7 +434,7 @@ router.get('/account', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[AdminAI] GET /account:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

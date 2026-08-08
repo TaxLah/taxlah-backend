@@ -26,7 +26,7 @@ function generateOtp() {
 // Body: { email }
 // ============================================================================
 router.post('/forgot-password', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const email = req.body.email ? sanitize(req.body.email.trim()) : null
         console.log("Log Email : ", email)
@@ -74,7 +74,7 @@ router.post('/forgot-password', async (req, res) => {
 // Body: { email, otp, new_password }
 // ============================================================================
 router.post('/reset-password', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const email        = req.body.email        ? sanitize(req.body.email.trim()) : null
         const otp          = req.body.otp          ? String(req.body.otp).trim()     : null

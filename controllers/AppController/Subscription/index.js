@@ -76,25 +76,25 @@ function verifyReceiptToken(paymentRef, token) {
  * Get all available subscription packages
  */
 router.get("/packages", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const result = await SubscriptionService.getSubscriptionPackages();
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Subscription packages retrieved successfully.";
         response.data = result.data;
 
         return res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Subscription Packages:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving packages.";
         return res.status(response.status_code).json(response);
     }
@@ -105,13 +105,13 @@ router.get("/packages", async (req, res) => {
  * Get specific subscription package details
  */
 router.get("/packages/:packageId", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const packageId = parseInt(req.params.packageId);
 
         if (isNaN(packageId)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Invalid package ID.";
             return res.status(response.status_code).json(response);
         }
@@ -119,19 +119,19 @@ router.get("/packages/:packageId", async (req, res) => {
         const result = await SubscriptionService.getPackageById(packageId);
 
         if (!result.success) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Package details retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Package Details:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving package details.";
         res.status(response.status_code).json(response);
     }
@@ -156,11 +156,11 @@ router.get("/my-subscription", auth(), async (req, res) => {
     
     console.log("Log Moment : ", moment().format("YYYY-MM-DD HH:mm A"))
 
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -170,7 +170,7 @@ router.get("/my-subscription", auth(), async (req, res) => {
         console.log("Log Result My Subscription : ", result)
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
@@ -196,7 +196,7 @@ router.get("/my-subscription", auth(), async (req, res) => {
         // if(moment(result.data.current_period_end).is)
         
 
-        response                    = SUCCESS_API_RESPONSE;
+        response                    = { ...SUCCESS_API_RESPONSE };
         response.message            = result.has_subscription ? "Active subscription found." : "No active subscription.";
         response.data               = result.data;
         response.has_subscription   = result.has_subscription;
@@ -205,7 +205,7 @@ router.get("/my-subscription", auth(), async (req, res) => {
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get My Subscription:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving your subscription.";
         res.status(response.status_code).json(response);
     }
@@ -216,11 +216,11 @@ router.get("/my-subscription", auth(), async (req, res) => {
  * Check user's subscription access and features
  */
 router.get("/check-access", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -229,19 +229,19 @@ router.get("/check-access", auth(), async (req, res) => {
         const result = await SubscriptionService.checkSubscriptionAccess(user.account_id);
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Subscription access checked successfully.";
         response.data = result;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Check Subscription Access:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while checking subscription access.";
         res.status(response.status_code).json(response);
     }
@@ -253,11 +253,11 @@ router.get("/check-access", auth(), async (req, res) => {
  * Body: { package_id, payment_method }
  */
 router.post("/subscribe", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -266,7 +266,7 @@ router.post("/subscribe", auth(), async (req, res) => {
         const { package_id, payment_method } = req.body;
 
         if (!package_id) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Package ID is required.";
             return res.status(response.status_code).json(response);
         }
@@ -274,7 +274,7 @@ router.post("/subscribe", auth(), async (req, res) => {
         // Get package details
         const packageResult = await SubscriptionService.getPackageById(package_id);
         if (!packageResult.success) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = "Package not found.";
             return res.status(response.status_code).json(response);
         }
@@ -287,11 +287,11 @@ router.post("/subscribe", auth(), async (req, res) => {
                 user.account_id, package_id, 'Free', true
             );
             if (!subResult.success) {
-                response = BAD_REQUEST_API_RESPONSE;
+                response = { ...BAD_REQUEST_API_RESPONSE };
                 response.message = subResult.error;
                 return res.status(response.status_code).json(response);
             }
-            response = SUCCESS_API_RESPONSE;
+            response = { ...SUCCESS_API_RESPONSE };
             response.message = "Free subscription activated.";
             response.data = subResult.data;
             return res.status(response.status_code).json(response);
@@ -323,7 +323,7 @@ router.post("/subscribe", auth(), async (req, res) => {
         );
 
         if (!paymentResult.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = "Failed to create payment record.";
             return res.status(response.status_code).json(response);
         }
@@ -353,7 +353,7 @@ router.post("/subscribe", auth(), async (req, res) => {
         });
 
         if (!paymentGatewayResult.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = "Failed to create payment gateway URL.";
             return res.status(response.status_code).json(response);
         }
@@ -372,7 +372,7 @@ router.post("/subscribe", auth(), async (req, res) => {
         const receiptToken = generateReceiptToken(paymentResult.data.payment_ref);
         const receiptUrl = `${req.protocol}://${req.get('host')}/api/subscription/public-receipt/${paymentResult.data.payment_ref}/${receiptToken}`;
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Please complete payment to activate subscription.";
         response.data = {
             package_name:   pkg.package_name,
@@ -385,7 +385,7 @@ router.post("/subscribe", auth(), async (req, res) => {
         return res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Subscribe:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while processing subscription.";
         res.status(response.status_code).json(response);
     }
@@ -397,11 +397,11 @@ router.post("/subscribe", auth(), async (req, res) => {
  * Body: { cancel_at_period_end, reason }
  */
 router.post("/cancel", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -416,19 +416,19 @@ router.post("/cancel", auth(), async (req, res) => {
         );
 
         if (!result.success) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = result.message;
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Cancel Subscription:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while cancelling subscription.";
         res.status(response.status_code).json(response);
     }
@@ -439,11 +439,11 @@ router.post("/cancel", auth(), async (req, res) => {
  * Resume a cancelled subscription (before period end)
  */
 router.post("/resume", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -452,19 +452,19 @@ router.post("/resume", auth(), async (req, res) => {
         const result = await SubscriptionService.resumeSubscription(user.account_id);
 
         if (!result.success) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = result.message;
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Resume Subscription:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while resuming subscription.";
         res.status(response.status_code).json(response);
     }
@@ -476,11 +476,11 @@ router.post("/resume", auth(), async (req, res) => {
  * Body: { package_id, payment_method }
  */
 router.post("/renew", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -489,7 +489,7 @@ router.post("/renew", auth(), async (req, res) => {
         // Get user's current active subscription
         const activeSubResult = await SubscriptionService.getActiveSubscription(user.account_id);
         if (!activeSubResult.success || !activeSubResult.has_subscription) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "No active subscription found to renew.";
             return res.status(response.status_code).json(response);
         }
@@ -512,13 +512,13 @@ router.post("/renew", auth(), async (req, res) => {
             
             // Can only renew if expiry is within 3 days (0 to 3 days remaining)
             if (diffDays < 0) {
-                response = BAD_REQUEST_API_RESPONSE;
+                response = { ...BAD_REQUEST_API_RESPONSE };
                 response.message = "Your subscription has already expired. Please subscribe again.";
                 return res.status(response.status_code).json(response);
             }
             
             if (diffDays > 3) {
-                response = BAD_REQUEST_API_RESPONSE;
+                response = { ...BAD_REQUEST_API_RESPONSE };
                 response.message = `You can only renew your subscription within 3 days before expiry. Your subscription expires in ${diffDays} days.`;
                 response.data = {
                     days_until_expiry: diffDays,
@@ -583,7 +583,7 @@ router.post("/renew", auth(), async (req, res) => {
             const receiptToken = generateReceiptToken(pending.payment_ref);
             const receiptUrl = `${req.protocol}://${req.get('host')}/api/subscription/public-receipt/${pending.payment_ref}/${receiptToken}`;
 
-            response = SUCCESS_API_RESPONSE;
+            response = { ...SUCCESS_API_RESPONSE };
             response.message = "Existing pending renewal found. Please complete payment.";
             response.data = {
                 package_name:   pkg ? pkg.package_name : 'Subscription',
@@ -601,7 +601,7 @@ router.post("/renew", auth(), async (req, res) => {
         // Get package details
         const packageResult = await SubscriptionService.getPackageById(package_id);
         if (!packageResult.success) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = "Package not found.";
             return res.status(response.status_code).json(response);
         }
@@ -637,7 +637,7 @@ router.post("/renew", auth(), async (req, res) => {
         );
 
         if (!paymentResult.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = "Failed to create payment record.";
             return res.status(response.status_code).json(response);
         }
@@ -666,7 +666,7 @@ router.post("/renew", auth(), async (req, res) => {
         });
 
         if (!paymentGatewayResult.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = "Failed to create payment gateway URL.";
             return res.status(response.status_code).json(response);
         }
@@ -705,7 +705,7 @@ router.post("/renew", auth(), async (req, res) => {
         const receiptToken = generateReceiptToken(paymentResult.data.payment_ref);
         const receiptUrl = `${req.protocol}://${req.get('host')}/api/subscription/public-receipt/${paymentResult.data.payment_ref}/${receiptToken}`;
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Please complete payment to renew subscription.";
         response.data = {
             package_name:   pkg.package_name,
@@ -719,7 +719,7 @@ router.post("/renew", auth(), async (req, res) => {
         return res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Renew Subscription:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while processing renewal.";
         res.status(response.status_code).json(response);
     }
@@ -734,11 +734,11 @@ router.post("/renew", auth(), async (req, res) => {
  * Get user's subscription history
  */
 router.get("/history", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -749,19 +749,19 @@ router.get("/history", auth(), async (req, res) => {
         const result = await SubscriptionService.getSubscriptionHistory(user.account_id, limit);
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Subscription history retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Subscription History:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving history.";
         res.status(response.status_code).json(response);
     }
@@ -772,11 +772,11 @@ router.get("/history", auth(), async (req, res) => {
  * Get user's subscription event history
  */
 router.get("/events", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -787,19 +787,19 @@ router.get("/events", auth(), async (req, res) => {
         const result = await SubscriptionService.getSubscriptionEvents(user.account_id, limit);
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Subscription events retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Subscription Events:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving events.";
         res.status(response.status_code).json(response);
     }
@@ -814,11 +814,11 @@ router.get("/events", auth(), async (req, res) => {
  * Get user's payment history
  */
 router.get("/payments", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -840,7 +840,7 @@ router.get("/payments", auth(), async (req, res) => {
         const result = await SubscriptionPaymentService.getPaymentHistory(user.account_id, options);
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
@@ -862,7 +862,7 @@ router.get("/payments", auth(), async (req, res) => {
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Payment History:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving payment history.";
         res.status(response.status_code).json(response);
     }
@@ -873,11 +873,11 @@ router.get("/payments", auth(), async (req, res) => {
  * Get specific payment details
  */
 router.get("/payment/:paymentRef", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -888,26 +888,26 @@ router.get("/payment/:paymentRef", auth(), async (req, res) => {
         const result = await SubscriptionPaymentService.getPaymentByRef(paymentRef);
 
         if (!result.success) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
         // Verify payment belongs to user
         if (result.data.account_id !== user.account_id) {
-            response = UNAUTHORIZED_API_RESPONSE;
+            response = { ...UNAUTHORIZED_API_RESPONSE };
             response.message = "Unauthorized access to payment.";
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Payment details retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Payment Details:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving payment details.";
         res.status(response.status_code).json(response);
     }
@@ -918,11 +918,11 @@ router.get("/payment/:paymentRef", auth(), async (req, res) => {
  * Get payment receipt with full details for display/download
  */
 router.get("/payment-receipt/:paymentRef", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -933,26 +933,26 @@ router.get("/payment-receipt/:paymentRef", auth(), async (req, res) => {
         const result = await SubscriptionPaymentService.getPaymentReceipt(paymentRef);
 
         if (!result.success) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
         // Verify payment belongs to user
         if (result.data.account_id !== user.account_id) {
-            response = UNAUTHORIZED_API_RESPONSE;
+            response = { ...UNAUTHORIZED_API_RESPONSE };
             response.message = "Unauthorized access to payment receipt.";
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Payment receipt retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Payment Receipt:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving payment receipt.";
         res.status(response.status_code).json(response);
     }
@@ -982,7 +982,7 @@ router.get("/payment-receipt/:paymentRef", auth(), async (req, res) => {
  * else's name, email and payment history.
  */
 router.get("/receipt-pdf/:paymentRef", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await SubscriptionPaymentService.getPaymentReceipt(req.params.paymentRef)
 
@@ -1021,7 +1021,7 @@ router.get("/receipt-pdf/:paymentRef", auth(), async (req, res) => {
 })
 
 router.get("/public-receipt/:paymentRef", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const { paymentRef } = req.params;
@@ -1029,7 +1029,7 @@ router.get("/public-receipt/:paymentRef", auth(), async (req, res) => {
         const result = await SubscriptionPaymentService.getPaymentReceipt(paymentRef);
 
         if (!result.success) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = result.error || "Payment receipt not found.";
             return res.status(response.status_code).json(response);
         }
@@ -1037,19 +1037,19 @@ router.get("/public-receipt/:paymentRef", auth(), async (req, res) => {
         // Do not distinguish "not yours" from "not found" — that would still confirm
         // which payment refs exist.
         if (String(result.data.account_id) !== String(req.user.account_id)) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = "Payment receipt not found.";
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Payment receipt retrieved successfully.";
         response.data = result.data;
 
         return res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Receipt:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving payment receipt.";
         return res.status(response.status_code).json(response);
     }
@@ -1059,13 +1059,13 @@ router.get("/public-receipt/:paymentRef", auth(), async (req, res) => {
 // carries /:paymentRef/:token — so req.params.token was always undefined and the
 // two-segment links 404'd. Both segments are declared now and the token is enforced.
 router.get("/public-receipt/:paymentRef/:token", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const { paymentRef, token } = req.params;
 
         if (!verifyReceiptToken(paymentRef, token)) {
-            response = UNAUTHORIZED_API_RESPONSE;
+            response = { ...UNAUTHORIZED_API_RESPONSE };
             response.message = "Invalid or expired receipt token.";
             return res.status(response.status_code).json(response);
         }
@@ -1074,19 +1074,19 @@ router.get("/public-receipt/:paymentRef/:token", async (req, res) => {
         const result = await SubscriptionPaymentService.getPaymentReceipt(paymentRef);
 
         if (!result.success) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = result.error || "Payment receipt not found.";
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Payment receipt retrieved successfully.";
         response.data = result.data;
 
         return res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Public Receipt:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving payment receipt.";
         return res.status(response.status_code).json(response);
     }

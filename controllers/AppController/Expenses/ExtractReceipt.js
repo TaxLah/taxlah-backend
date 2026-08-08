@@ -39,13 +39,13 @@ const { canUploadReceipt, recordReceiptUpload } = require('../../../models/AppMo
  *   receipt_file  — required: image (jpg/png/webp) or PDF
  */
 router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     const user   = req.user || null;
 
     console.log("Log User >> ", user)
     
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }

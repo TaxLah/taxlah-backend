@@ -18,18 +18,18 @@ const auth = (secret) => {
 					req.user 	= payload;
 					next();
 				} else {
-					let response 		= UNAUTHORIZED_API_RESPONSE
+					let response 		= { ...UNAUTHORIZED_API_RESPONSE }
 					response.message 	= ERROR_UNAUTHENTICATED
 					return res.status(response.status_code).json(response)
 				}
 			} else {
-				let response 		= UNAUTHORIZED_API_RESPONSE
+				let response 		= { ...UNAUTHORIZED_API_RESPONSE }
 				response.message 	= ERROR_MISSING_TOKEN
 				return res.status(response.status_code).json(response)
 			}
 		} catch (err) {
 			console.log("err auth : ", err)
-			let response = UNAUTHORIZED_API_RESPONSE
+			let response = { ...UNAUTHORIZED_API_RESPONSE }
 			return res.status(response.status_code).json(response)
 		}
 	};

@@ -13,7 +13,7 @@ const { AdminGetUsersList } = require('../../../models/AdminModel/UserManagement
  * Query params: { page, limit, search, status, sortBy, sortOrder }
  */
 router.get("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const params = {
@@ -31,12 +31,12 @@ router.get("/", async(req, res) => {
         console.log("Log Function AdminGetUsersList : ", result)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to retrieve users list."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Users list retrieved successfully."
         response.data = result.data
 
@@ -44,7 +44,7 @@ router.get("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Get Users List: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving users list."
         res.status(response.status_code).json(response)
     }

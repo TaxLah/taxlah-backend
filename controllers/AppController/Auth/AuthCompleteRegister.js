@@ -59,7 +59,7 @@ function generateOtp() {
 }
 
 router.post("/resend-otp", async(req , res) => {
-    let response        = DEFAULT_API_RESPONSE
+    let response        = { ...DEFAULT_API_RESPONSE }
     let email_account   = null
 
     try {
@@ -70,7 +70,7 @@ router.post("/resend-otp", async(req , res) => {
         email_account = params.email_account || null
 
         if(CHECK_EMPTY(email_account)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Field email account is empty."
             return res.status(response.status_code).json(response)
         } else {
@@ -78,7 +78,7 @@ router.post("/resend-otp", async(req , res) => {
             console.log("Log Check Approval Account : ", temp_acc)
 
             if(!temp_acc.status) {
-                response = FORBIDDEN_API_RESPONSE
+                response = { ...FORBIDDEN_API_RESPONSE }
                 response.message = "Invalid email address or account not found."
                 return res.status(response.status_code).json(response)
             } else { 
@@ -104,14 +104,14 @@ router.post("/resend-otp", async(req , res) => {
                     })
 
                     if(!updateApproval.status) {
-                        response            = INTERNAL_SERVER_ERROR_API_RESPONSE
+                        response            = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
                         response.message    = "Unable to refresh OTP at the moment. Please try again."
                         return res.status(response.status_code).json(response)
                     }
 
                     const latestApproval = await CheckApprovalAccountByEmail(email_account)
                     if(!latestApproval.status || !latestApproval.data || !latestApproval.data.otp_number) {
-                        response            = INTERNAL_SERVER_ERROR_API_RESPONSE
+                        response            = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
                         response.message    = "Unable to read refreshed OTP. Please try again."
                         return res.status(response.status_code).json(response)
                     }
@@ -123,11 +123,11 @@ router.post("/resend-otp", async(req , res) => {
                         subject: `🔐 Your New Account Approval Code`
                     })
 
-                    response = SUCCESS_API_RESPONSE
+                    response = { ...SUCCESS_API_RESPONSE }
                     response.message = "Request success. Please check your mailbox to get your new approval code."
                     return res.status(response.status_code).json(response)
                 } else {
-                    response = FORBIDDEN_API_RESPONSE
+                    response = { ...FORBIDDEN_API_RESPONSE }
                     response.message = "Your account has approved. Please proceed to login into your account."
                     return res.status(response.status_code).json(response)
                 }
@@ -135,7 +135,7 @@ router.post("/resend-otp", async(req , res) => {
         }
     } catch (e) {
         console.log("[AuthApprovalRetryOTP] error : ", e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
 
     return res.status(response.status_code).json(response)
@@ -143,7 +143,7 @@ router.post("/resend-otp", async(req , res) => {
 
 router.post("/", async(req , res) => {
     
-    let response        = DEFAULT_API_RESPONSE
+    let response        = { ...DEFAULT_API_RESPONSE }
     let email_account   = null
     let email_otp       = null
 
@@ -156,12 +156,12 @@ router.post("/", async(req , res) => {
         email_otp       = params.email_otp || null
 
         if(CHECK_EMPTY(email_account)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Field email account is empty."
             return res.status(response.status_code).json(response)
         }
         else if(CHECK_EMPTY(email_otp)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Field email account otp number is empty."
             return res.status(response.status_code).json(response)
         }
@@ -170,7 +170,7 @@ router.post("/", async(req , res) => {
             console.log("Log Check Approval Account : ", temp_acc)
 
             if(!temp_acc.status) {
-                response = FORBIDDEN_API_RESPONSE
+                response = { ...FORBIDDEN_API_RESPONSE }
                 response.message = "Invalid email address or account not found."
                 return res.status(response.status_code).json(response)
             } else {
@@ -185,7 +185,7 @@ router.post("/", async(req , res) => {
                 console.log("Log OTP Expired : ", otp_expired_date)
 
                 if(parseFloat(email_otp) !== parseFloat(otp_number)) {
-                    response            = FORBIDDEN_API_RESPONSE
+                    response            = { ...FORBIDDEN_API_RESPONSE }
                     response.message    = "Invalid OTP number. Please make sure you have valid OTP number and check your email."
                     return res.status(response.status_code).json(response)
                 }
@@ -205,7 +205,7 @@ router.post("/", async(req , res) => {
                             last_modified: moment.utc().format("YYYY-MM-DD HH:mm:ss")
                         })
 
-                        response = FORBIDDEN_API_RESPONSE
+                        response = { ...FORBIDDEN_API_RESPONSE }
                         response.message = "Your OTP number has expired. Please request for email verification again."
                         return res.status(response.status_code).json(response)
                     } else {
@@ -216,7 +216,7 @@ router.post("/", async(req , res) => {
                         let user_account_id         = check_account_if_exist.account_id
 
                         if(check_account_if_exist.status == false && check_account_if_exist.is_error == true) {
-                            response            = INTERNAL_SERVER_ERROR_API_RESPONSE
+                            response            = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
                             response.message    = "Unable to verify your account at the moment. Please contact our support."
                             return res.status(response.status_code).json(response)
                         }
@@ -273,7 +273,7 @@ router.post("/", async(req , res) => {
                                 response.data       = session
                                 return res.status(response.status_code).json(response)
                             } else {
-                                response            = INTERNAL_SERVER_ERROR_API_RESPONSE
+                                response            = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
                                 response.message    = "Error. Unable to approved your account. Please contact our support for more information."
                                 return res.status(response.status_code).json(response)
                             }
@@ -322,7 +322,7 @@ router.post("/", async(req , res) => {
         
     } catch (e) {
         console.log("[AuthCompleteRegister] error : ", e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
 
     return res.status(response.status_code).json(response)

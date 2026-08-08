@@ -25,7 +25,7 @@ const db = require('../../../utils/sqlbuilder')
 
 /* ─── GET /superadmin/users ─── */
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetUsersList(req.query)
         response = result.status
@@ -33,14 +33,14 @@ router.get('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/UserManagement] List:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/users/stats ─── */
 router.get('/stats', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetUserStats()
         response = result.status
@@ -48,14 +48,14 @@ router.get('/stats', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/UserManagement] Stats:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/users/:account_id ─── */
 router.get('/:account_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetUserDetails(req.params.account_id)
         response = result.status
@@ -63,14 +63,14 @@ router.get('/:account_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'User not found.' }
     } catch (e) {
         console.error('[AdminController/UserManagement] View:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── POST /superadmin/users ─── */
 router.post('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const {
             account_name, account_fullname, account_email, account_contact,
@@ -103,7 +103,7 @@ router.post('/', superauth(), async (req, res) => {
         })
 
         if (!insertResult.insertId) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             return res.status(response.status_code).json(response)
         }
 
@@ -122,14 +122,14 @@ router.post('/', superauth(), async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, message: 'User created.', data: { account_id: insertResult.insertId } }
     } catch (e) {
         console.error('[AdminController/UserManagement] Create:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/users/:account_id ─── */
 router.put('/:account_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     console.log("Log Params : ", req.body)
 
     try {
@@ -170,14 +170,14 @@ router.put('/:account_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'User not found or no changes.' }
     } catch (e) {
         console.error('[AdminController/UserManagement] Update:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/users/:account_id/status ─── */
 router.put('/:account_id/status', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { status } = req.body
         const VALID = ['Active','Suspended','Pending','Others']
@@ -193,14 +193,14 @@ router.put('/:account_id/status', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'User not found.' }
     } catch (e) {
         console.error('[AdminController/UserManagement] UpdateStatus:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/users/:account_id/credentials ─── */
 router.put('/:account_id/credentials', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { account_id } = req.params
         const { new_email, new_password } = req.body
@@ -234,14 +234,14 @@ router.put('/:account_id/credentials', superauth(), async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, message: 'Credentials updated.' }
     } catch (e) {
         console.error('[AdminController/UserManagement] UpdateCredentials:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── DELETE /superadmin/users/:account_id ─── */
 router.delete('/:account_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminDeleteUser(req.params.account_id)
         response = result.status
@@ -249,14 +249,14 @@ router.delete('/:account_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'User not found.' }
     } catch (e) {
         console.error('[AdminController/UserManagement] Delete:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/users/:account_id/activity ─── */
 router.get('/:account_id/activity', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetUserActivityLogs(req.params.account_id, req.query.limit || 50)
         response = result.status
@@ -264,14 +264,14 @@ router.get('/:account_id/activity', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/UserManagement] Activity:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/users/:account_id/expenses ─── */
 router.get('/:account_id/expenses', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { page = 1, limit = 10 } = req.query
         const offset = (parseInt(page) - 1) * parseInt(limit)
@@ -286,14 +286,14 @@ router.get('/:account_id/expenses', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[AdminController/UserManagement] UserExpenses:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/users/:account_id/dependants ─── */
 router.get('/:account_id/dependants', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetDependantsList(req.params.account_id, req.query)
         response = result.status
@@ -301,14 +301,14 @@ router.get('/:account_id/dependants', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/UserManagement] DependantsList:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── POST /superadmin/users/:account_id/dependants ─── */
 router.post('/:account_id/dependants', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { account_id } = req.params
         const { dependant_name, dependant_relationship } = req.body
@@ -331,14 +331,14 @@ router.post('/:account_id/dependants', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/UserManagement] CreateDependant:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/users/:account_id/dependants/:dependant_id ─── */
 router.put('/:account_id/dependants/:dependant_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const allowed = ['dependant_name','dependant_relationship','dependant_nric','dependant_dob','dependant_disability','status']
         const update = {}
@@ -355,14 +355,14 @@ router.put('/:account_id/dependants/:dependant_id', superauth(), async (req, res
             : { ...NOT_FOUND_API_RESPONSE, message: 'Dependant not found.' }
     } catch (e) {
         console.error('[AdminController/UserManagement] UpdateDependant:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── DELETE /superadmin/users/:account_id/dependants/:dependant_id ─── */
 router.delete('/:account_id/dependants/:dependant_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminDeleteDependant(req.params.dependant_id)
         response = result.status
@@ -370,7 +370,7 @@ router.delete('/:account_id/dependants/:dependant_id', superauth(), async (req, 
             : { ...NOT_FOUND_API_RESPONSE, message: 'Dependant not found.' }
     } catch (e) {
         console.error('[AdminController/UserManagement] DeleteDependant:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -378,7 +378,7 @@ router.delete('/:account_id/dependants/:dependant_id', superauth(), async (req, 
 
 /* ─── GET /superadmin/users/:account_id/approvals ─── */
 router.get('/:account_id/approvals', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const account_id = parseInt(req.params.account_id)
         if (!account_id || isNaN(account_id)) {
@@ -391,14 +391,14 @@ router.get('/:account_id/approvals', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/UserManagement] ApprovalList:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/users/:account_id/subscription-payments ─── */
 router.get('/:account_id/subscription-payments', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const account_id = parseInt(req.params.account_id)
         if (!account_id || isNaN(account_id)) {
@@ -411,7 +411,7 @@ router.get('/:account_id/subscription-payments', superauth(), async (req, res) =
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/UserManagement] SubscriptionPayments:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

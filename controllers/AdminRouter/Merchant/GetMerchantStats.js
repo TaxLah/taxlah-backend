@@ -12,18 +12,18 @@ const { AdminGetMerchantStats } = require('../../../models/AdminModel/Merchant')
  * Get merchant statistics (total count, active, inactive, deleted)
  */
 router.get("/stats", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const result = await AdminGetMerchantStats()
 
         if (!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = result.message || 'Error fetching merchant statistics'
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = 'Merchant statistics retrieved successfully'
         response.data = result.data
 
@@ -31,7 +31,7 @@ router.get("/stats", async(req, res) => {
 
     } catch (error) {
         console.log("Error at AdminGetMerchantStats: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = error.message || 'Internal server error'
         return res.status(response.status_code).json(response)
     }

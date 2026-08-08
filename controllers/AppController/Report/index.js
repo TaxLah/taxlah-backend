@@ -56,7 +56,7 @@ const findReportFile = (accountId, filename) => {
  * Get available report types and their credits cost
  */
 router.get("/types", async (req, res) => {
-    let response = SUCCESS_API_RESPONSE;
+    let response = { ...SUCCESS_API_RESPONSE };
     
     try {
         const types = Object.entries(REPORT_CONFIG).map(([key, config]) => ({
@@ -73,7 +73,7 @@ router.get("/types", async (req, res) => {
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Report Types:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving report types.";
         res.status(response.status_code).json(response);
     }
@@ -84,11 +84,11 @@ router.get("/types", async (req, res) => {
  * Preview report data without generating PDF (free)
  */
 router.get("/preview/:year", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -97,7 +97,7 @@ router.get("/preview/:year", async (req, res) => {
         const taxYear = parseInt(req.params.year);
 
         if (isNaN(taxYear) || taxYear < 2023 || taxYear > new Date().getFullYear() + 1) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Invalid tax year. Must be 2023 or later.";
             return res.status(response.status_code).json(response);
         }
@@ -105,12 +105,12 @@ router.get("/preview/:year", async (req, res) => {
         const data = await getTaxReportData(user.account_id, taxYear);
 
         if (!data.user) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = "User data not found.";
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Report preview data retrieved successfully.";
         response.data = {
             tax_year: taxYear,
@@ -139,7 +139,7 @@ router.get("/preview/:year", async (req, res) => {
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Report Preview:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving report preview.";
         res.status(response.status_code).json(response);
     }
@@ -153,11 +153,11 @@ router.get("/preview/:year", async (req, res) => {
  * NOTE: In production, this should deduct credits before generating
  */
 router.post("/generate", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -168,14 +168,14 @@ router.post("/generate", async (req, res) => {
 
         // Validate tax year
         if (taxYear < 2024 || taxYear > new Date().getFullYear() + 1) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Invalid tax year. Must be 2024 or later.";
             return res.status(response.status_code).json(response);
         }
 
         // Validate report type
         if (!REPORT_CONFIG[reportType]) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = `Invalid report type. Must be one of: ${Object.keys(REPORT_CONFIG).join(', ')}`;
             return res.status(response.status_code).json(response);
         }
@@ -190,7 +190,7 @@ router.post("/generate", async (req, res) => {
             .filter(f => f.startsWith('tax_report_') && f.includes(`_${user.account_id}_`) && f.endsWith('.pdf'));
 
         if (existingReports.length >= REPORT_LIMIT) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = `You have reached the maximum of ${REPORT_LIMIT} saved reports. Please delete some reports before generating a new one.`;
             response.data = {
                 current_count: existingReports.length,
@@ -202,7 +202,7 @@ router.post("/generate", async (req, res) => {
         // TODO: Check user credits balance
         // const userCredits = await getUserCredits(user.account_id);
         // if (userCredits < creditsRequired) {
-        //     response = BAD_REQUEST_API_RESPONSE;
+        //     response = { ...BAD_REQUEST_API_RESPONSE };
         //     response.message = `Insufficient credits. Required: ${creditsRequired}, Available: ${userCredits}`;
         //     return res.status(response.status_code).json(response);
         // }
@@ -215,7 +215,7 @@ router.post("/generate", async (req, res) => {
         const result = await generateTaxReport(user.account_id, taxYear, reportType);
 
         if (!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error || "Failed to generate report.";
             return res.status(response.status_code).json(response);
         }
@@ -235,7 +235,7 @@ router.post("/generate", async (req, res) => {
             console.error('[Report] Failed to create notification:', notifError);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Report generated successfully.";
         response.data = {
             report_type: reportType,
@@ -250,7 +250,7 @@ router.post("/generate", async (req, res) => {
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Generate Report:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while generating report.";
         res.status(response.status_code).json(response);
     }
@@ -329,11 +329,11 @@ router.get("/download/:filename", async (req, res) => {
  * Get user's report generation history
  */
 router.get("/history", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -370,7 +370,7 @@ router.get("/history", async (req, res) => {
             })
             .sort((a, b) => new Date(b.generated_at) - new Date(a.generated_at));
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Report history retrieved successfully.";
         response.data = {
             total: userReports.length,
@@ -380,7 +380,7 @@ router.get("/history", async (req, res) => {
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Report History:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving report history.";
         res.status(response.status_code).json(response);
     }
@@ -391,11 +391,11 @@ router.get("/history", async (req, res) => {
  * Delete a generated report
  */
 router.delete("/:filename", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -405,7 +405,7 @@ router.delete("/:filename", async (req, res) => {
 
         // Security: Validate filename format
         if (!filename.match(/^tax_report_\d{4}_\d+_\d+\.pdf$/)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Invalid filename format.';
             return res.status(response.status_code).json(response);
         }
@@ -413,7 +413,7 @@ router.delete("/:filename", async (req, res) => {
         // Security: Check if file belongs to user
         const fileAccountId = filename.split('_')[3];
         if (parseInt(fileAccountId) !== user.account_id) {
-            response = UNAUTHORIZED_API_RESPONSE;
+            response = { ...UNAUTHORIZED_API_RESPONSE };
             response.message = 'Access denied.';
             return res.status(response.status_code).json(response);
         }
@@ -421,7 +421,7 @@ router.delete("/:filename", async (req, res) => {
         const filepath = findReportFile(user.account_id, filename);
 
         if (!filepath) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = 'Report not found.';
             return res.status(response.status_code).json(response);
         }
@@ -429,14 +429,14 @@ router.delete("/:filename", async (req, res) => {
         // Delete file
         fs.unlinkSync(filepath);
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Report deleted successfully.";
         response.data = { filename };
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Delete Report:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while deleting report.";
         res.status(response.status_code).json(response);
     }

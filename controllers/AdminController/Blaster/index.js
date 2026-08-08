@@ -136,21 +136,21 @@ async function deliverBlast({ channel, title, body, recipients, global_vars }) {
 
 /* GET /superadmin/blaster/templates */
 router.get('/templates', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { channel } = req.query
         const result = await GetBlastTemplates(channel || null)
         response = { ...SUCCESS_API_RESPONSE, data: result.data }
     } catch (e) {
         console.error('[Blaster] GetTemplates:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* POST /superadmin/blaster/templates */
 router.post('/templates', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { template_name, template_tag, template_channel, template_title, template_body } = req.body
 
@@ -173,14 +173,14 @@ router.post('/templates', superauth(), async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, data: result.data }
     } catch (e) {
         console.error('[Blaster] CreateTemplate:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* PUT /superadmin/blaster/templates/:id */
 router.put('/templates/:id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const blast_template_id = parseInt(req.params.id)
         if (!blast_template_id) {
@@ -203,10 +203,10 @@ router.put('/templates/:id', superauth(), async (req, res) => {
         if (status           !== undefined) updates.status           = status
 
         await UpdateBlastTemplate(blast_template_id, updates)
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
     } catch (e) {
         console.error('[Blaster] UpdateTemplate:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -217,20 +217,20 @@ router.put('/templates/:id', superauth(), async (req, res) => {
 
 /* GET /superadmin/blaster/groups */
 router.get('/groups', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await GetRecipientGroups()
         response = { ...SUCCESS_API_RESPONSE, data: result.data }
     } catch (e) {
         console.error('[Blaster] GetGroups:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* GET /superadmin/blaster/users  ?page=1&limit=20&search= */
 router.get('/users', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { page = 1, limit = 20, search = '' } = req.query
         const result = await GetIndividualUsers({
@@ -241,7 +241,7 @@ router.get('/users', superauth(), async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, data: result.data }
     } catch (e) {
         console.error('[Blaster] GetUsers:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -285,7 +285,7 @@ function validateBlastBody(body) {
 
 /* POST /superadmin/blaster/send */
 router.post('/send', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const {
             channel, title, message,
@@ -359,14 +359,14 @@ router.post('/send', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[Blaster] Send:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* POST /superadmin/blaster/draft */
 router.post('/draft', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const {
             channel, title, message,
@@ -404,14 +404,14 @@ router.post('/draft', superauth(), async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, data: createResult.data }
     } catch (e) {
         console.error('[Blaster] Draft:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* POST /superadmin/blaster/draft/:id/send  — send a previously saved draft */
 router.post('/draft/:id/send', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const blast_id = parseInt(req.params.id)
         if (!blast_id) {
@@ -482,7 +482,7 @@ router.post('/draft/:id/send', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[Blaster] DraftSend:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -493,7 +493,7 @@ router.post('/draft/:id/send', superauth(), async (req, res) => {
 
 /* GET /superadmin/blaster/history  ?page=1&limit=20&channel=Push&status=Sent */
 router.get('/history', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { page = 1, limit = 20, channel, status } = req.query
         const result = await GetBlastHistory({
@@ -505,14 +505,14 @@ router.get('/history', superauth(), async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, data: result.data }
     } catch (e) {
         console.error('[Blaster] History:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* GET /superadmin/blaster/history/:id */
 router.get('/history/:id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const blast_id = parseInt(req.params.id)
         if (!blast_id) {
@@ -525,7 +525,7 @@ router.get('/history/:id', superauth(), async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, data: result.data }
     } catch (e) {
         console.error('[Blaster] GetDetail:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

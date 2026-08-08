@@ -14,13 +14,13 @@ const { AdminDeleteTaxSubcategory } = require('../../../../models/AdminModel/Tax
  * Delete tax subcategory (soft delete - sets status to Deleted)
  */
 router.delete("/:taxsub_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const taxsub_id = req.params.taxsub_id
 
         if(CHECK_EMPTY(taxsub_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Tax subcategory ID is required."
             return res.status(response.status_code).json(response)
         }
@@ -30,12 +30,12 @@ router.delete("/:taxsub_id", async(req, res) => {
         const result = await AdminDeleteTaxSubcategory(taxsub_id)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to delete tax subcategory."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Tax subcategory deleted successfully."
         response.data = { taxsub_id: parseInt(taxsub_id), deleted: true }
 
@@ -43,7 +43,7 @@ router.delete("/:taxsub_id", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Delete Tax Subcategory: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while deleting tax subcategory."
         res.status(response.status_code).json(response)
     }

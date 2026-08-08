@@ -48,11 +48,11 @@ const ExpensesModel = require('../../../models/AppModel/Expenses');
  * }
  */
 router.put('/:id', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -63,7 +63,7 @@ router.put('/:id', async (req, res) => {
         const params = req.body;
 
         if (!expenses_id || isNaN(expenses_id)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Invalid expense ID';
             return res.status(response.status_code).json(response);
         }
@@ -77,7 +77,7 @@ router.put('/:id', async (req, res) => {
             // Validate date format
             const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
             if (!dateRegex.test(params.expenses_date)) {
-                response = BAD_REQUEST_API_RESPONSE;
+                response = { ...BAD_REQUEST_API_RESPONSE };
                 response.message = 'Invalid date format. Use YYYY-MM-DD';
                 return res.status(response.status_code).json(response);
             }
@@ -91,7 +91,7 @@ router.put('/:id', async (req, res) => {
 
         if (params.expenses_total_amount !== undefined) {
             if (isNaN(params.expenses_total_amount) || params.expenses_total_amount <= 0) {
-                response = BAD_REQUEST_API_RESPONSE;
+                response = { ...BAD_REQUEST_API_RESPONSE };
                 response.message = 'Invalid expense amount';
                 return res.status(response.status_code).json(response);
             }
@@ -155,7 +155,7 @@ router.put('/:id', async (req, res) => {
                     }
                 } catch (jsonError) {
                     console.warn('[UpdateExpense] Failed to parse items JSON:', jsonError);
-                    response = BAD_REQUEST_API_RESPONSE;
+                    response = { ...BAD_REQUEST_API_RESPONSE };
                     response.message = 'Invalid items format. Must be an array or valid JSON string';
                     return res.status(response.status_code).json(response);
                 }
@@ -163,7 +163,7 @@ router.put('/:id', async (req, res) => {
         }
 
         if (Object.keys(updateData).length === 0 && !shouldUpdateItems) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'No fields to update';
             return res.status(response.status_code).json(response);
         }
@@ -174,7 +174,7 @@ router.put('/:id', async (req, res) => {
             result = await ExpensesModel.updateExpense(account_id, expenses_id, updateData);
 
             if (!result.status) {
-                response = NOT_FOUND_API_RESPONSE;
+                response = { ...NOT_FOUND_API_RESPONSE };
                 response.message = result.message || 'Failed to update expense';
                 return res.status(response.status_code).json(response);
             }
@@ -217,7 +217,7 @@ router.put('/:id', async (req, res) => {
 
     } catch (error) {
         console.error('[UpdateExpense] Error:', error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = 'An error occurred while updating expense';
         response.data = { error: error.message };
         return res.status(response.status_code).json(response);

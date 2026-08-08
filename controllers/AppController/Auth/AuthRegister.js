@@ -17,7 +17,7 @@ function generateOtp() {
 }
 
 router.post("/", async(req , res) => {
-    let response            = DEFAULT_API_RESPONSE
+    let response            = { ...DEFAULT_API_RESPONSE }
     let auth_username       = null
     let auth_password       = null
     let auth_role           = "Individual"
@@ -40,42 +40,42 @@ router.post("/", async(req , res) => {
         account_phone       = params.account_phone || null
 
         if(CHECK_EMPTY(auth_username)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Undefined parameter account username or field is empty."
             return res.status(response.status_code).json(response)
         } 
         else if(CHECK_EMPTY(auth_password)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Undefined parameter account password or field is empty."
             return res.status(response.status_code).json(response)
         } 
         else if(CHECK_EMPTY(account_name)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Undefined parameter account name or field is empty."
             return res.status(response.status_code).json(response)
         } 
         else if(CHECK_EMPTY(account_fullname)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Undefined parameter account fullname or field is empty."
             return res.status(response.status_code).json(response)
         } 
         else if(CHECK_EMPTY(account_email)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Undefined parameter account email or field is empty."
             return res.status(response.status_code).json(response)
         } 
         // else if(CHECK_EMPTY(account_phone)) {
-        //     response = BAD_REQUEST_API_RESPONSE
+        //     response = { ...BAD_REQUEST_API_RESPONSE }
         //     response.message = "Error. Undefined parameter account contact number or field is empty."
         //     return res.status(response.status_code).json(response)
         // } 
         else if(!isStrongPassword(auth_password)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Password need to be at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char."
             return res.status(response.status_code).json(response)
         } 
         else if(!isValidEmail(account_email)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Email account is not valid or invalid email format."
             return res.status(response.status_code).json(response)
         } 
@@ -89,17 +89,17 @@ router.post("/", async(req , res) => {
             console.log("Log check_existing_email : ", check_existing_email)
 
             if(check_approval_account.status) {
-                response = FORBIDDEN_API_RESPONSE
+                response = { ...FORBIDDEN_API_RESPONSE }
                 response.message = "Account has been created and under pending approval. Please proceed to login to approve your account"
                 return res.status(response.status_code).json(response)
             }
 
             if(check_existing_username.status) {
-                response = FORBIDDEN_API_RESPONSE
+                response = { ...FORBIDDEN_API_RESPONSE }
                 response.message = "Error. Account with current username has already exist."
                 return res.status(response.status_code).json(response)
             } else if(check_existing_email.status) {
-                response = FORBIDDEN_API_RESPONSE
+                response = { ...FORBIDDEN_API_RESPONSE }
                 response.message = "Error. Account with current email has already exist."
                 return res.status(response.status_code).json(response)
             } else {
@@ -156,7 +156,7 @@ router.post("/", async(req , res) => {
 
                 console.log("Log Create Access Account : ", createAccessAccount)
 
-                response            = SUCCESS_API_RESPONSE
+                response            = { ...SUCCESS_API_RESPONSE }
                 response.message    = "Please check your mailbox to get your new approval code."
                 return res.status(response.status_code).json(response)
 
@@ -200,7 +200,7 @@ router.post("/", async(req , res) => {
                 //         } catch (subError) {
                 //             // Non-fatal — registration succeeds even if subscription assignment fails
                 //             console.error('[Registration] Error during auto-subscription:', subError)
-                //             response = INTERNAL_SERVER_ERROR_API_RESPONSE
+                //             response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
                 //             return res.status(response.status_code).json(response)
                 //         }
 
@@ -229,7 +229,7 @@ router.post("/", async(req , res) => {
                 //         let email_html      = OnboardingEmail(account_fullname || auth_username )
                 //         let send_email      = await SEND_EMAIL_NOTIFICATION(account_email, email_title, email_body, email_html)
 
-                //         response            = SUCCESS_API_RESPONSE
+                //         response            = { ...SUCCESS_API_RESPONSE }
                 //         response.message    = "Congratulation! Your account has been created successfully."
                 //         response.data       = null
 
@@ -237,7 +237,7 @@ router.post("/", async(req , res) => {
                         
                 //     } else {
                 //         let delete_account  = await AccountDelete(profile.account_id)
-                //         response            = FORBIDDEN_API_RESPONSE
+                //         response            = { ...FORBIDDEN_API_RESPONSE }
                 //         response.message    = "System Error! We're sorry that we could not create your account. Please make sure all required information are not left empty."
                 //         response.data       = null
 
@@ -245,7 +245,7 @@ router.post("/", async(req , res) => {
                 //     }
 
                 // } else {
-                //     response            = INTERNAL_SERVER_ERROR_API_RESPONSE
+                //     response            = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
                 //     response.message    = "Error. Unable to create account profile. Please make sure all required field is not empty or format is correct."
                 //     response.data       = null
 
@@ -255,7 +255,7 @@ router.post("/", async(req , res) => {
         }
     } catch (e) {
         console.log("Log Err : ", e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error! Please contact our support for more information."
     }
     

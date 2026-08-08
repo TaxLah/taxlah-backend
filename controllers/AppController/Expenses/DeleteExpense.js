@@ -25,11 +25,11 @@ const ExpensesModel = require('../../../models/AppModel/Expenses');
  * Soft delete an expense (sets status to 'Deleted')
  */
 router.delete('/:id', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -39,7 +39,7 @@ router.delete('/:id', async (req, res) => {
         const expenses_id = parseInt(req.params.id);
 
         if (!expenses_id || isNaN(expenses_id)) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = 'Invalid expense ID';
             return res.status(response.status_code).json(response);
         }
@@ -50,7 +50,7 @@ router.delete('/:id', async (req, res) => {
         const result = await ExpensesModel.deleteExpense(account_id, expenses_id);
 
         if (!result.status) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = result.message || 'Failed to delete expense';
             return res.status(response.status_code).json(response);
         }
@@ -67,7 +67,7 @@ router.delete('/:id', async (req, res) => {
 
     } catch (error) {
         console.error('[DeleteExpense] Error:', error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = 'An error occurred while deleting expense';
         response.data = { error: error.message };
         return res.status(response.status_code).json(response);

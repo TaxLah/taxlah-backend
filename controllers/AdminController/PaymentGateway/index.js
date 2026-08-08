@@ -33,7 +33,7 @@ const VALID_STATUSES     = ['Active', 'Inactive']
    Query: page, limit, provider, environment, status
 ──────────────────────────────────────────────────────────────── */
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetPaymentGatewaysList(req.query)
         response = result.status
@@ -41,7 +41,7 @@ router.get('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/PaymentGateway] List:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -50,7 +50,7 @@ router.get('/', superauth(), async (req, res) => {
    GET /superadmin/payment-gateways/:id
 ──────────────────────────────────────────────────────────────── */
 router.get('/:id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { id } = req.params
         if (!id || isNaN(id)) {
@@ -63,7 +63,7 @@ router.get('/:id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Payment gateway not found.' }
     } catch (e) {
         console.error('[AdminController/PaymentGateway] Details:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -75,7 +75,7 @@ router.get('/:id', superauth(), async (req, res) => {
          pg_is_default, status
 ──────────────────────────────────────────────────────────────── */
 router.post('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const {
             pg_name, pg_provider, pg_environment,
@@ -137,7 +137,7 @@ router.post('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/PaymentGateway] Create:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -148,7 +148,7 @@ router.post('/', superauth(), async (req, res) => {
    when explicitly provided in the request body)
 ──────────────────────────────────────────────────────────────── */
 router.put('/:id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { id } = req.params
         if (!id || isNaN(id)) {
@@ -216,7 +216,7 @@ router.put('/:id', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/PaymentGateway] Update:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -226,7 +226,7 @@ router.put('/:id', superauth(), async (req, res) => {
    Body: { status: "Active" | "Inactive" }
 ──────────────────────────────────────────────────────────────── */
 router.patch('/:id/status', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { id } = req.params
         const { status } = req.body
@@ -247,7 +247,7 @@ router.patch('/:id/status', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Payment gateway not found.' }
     } catch (e) {
         console.error('[AdminController/PaymentGateway] UpdateStatus:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -257,7 +257,7 @@ router.patch('/:id/status', superauth(), async (req, res) => {
    Sets this gateway as the default; clears all others.
 ──────────────────────────────────────────────────────────────── */
 router.patch('/:id/default', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { id } = req.params
         if (!id || isNaN(id)) {
@@ -278,7 +278,7 @@ router.patch('/:id/default', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/PaymentGateway] SetDefault:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -287,7 +287,7 @@ router.patch('/:id/default', superauth(), async (req, res) => {
    DELETE /superadmin/payment-gateways/:id
 ──────────────────────────────────────────────────────────────── */
 router.delete('/:id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { id } = req.params
         if (!id || isNaN(id)) {
@@ -313,7 +313,7 @@ router.delete('/:id', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/PaymentGateway] Delete:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

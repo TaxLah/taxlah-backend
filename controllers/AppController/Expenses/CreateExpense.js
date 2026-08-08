@@ -55,14 +55,14 @@ const { computeFileHash, computePerceptualHash } = require('../../../utils/recei
  * }
  */
 router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     console.log("Log File : ", req.file)
     console.log("Log Body : ", req.body)
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -86,21 +86,21 @@ router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req,
 
         // Validate Empty Expenses Date
         if (CHECK_EMPTY(expenses_date)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Expense date is required';
             return res.status(response.status_code).json(response);
         }
 
         // Validate Empty Merchant Name
         if (CHECK_EMPTY(expenses_merchant_name)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Merchant name is required';
             return res.status(response.status_code).json(response);
         }
 
         // Validate Empty Total Amount
         if (CHECK_EMPTY(expenses_total_amount) || isNaN(expenses_total_amount) || expenses_total_amount <= 0) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Valid expense amount is required';
             return res.status(response.status_code).json(response);
         }
@@ -108,7 +108,7 @@ router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req,
         // Validate date format
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
         if (!dateRegex.test(expenses_date)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Invalid date format. Use YYYY-MM-DD';
             return res.status(response.status_code).json(response);
         }

@@ -17,11 +17,11 @@ const { GetReceiptsList } = require('../../../models/AppModel/Receipt')
  * Query params: page, limit, search, rc_id, status, sortBy, sortOrder
  */
 router.get("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let user = req.user || null
 
     if(CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE
+        response = { ...UNAUTHORIZED_API_RESPONSE }
         response.message = ERROR_UNAUTHENTICATED
         return res.status(response.status_code).json(response)
     }
@@ -44,12 +44,12 @@ router.get("/", async(req, res) => {
         const result = await GetReceiptsList(account_id, params)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to retrieve receipts."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Receipts retrieved successfully."
         response.data = result.data
 
@@ -57,7 +57,7 @@ router.get("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Get Receipts List: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving receipts."
         res.status(response.status_code).json(response)
     }

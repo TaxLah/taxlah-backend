@@ -4,7 +4,7 @@ const { AccountDelete } = require('../../../models/AppModel/Account')
 const router = express.Router()
 
 router.delete("/", async(req , res) => {
-    let response    = DEFAULT_API_RESPONSE
+    let response    = { ...DEFAULT_API_RESPONSE }
     let user        = req.user
 
     try {
@@ -20,7 +20,7 @@ router.delete("/", async(req , res) => {
         return res.status(response.status_code).json(response)
     } catch (e) {
         console.log("[ERROR-API-DELETE-PROFILE] : ", e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
 
     return res.status(response.status_code).json(response)

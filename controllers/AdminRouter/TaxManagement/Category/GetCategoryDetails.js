@@ -15,13 +15,13 @@ const { AdminGetTaxCategoryDetails } = require('../../../../models/AdminModel/Ta
  * Get detailed tax category information
  */
 router.get("/:tax_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const tax_id = req.params.tax_id
 
         if(CHECK_EMPTY(tax_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Tax category ID is required."
             return res.status(response.status_code).json(response)
         }
@@ -31,12 +31,12 @@ router.get("/:tax_id", async(req, res) => {
         const result = await AdminGetTaxCategoryDetails(tax_id)
 
         if(!result.status) {
-            response = NOT_FOUND_API_RESPONSE
+            response = { ...NOT_FOUND_API_RESPONSE }
             response.message = "Error. Tax category not found."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Tax category details retrieved successfully."
         response.data = result.data
 
@@ -44,7 +44,7 @@ router.get("/:tax_id", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Get Tax Category Details: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving tax category details."
         res.status(response.status_code).json(response)
     }

@@ -16,11 +16,11 @@ const { GetReceiptStats } = require('../../../models/AppModel/Receipt')
  * Get receipt statistics for authenticated user
  */
 router.get("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let user = req.user || null
 
     if(CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE
+        response = { ...UNAUTHORIZED_API_RESPONSE }
         response.message = ERROR_UNAUTHENTICATED
         return res.status(response.status_code).json(response)
     }
@@ -33,12 +33,12 @@ router.get("/", async(req, res) => {
         const result = await GetReceiptStats(account_id)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to retrieve receipt statistics."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Receipt statistics retrieved successfully."
         response.data = result.data
 
@@ -46,7 +46,7 @@ router.get("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Get Receipt Stats: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving receipt statistics."
         res.status(response.status_code).json(response)
     }

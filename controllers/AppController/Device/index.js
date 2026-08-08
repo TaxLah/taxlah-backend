@@ -5,21 +5,21 @@ const { DeviceUser, DeviceGetByUUID, DeviceCreate, DeviceUpdate, DeviceDeactivat
 const router = express.Router()
 
 router.get("/", auth(), async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let user     = req.user
 
     try {
         let account_id    = user.account_id
         let device_list   = await DeviceUser(account_id)
         if(device_list.status) {
-            response      = SUCCESS_API_RESPONSE
+            response      = { ...SUCCESS_API_RESPONSE }
             response.data = device_list.data
         } else {
-            response      = SUCCESS_API_RESPONSE
+            response      = { ...SUCCESS_API_RESPONSE }
             response.data = []
         }
     } catch (e) {
-        response      = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response      = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.data = null
     } finally {
         return res.status(response.status_code).json(response)
@@ -27,7 +27,7 @@ router.get("/", auth(), async(req, res) => {
 })
 
 router.post("/", auth(), async(req , res) => {
-    let response    = DEFAULT_API_RESPONSE
+    let response    = { ...DEFAULT_API_RESPONSE }
     let user        = req.user
 
     let device_uuid         = null
@@ -47,19 +47,19 @@ router.post("/", auth(), async(req , res) => {
         device_fcm_token    = params.device_fcm_token || null
 
         if(CHECK_EMPTY(device_uuid)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter device uuid is undefined or empty."
         } else if(CHECK_EMPTY(device_name)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter device name is undefined or empty."
         } else if(CHECK_EMPTY(device_os)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter device operating system is undefined or empty."
         } else if(device_os !== 'Android' && device_os !== 'IOS') {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Invalid value for parameter device operating system. Please select either Android or IOS."
         } else if(CHECK_EMPTY(device_enable_fcm)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter device enable push notification is undefined or empty."
         } else {
             let account_id = user.account_id
@@ -78,11 +78,11 @@ router.post("/", auth(), async(req , res) => {
                 }
                 let update_device = await DeviceUpdate({ ...json, account_id, device_id: existing.data.device_id })
                 if(update_device.status) {
-                    response         = SUCCESS_API_RESPONSE
+                    response         = { ...SUCCESS_API_RESPONSE }
                     response.message = "Device registered successfully."
                     response.data    = { device_id: existing.data.device_id, is_new: false }
                 } else {
-                    response         = FORBIDDEN_API_RESPONSE
+                    response         = { ...FORBIDDEN_API_RESPONSE }
                     response.message = "Error. Unable to update device registration."
                     response.data    = null
                 }
@@ -98,18 +98,18 @@ router.post("/", auth(), async(req , res) => {
                 }
                 let create_device = await DeviceCreate(json)
                 if(create_device.status) {
-                    response         = SUCCESS_API_RESPONSE
+                    response         = { ...SUCCESS_API_RESPONSE }
                     response.message = "Device registered successfully."
                     response.data    = { device_id: create_device.data, is_new: true }
                 } else {
-                    response         = FORBIDDEN_API_RESPONSE
+                    response         = { ...FORBIDDEN_API_RESPONSE }
                     response.message = "Error. Unable to register device. Please make sure all required fields are not empty."
                     response.data    = null
                 }
             }
         }
     } catch (e) {
-        response      = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response      = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.data = null
     } finally {
         return res.status(response.status_code).json(response)
@@ -117,7 +117,7 @@ router.post("/", auth(), async(req , res) => {
 })
 
 router.patch("/:device_id", auth(), async(req , res) => {
-    let response    = DEFAULT_API_RESPONSE
+    let response    = { ...DEFAULT_API_RESPONSE }
     let user        = req.user
 
     let device_id           = req.params.device_id
@@ -138,22 +138,22 @@ router.patch("/:device_id", auth(), async(req , res) => {
         device_fcm_token    = params.device_fcm_token || null
 
         if(CHECK_EMPTY(device_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter device id is undefined or empty."
         } else if(CHECK_EMPTY(device_uuid)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter device uuid is undefined or empty."
         } else if(CHECK_EMPTY(device_name)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter device name is undefined or empty."
         } else if(CHECK_EMPTY(device_os)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter device operating system is undefined or empty."
         } else if(device_os !== 'Android' && device_os !== 'IOS') {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Invalid value for parameter device operating system. Please select either Android or IOS."
         } else if(CHECK_EMPTY(device_enable_fcm)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter device enable push notification is undefined or empty."
         } else {
             let account_id = user.account_id
@@ -168,16 +168,16 @@ router.patch("/:device_id", auth(), async(req , res) => {
             }
             let create_device = await DeviceUpdate(json)
             if(create_device.status) {
-                response = SUCCESS_API_RESPONSE
+                response = { ...SUCCESS_API_RESPONSE }
                 response.data = create_device.data
             } else {
-                response = FORBIDDEN_API_RESPONSE
+                response = { ...FORBIDDEN_API_RESPONSE }
                 response.message = "Error. Unable to update device account. Please make sure all required field is not empty or undefined."
                 response.data = null
             }
         }
     } catch (e) {
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.data = null
     } finally {
         return res.status(response.status_code).json(response)
@@ -185,29 +185,29 @@ router.patch("/:device_id", auth(), async(req , res) => {
 })
 
 router.delete("/:device_id", auth(), async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let user     = req.user
     let device_id = req.params.device_id
 
     try {
         if(CHECK_EMPTY(device_id)) {
-            response         = BAD_REQUEST_API_RESPONSE
+            response         = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter device id is undefined or empty."
         } else {
             let account_id      = user.account_id
             let deactivate      = await DeviceDeactivate(account_id, device_id)
             if(deactivate.status) {
-                response         = SUCCESS_API_RESPONSE
+                response         = { ...SUCCESS_API_RESPONSE }
                 response.message = "Device deregistered successfully."
                 response.data    = null
             } else {
-                response         = NOT_FOUND_API_RESPONSE
+                response         = { ...NOT_FOUND_API_RESPONSE }
                 response.message = "Error. Device not found or does not belong to this account."
                 response.data    = null
             }
         }
     } catch (e) {
-        response      = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response      = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.data = null
     } finally {
         return res.status(response.status_code).json(response)

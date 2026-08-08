@@ -35,11 +35,11 @@ const db = require('../../../utils/sqlbuilder');
  * - Monthly breakdown
  */
 router.get('/', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -221,7 +221,7 @@ router.get('/', async (req, res) => {
 
     } catch (error) {
         console.error('[GetDashboardSummary] Error:', error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = 'An error occurred while retrieving dashboard summary';
         response.data = { error: error.message };
         return res.status(response.status_code).json(response);

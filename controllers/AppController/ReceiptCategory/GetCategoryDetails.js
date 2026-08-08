@@ -15,13 +15,13 @@ const { GetReceiptCategoryDetails } = require('../../../models/AppModel/ReceiptC
  * Get receipt category details by ID
  */
 router.get("/:rc_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const rc_id = req.params.rc_id
 
         if(CHECK_EMPTY(rc_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Receipt category ID is required."
             return res.status(response.status_code).json(response)
         }
@@ -31,12 +31,12 @@ router.get("/:rc_id", async(req, res) => {
         const result = await GetReceiptCategoryDetails(rc_id)
 
         if(!result.status) {
-            response = NOT_FOUND_API_RESPONSE
+            response = { ...NOT_FOUND_API_RESPONSE }
             response.message = "Error. Receipt category not found."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Receipt category details retrieved successfully."
         response.data = result.data
 
@@ -44,7 +44,7 @@ router.get("/:rc_id", async(req, res) => {
 
     } catch (error) {
         console.log("Error Get Receipt Category Details: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving receipt category details."
         res.status(response.status_code).json(response)
     }

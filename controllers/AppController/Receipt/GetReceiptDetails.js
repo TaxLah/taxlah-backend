@@ -17,11 +17,11 @@ const { GetReceiptDetails } = require('../../../models/AppModel/Receipt')
  * Get receipt details for authenticated user
  */
 router.get("/:receipt_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let user = req.user || null
 
     if(CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE
+        response = { ...UNAUTHORIZED_API_RESPONSE }
         response.message = ERROR_UNAUTHENTICATED
         return res.status(response.status_code).json(response)
     }
@@ -31,7 +31,7 @@ router.get("/:receipt_id", async(req, res) => {
         const account_id = user.account_id
 
         if(CHECK_EMPTY(receipt_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Receipt ID is required."
             return res.status(response.status_code).json(response)
         }
@@ -41,12 +41,12 @@ router.get("/:receipt_id", async(req, res) => {
         const result = await GetReceiptDetails(receipt_id, account_id)
 
         if(!result.status) {
-            response = NOT_FOUND_API_RESPONSE
+            response = { ...NOT_FOUND_API_RESPONSE }
             response.message = "Error. Receipt not found."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Receipt details retrieved successfully."
         response.data = result.data
 
@@ -54,7 +54,7 @@ router.get("/:receipt_id", async(req, res) => {
 
     } catch (error) {
         console.log("Error Get Receipt Details: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving receipt details."
         res.status(response.status_code).json(response)
     }

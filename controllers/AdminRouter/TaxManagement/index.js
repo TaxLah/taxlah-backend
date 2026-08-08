@@ -31,7 +31,7 @@ router.use("/subcategory", SubcategoryRouter)
  * }
  */
 router.post("/notify", superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const { tax_year, custom_title, custom_body } = req.body
@@ -58,7 +58,7 @@ router.post("/notify", superauth(), async (req, res) => {
         }
 
         if (CHECK_EMPTY(title) || CHECK_EMPTY(body)) {
-            response         = BAD_REQUEST_API_RESPONSE
+            response         = { ...BAD_REQUEST_API_RESPONSE }
             response.message = 'Notification title and body are required.'
             return res.status(response.status_code).json(response)
         }
@@ -69,12 +69,12 @@ router.post("/notify", superauth(), async (req, res) => {
         })
 
         if (!result.success) {
-            response         = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response         = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = result.error || 'Failed to broadcast notification.'
             return res.status(response.status_code).json(response)
         }
 
-        response         = SUCCESS_API_RESPONSE
+        response         = { ...SUCCESS_API_RESPONSE }
         response.message = `Tax relief notification broadcasted to ${result.total_accounts} account(s).`
         response.data    = {
             total_accounts: result.total_accounts,
@@ -86,7 +86,7 @@ router.post("/notify", superauth(), async (req, res) => {
         return res.status(response.status_code).json(response)
     } catch (error) {
         console.error('[Admin TaxManagement] Notify error:', error)
-        response      = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response      = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.data = null
         return res.status(response.status_code).json(response)
     }

@@ -16,7 +16,7 @@ const {
 
 /* ─── GET /superadmin/subscriptions ─── */
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetSubscriptionsList(req.query)
         response = result.status
@@ -24,14 +24,14 @@ router.get('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Subscription] List:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/subscriptions/user/:account_id ─── */
 router.get('/user/:account_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetUserSubscription(req.params.account_id)
         response = result.status
@@ -39,7 +39,7 @@ router.get('/user/:account_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'No subscription found for this user.' }
     } catch (e) {
         console.error('[AdminController/Subscription] UserSub:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -48,33 +48,33 @@ router.get('/user/:account_id', superauth(), async (req, res) => {
    Declared before the bare /:subscription_id route: Express matches in order, so a
    param route registered first would capture "123/history" and never reach this. */
 router.get('/:subscription_id/history', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetSubscriptionHistory(req.params.subscription_id, req.query.limit)
         response = { ...SUCCESS_API_RESPONSE, message: 'Subscription history retrieved.', data: { events: result.data } }
     } catch (e) {
         console.error('[AdminController/Subscription] History:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/subscriptions/:subscription_id/payments ─── */
 router.get('/:subscription_id/payments', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetSubscriptionPayments(req.params.subscription_id, req.query.limit)
         response = { ...SUCCESS_API_RESPONSE, message: 'Subscription payments retrieved.', data: { payments: result.data } }
     } catch (e) {
         console.error('[AdminController/Subscription] Payments:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/subscriptions/:subscription_id ─── */
 router.get('/:subscription_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetSubscriptionDetails(req.params.subscription_id)
         response = result.status
@@ -82,14 +82,14 @@ router.get('/:subscription_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Subscription not found.' }
     } catch (e) {
         console.error('[AdminController/Subscription] View:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/subscriptions/:subscription_id ─── */
 router.put('/:subscription_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const allowed = [
             'sub_package_id','billing_period','price_amount',
@@ -110,14 +110,14 @@ router.put('/:subscription_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Subscription not found.' }
     } catch (e) {
         console.error('[AdminController/Subscription] Update:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── DELETE /superadmin/subscriptions/:subscription_id ─── */
 router.delete('/:subscription_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminRemoveSubscription(req.params.subscription_id)
         response = result.status
@@ -125,7 +125,7 @@ router.delete('/:subscription_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Subscription not found.' }
     } catch (e) {
         console.error('[AdminController/Subscription] Remove:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

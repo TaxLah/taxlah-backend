@@ -36,13 +36,13 @@ const { BillingSetCheckoutUrl } = require('../../../models/AppModel/BillingServi
  *   limit   — default 10, max 50
  */
 router.get('/', auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const accountId = req.user.account_id
         const result    = await AppGetBillsList(accountId, req.query)
 
         if (!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = 'Failed to retrieve bills.'
             return res.status(response.status_code).json(response)
         }
@@ -63,7 +63,7 @@ router.get('/', auth(), async (req, res) => {
  * Get a single bill detail including all payment attempt transactions.
  */
 router.get('/:id', auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const accountId = req.user.account_id
         const billId    = parseInt(req.params.id)
@@ -108,7 +108,7 @@ router.get('/:id', auth(), async (req, res) => {
  * Only bills in Pending or Overdue status can be paid.
  */
 router.post('/:id/pay', auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const accountId = req.user.account_id
         const billId    = parseInt(req.params.id)

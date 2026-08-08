@@ -18,7 +18,7 @@ const { AdminRemoveSubscription } = require('../../../models/AdminModel/Subscrip
 
 /* ─── GET /superadmin/packages ─── */
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetPackagesList(req.query)
         response = result.status
@@ -26,14 +26,14 @@ router.get('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Package] List:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/packages/:package_id ─── */
 router.get('/:package_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetPackageDetails(req.params.package_id)
         response = result.status
@@ -41,14 +41,14 @@ router.get('/:package_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Package not found.' }
     } catch (e) {
         console.error('[AdminController/Package] View:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── POST /superadmin/packages ─── */
 router.post('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const {
             package_code, package_name, billing_period, price_amount,
@@ -94,14 +94,14 @@ router.post('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Package] Create:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/packages/:package_id ─── */
 router.put('/:package_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         // package_code is deliberately absent: the mobile app and SubscriptionService
         // match on it, so letting it be edited would silently detach live subscriptions
@@ -133,14 +133,14 @@ router.put('/:package_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Package not found.' }
     } catch (e) {
         console.error('[AdminController/Package] Update:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── DELETE /superadmin/packages/:package_id ─── */
 router.delete('/:package_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminDeletePackage(req.params.package_id)
         response = result.status
@@ -148,14 +148,14 @@ router.delete('/:package_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Package not found.' }
     } catch (e) {
         console.error('[AdminController/Package] Delete:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── POST /superadmin/packages/assign ─── Assign subscription to a user ─── */
 router.post('/assign', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const {
             account_id, sub_package_id, billing_period,
@@ -185,14 +185,14 @@ router.post('/assign', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Package] AssignSubscription:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── DELETE /superadmin/packages/assign/:subscription_id ─── Remove user subscription ─── */
 router.delete('/assign/:subscription_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminRemoveSubscription(req.params.subscription_id)
         response = result.status
@@ -200,7 +200,7 @@ router.delete('/assign/:subscription_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Subscription not found.' }
     } catch (e) {
         console.error('[AdminController/Package] RemoveSubscription:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

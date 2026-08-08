@@ -16,7 +16,7 @@ const {
 
 /* ─── GET /superadmin/receipts ─── */
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetReceiptsList(req.query)
         response = result.status
@@ -24,14 +24,14 @@ router.get('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Receipt] List:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/receipts/stats ─── */
 router.get('/stats', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetReceiptStats()
         response = result.status
@@ -39,14 +39,14 @@ router.get('/stats', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Receipt] Stats:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/receipts/:receipt_id ─── */
 router.get('/:receipt_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetReceiptDetails(req.params.receipt_id)
         response = result.status
@@ -54,14 +54,14 @@ router.get('/:receipt_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Receipt not found.' }
     } catch (e) {
         console.error('[AdminController/Receipt] View:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/receipts/:receipt_id ─── */
 router.put('/:receipt_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const allowed = [
             'receipt_name','receipt_description','receipt_date','receipt_total_amount',
@@ -81,14 +81,14 @@ router.put('/:receipt_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Receipt not found.' }
     } catch (e) {
         console.error('[AdminController/Receipt] Update:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/receipts/:receipt_id/status ─── */
 router.put('/:receipt_id/status', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { status } = req.body
         const VALID = ['Active','Inactive','Deleted','Rejected']
@@ -103,14 +103,14 @@ router.put('/:receipt_id/status', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Receipt not found.' }
     } catch (e) {
         console.error('[AdminController/Receipt] UpdateStatus:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── DELETE /superadmin/receipts/:receipt_id ─── */
 router.delete('/:receipt_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminDeleteReceipt(req.params.receipt_id)
         response = result.status
@@ -118,7 +118,7 @@ router.delete('/:receipt_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Receipt not found.' }
     } catch (e) {
         console.error('[AdminController/Receipt] Delete:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

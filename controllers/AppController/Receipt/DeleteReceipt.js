@@ -16,11 +16,11 @@ const { DeleteReceipt } = require('../../../models/AppModel/Receipt')
  * Delete receipt (soft delete) for authenticated user
  */
 router.delete("/:receipt_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let user = req.user || null
 
     if(CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE
+        response = { ...UNAUTHORIZED_API_RESPONSE }
         response.message = ERROR_UNAUTHENTICATED
         return res.status(response.status_code).json(response)
     }
@@ -30,7 +30,7 @@ router.delete("/:receipt_id", async(req, res) => {
         const account_id = user.account_id
 
         if(CHECK_EMPTY(receipt_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Receipt ID is required."
             return res.status(response.status_code).json(response)
         }
@@ -40,12 +40,12 @@ router.delete("/:receipt_id", async(req, res) => {
         const result = await DeleteReceipt(receipt_id, account_id)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to delete receipt."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Receipt deleted successfully."
         response.data = {
             receipt_id: parseInt(receipt_id)
@@ -55,7 +55,7 @@ router.delete("/:receipt_id", async(req, res) => {
 
     } catch (error) {
         console.log("Error Delete Receipt: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while deleting receipt."
         res.status(response.status_code).json(response)
     }

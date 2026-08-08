@@ -30,11 +30,11 @@ const ExpensesModel = require('../../../models/AppModel/Expenses');
  * - limit: Number of records to return (default: 20, max: 100)
  */
 router.get('/', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
         const result = await ExpensesModel.getExpensesRequiringReview(account_id, limit);
 
         if (!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.message || 'Failed to retrieve expenses';
             return res.status(response.status_code).json(response);
         }
@@ -81,7 +81,7 @@ router.get('/', async (req, res) => {
 
     } catch (error) {
         console.error('[GetRequiringReview] Error:', error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = 'An error occurred while retrieving expenses requiring review';
         response.data = { error: error.message };
         return res.status(response.status_code).json(response);

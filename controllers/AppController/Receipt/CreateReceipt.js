@@ -20,11 +20,11 @@ const { processReceiptForTaxClaim } = require('../../../models/AppModel/TaxClaim
  * Body: { rc_id, receipt_name, receipt_description, receipt_amount, receipt_image_url }
  */
 router.post("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let user = req.user || null
 
     if(CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE
+        response = { ...UNAUTHORIZED_API_RESPONSE }
         response.message = ERROR_UNAUTHENTICATED
         return res.status(response.status_code).json(response)
     }
@@ -50,20 +50,20 @@ router.post("/", async(req, res) => {
 
         // Validation
         // if(CHECK_EMPTY(rc_id)) {
-        //     response = BAD_REQUEST_API_RESPONSE
+        //     response = { ...BAD_REQUEST_API_RESPONSE }
         //     response.message = "Error. Receipt category is required."
         //     return res.status(response.status_code).json(response)
         // }
 
         if(CHECK_EMPTY(receipt_image_url)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Receipt image is required."
             return res.status(response.status_code).json(response)
         }
 
         // Validate receipt_amount is a number
         if(isNaN(receipt_amount) || receipt_amount < 0) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Receipt amount must be a valid non-negative number."
             return res.status(response.status_code).json(response)
         }
@@ -75,7 +75,7 @@ router.post("/", async(req, res) => {
                     JSON.parse(receipt_items)
                 }
             } catch(e) {
-                response = BAD_REQUEST_API_RESPONSE
+                response = { ...BAD_REQUEST_API_RESPONSE }
                 response.message = "Error. Receipt items must be valid JSON."
                 return res.status(response.status_code).json(response)
             }
@@ -97,7 +97,7 @@ router.post("/", async(req, res) => {
         const result = await CreateReceipt(receiptData)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to create receipt."
             return res.status(response.status_code).json(response)
         }
@@ -139,7 +139,7 @@ router.post("/", async(req, res) => {
             status: 'Active'
         })
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Receipt created successfully."
         response.data = {
             receipt_id: result.data,
@@ -162,7 +162,7 @@ router.post("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Create Receipt: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while creating receipt."
         return res.status(response.status_code).json(response)
     }

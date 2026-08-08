@@ -101,7 +101,7 @@ async function loadGroupRows(group) {
 
 /* ─── GET /superadmin/config/status ───────────────────────────────────────── */
 router.get('/status', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         response = {
             ...SUCCESS_API_RESPONSE,
@@ -114,14 +114,14 @@ router.get('/status', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[SystemConfig] status:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/config ──────────────────────────────────────────────── */
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const rows = await db.raw(
             `SELECT config_id, config_group, config_key, config_value, is_secret, value_type,
@@ -150,14 +150,14 @@ router.get('/', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[SystemConfig] list:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/config/:group ───────────────────────────────────────── */
 router.get('/:group', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const rows = await loadGroupRows(req.params.group)
         if (!rows.length) {
@@ -172,14 +172,14 @@ router.get('/:group', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[SystemConfig] get group:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/config/:group/audit ─────────────────────────────────── */
 router.get('/:group/audit', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100)
         const rows = await db.raw(
@@ -195,14 +195,14 @@ router.get('/:group/audit', superauth(), async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, message: 'Audit trail retrieved.', data: { entries: rows } }
     } catch (e) {
         console.error('[SystemConfig] audit:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/config/:group ───────────────────────────────────────── */
 router.put('/:group', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const group = req.params.group
@@ -358,7 +358,7 @@ router.put('/:group', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[SystemConfig] update:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
 
     return res.status(response.status_code).json(response)
@@ -373,7 +373,7 @@ router.put('/:group', superauth(), async (req, res) => {
  * goes anywhere near live traffic.
  */
 router.post('/:group/test', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const group = req.params.group
@@ -423,7 +423,7 @@ router.post('/:group/test', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[SystemConfig] test:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
 
     return res.status(response.status_code).json(response)

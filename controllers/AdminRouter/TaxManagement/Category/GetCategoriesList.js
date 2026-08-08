@@ -13,7 +13,7 @@ const { AdminGetTaxCategoriesList } = require('../../../../models/AdminModel/Tax
  * Query params: { page, limit, search, status, sortBy, sortOrder }
  */
 router.get("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const params = {
@@ -30,12 +30,12 @@ router.get("/", async(req, res) => {
         const result = await AdminGetTaxCategoriesList(params)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to retrieve tax categories list."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Tax categories list retrieved successfully."
         response.data = result.data
 
@@ -43,7 +43,7 @@ router.get("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Get Tax Categories List: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving tax categories list."
         res.status(response.status_code).json(response)
     }

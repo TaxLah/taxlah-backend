@@ -16,7 +16,7 @@ const { AdminCreateTaxSubcategory } = require('../../../../models/AdminModel/Tax
  * Body: { tax_id, taxsub_title, taxsub_description, taxsub_max_claim, taxsub_tags, taxsub_content }
  */
 router.post("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const params = req.body
@@ -31,20 +31,20 @@ router.post("/", async(req, res) => {
 
         // Validation
         if(CHECK_EMPTY(tax_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Tax category ID is required."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(taxsub_title)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Tax subcategory title is required."
             return res.status(response.status_code).json(response)
         }
 
         // Validate taxsub_max_claim is a number
         if(isNaN(taxsub_max_claim) || taxsub_max_claim < 0) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Tax max claim must be a valid non-negative number."
             return res.status(response.status_code).json(response)
         }
@@ -56,7 +56,7 @@ router.post("/", async(req, res) => {
                     JSON.parse(taxsub_tags)
                 }
             } catch(e) {
-                response = BAD_REQUEST_API_RESPONSE
+                response = { ...BAD_REQUEST_API_RESPONSE }
                 response.message = "Error. Tax tags must be valid JSON."
                 return res.status(response.status_code).json(response)
             }
@@ -68,7 +68,7 @@ router.post("/", async(req, res) => {
                     JSON.parse(taxsub_content)
                 }
             } catch(e) {
-                response = BAD_REQUEST_API_RESPONSE
+                response = { ...BAD_REQUEST_API_RESPONSE }
                 response.message = "Error. Tax content must be valid JSON."
                 return res.status(response.status_code).json(response)
             }
@@ -88,12 +88,12 @@ router.post("/", async(req, res) => {
         const result = await AdminCreateTaxSubcategory(subcategoryData)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to create tax subcategory."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Tax subcategory created successfully."
         response.data = {
             taxsub_id: result.data,
@@ -104,7 +104,7 @@ router.post("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Create Tax Subcategory: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while creating tax subcategory."
         res.status(response.status_code).json(response)
     }

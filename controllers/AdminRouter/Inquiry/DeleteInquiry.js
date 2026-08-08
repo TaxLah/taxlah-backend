@@ -15,11 +15,11 @@ const { DeleteInquiry } = require('../../../models/AppModel/Inquiry')
  * Delete inquiry (soft delete)
  */
 router.delete("/:inquiry_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let user = req.user || null
 
     if(CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE
+        response = { ...UNAUTHORIZED_API_RESPONSE }
         response.message = ERROR_UNAUTHENTICATED
         return res.status(response.status_code).json(response)
     }
@@ -32,7 +32,7 @@ router.delete("/:inquiry_id", async(req, res) => {
         const result = await DeleteInquiry(inquiry_id)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to delete inquiry."
             return res.status(response.status_code).json(response)
         }
@@ -44,7 +44,7 @@ router.delete("/:inquiry_id", async(req, res) => {
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Inquiry deleted successfully."
         response.data = result.data
 
@@ -52,7 +52,7 @@ router.delete("/:inquiry_id", async(req, res) => {
 
     } catch (e) {
         console.log("Error Delete Inquiry: ", e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. " + e.message
         return res.status(response.status_code).json(response)
     }

@@ -145,7 +145,7 @@ function buildPayload(body, { partial = false } = {}) {
 // ── List ────────────────────────────────────────────────────────────────────
 
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const rows = await Advertisement.listForAdmin()
         response = { ...SUCCESS_API_RESPONSE }
@@ -162,7 +162,7 @@ router.get('/', superauth(), async (req, res) => {
 // ── Create ──────────────────────────────────────────────────────────────────
 
 router.post('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { data, errors } = buildPayload(req.body || {})
         if (errors.length) {
@@ -195,7 +195,7 @@ router.post('/', superauth(), async (req, res) => {
 // Declared before /:ad_id so "reorder" is not captured as an id.
 
 router.put('/reorder', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const ids = req.body?.ordered_ids
         if (!Array.isArray(ids) || ids.some((id) => !Number.isFinite(Number(id)))) {
@@ -219,7 +219,7 @@ router.put('/reorder', superauth(), async (req, res) => {
 // ── Read one ────────────────────────────────────────────────────────────────
 
 router.get('/:ad_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const row = await Advertisement.getById(req.params.ad_id)
         if (!row) {
@@ -240,7 +240,7 @@ router.get('/:ad_id', superauth(), async (req, res) => {
 // ── Update ──────────────────────────────────────────────────────────────────
 
 router.put('/:ad_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const existing = await Advertisement.getById(req.params.ad_id)
         if (!existing) {
@@ -283,7 +283,7 @@ router.put('/:ad_id', superauth(), async (req, res) => {
 // ── Delete (soft) ───────────────────────────────────────────────────────────
 
 router.delete('/:ad_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const existing = await Advertisement.getById(req.params.ad_id)
         if (!existing) {

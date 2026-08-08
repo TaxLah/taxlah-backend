@@ -8,7 +8,7 @@ const { addAutoClaimReliefs, deleteAutoClaimReliefs } = require('../../../models
 const router = express.Router()
 
 router.patch("/", async(req , res) => {
-    let response    = DEFAULT_API_RESPONSE
+    let response    = { ...DEFAULT_API_RESPONSE }
     let user        = req.user || null
 
     let account_name                = null
@@ -32,7 +32,7 @@ router.patch("/", async(req , res) => {
     let account_is_tax_declared     = 0
 
     if(CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE
+        response = { ...UNAUTHORIZED_API_RESPONSE }
         response.message = ERROR_UNAUTHENTICATED
         return res.status(response.status_code).json(response)
     }
@@ -63,35 +63,35 @@ router.patch("/", async(req , res) => {
         account_is_tax_declared     = params.account_is_tax_declared || 0
 
         if(CHECK_EMPTY(account_name)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter account name undefined or cannot be empty."
             return res.status(response.status_code).json(response)
         } else if(CHECK_EMPTY(account_fullname)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter account fullname undefined or cannot be empty."
             return res.status(response.status_code).json(response)
         } else if(CHECK_EMPTY(account_contact)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Parameter account phone undefined or cannot be empty."
             return res.status(response.status_code).json(response)
         } 
         // else if(CHECK_EMPTY(account_address_1)) {
-        //     response = BAD_REQUEST_API_RESPONSE
+        //     response = { ...BAD_REQUEST_API_RESPONSE }
         //     response.message = "Error. Parameter account address undefined or cannot be empty."
         //     return res.status(response.status_code).json(response)
         // } 
         // else if(CHECK_EMPTY(account_address_postcode)) {
-        //     response = BAD_REQUEST_API_RESPONSE
+        //     response = { ...BAD_REQUEST_API_RESPONSE }
         //     response.message = "Error. Parameter account address postcode undefined or cannot be empty."
         //     return res.status(response.status_code).json(response)
         // } 
         // else if(CHECK_EMPTY(account_address_city)) {
-        //     response = BAD_REQUEST_API_RESPONSE
+        //     response = { ...BAD_REQUEST_API_RESPONSE }
         //     response.message = "Error. Parameter account address city undefined or cannot be empty."
         //     return res.status(response.status_code).json(response)
         // } 
         // else if(CHECK_EMPTY(account_address_state)) {
-        //     response = BAD_REQUEST_API_RESPONSE
+        //     response = { ...BAD_REQUEST_API_RESPONSE }
         //     response.message = "Error. Parameter account address state undefined or cannot be empty."
         //     return res.status(response.status_code).json(response)
         // } 
@@ -151,7 +151,7 @@ router.patch("/", async(req , res) => {
                     status: 'Active'
                 })
 
-                response = SUCCESS_API_RESPONSE
+                response = { ...SUCCESS_API_RESPONSE }
                 response.message = "Login Successful."
                 response.data = {
                     profile: profile,
@@ -159,7 +159,7 @@ router.patch("/", async(req , res) => {
                     refresh_token
                 }
             } else {
-                response            = FORBIDDEN_API_RESPONSE
+                response            = { ...FORBIDDEN_API_RESPONSE }
                 response.message    = "Error. Unable to update your profile. Please make sure all required information are not empty or undefined."
                 response.data       = null
             }
@@ -167,7 +167,7 @@ router.patch("/", async(req , res) => {
         }
         
     } catch (e) {
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.data = null
     } 
 

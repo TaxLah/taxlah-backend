@@ -16,7 +16,7 @@ const { AdminUpdateMerchantStatus } = require('../../../models/AdminModel/Mercha
  * Body: { status } - Active, Inactive, Deleted, Others
  */
 router.patch("/status/:merchant_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let merchant_id = null
 
     try {
@@ -24,13 +24,13 @@ router.patch("/status/:merchant_id", async(req, res) => {
         const { status } = req.body
 
         if (CHECK_EMPTY(merchant_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Merchant ID is required."
             return res.status(response.status_code).json(response)
         }
 
         if (CHECK_EMPTY(status)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Status is required."
             return res.status(response.status_code).json(response)
         }
@@ -38,19 +38,19 @@ router.patch("/status/:merchant_id", async(req, res) => {
         const result = await AdminUpdateMerchantStatus(parseInt(merchant_id), status)
 
         if (!result.status) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = result.message || 'Error updating merchant status'
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = result.message || 'Merchant status updated successfully'
 
         return res.status(response.status_code).json(response)
 
     } catch (error) {
         console.log("Error at AdminUpdateMerchantStatus: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = error.message || 'Internal server error'
         return res.status(response.status_code).json(response)
     }

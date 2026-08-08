@@ -15,7 +15,7 @@ const { CreateInquiry } = require('../../../models/AppModel/Inquiry')
  * Body: { inquiry_name, inquiry_email, inquiry_subject, inquiry_message }
  */
 router.post("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const params = req.body
@@ -29,13 +29,13 @@ router.post("/", async(req, res) => {
 
         // Validation
         if(CHECK_EMPTY(inquiry_name)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Name is required."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(inquiry_email)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Email is required."
             return res.status(response.status_code).json(response)
         }
@@ -43,13 +43,13 @@ router.post("/", async(req, res) => {
         // Basic email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         if(!emailRegex.test(inquiry_email)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Please provide a valid email address."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(inquiry_message)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Message is required."
             return res.status(response.status_code).json(response)
         }
@@ -63,12 +63,12 @@ router.post("/", async(req, res) => {
         })
 
         if(!createResult.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to create inquiry."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Inquiry submitted successfully. We'll get back to you soon."
         response.data = createResult.data
 
@@ -76,7 +76,7 @@ router.post("/", async(req, res) => {
 
     } catch (e) {
         console.log("Error Create Inquiry: ", e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. " + e.message
         return res.status(response.status_code).json(response)
     }

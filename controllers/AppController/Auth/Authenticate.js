@@ -5,20 +5,20 @@ const { AuthCheckActiveStatus } = require('../../../models/AppModel/Auth')
 const router = express.Router()
 
 router.get("/", auth(), async(req , res) => {
-    let response    = SUCCESS_API_RESPONSE
+    let response    = { ...SUCCESS_API_RESPONSE }
     let user        = req.user || null
     console.log("Log User : ", user)
 
     try {
         if(CHECK_EMPTY(user)) {
-            response            = UNAUTHORIZED_API_RESPONSE
+            response            = { ...UNAUTHORIZED_API_RESPONSE }
             response.message    = ERROR_UNAUTHENTICATED
             response.data       = null
         } else {
 
             let active_check = await AuthCheckActiveStatus(user.account_id)
             if (!active_check.status) {
-                response            = UNAUTHORIZED_API_RESPONSE
+                response            = { ...UNAUTHORIZED_API_RESPONSE }
                 response.message    = ERROR_UNAUTHENTICATED
                 response.data       = null
                 return res.status(response.status_code).json(response)
@@ -40,7 +40,7 @@ router.get("/", auth(), async(req , res) => {
             }
             let access_token    = await CREATE_ACCESS_TOKEN(profile)
             let refresh_token   = await CREATE_REFRESH_TOKEN(profile)
-            response            = SUCCESS_API_RESPONSE
+            response            = { ...SUCCESS_API_RESPONSE }
             response.message    = "Aunthenticated."
             response.data       = {
                 profile: profile,
@@ -50,7 +50,7 @@ router.get("/", auth(), async(req , res) => {
         }
     } catch (e) {
         console.log("err authenticate : ", e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.data = null
     } finally {
         return res.status(response.status_code).json(response)

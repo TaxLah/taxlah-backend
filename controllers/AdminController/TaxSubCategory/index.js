@@ -22,7 +22,7 @@ const {
 /* ─── GET /superadmin/tax-subcategories ─── */
 // Query params: page, limit, search, status, tax_id (filter by parent category)
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetTaxSubcategoriesList(req.query)
         response = result.status
@@ -30,14 +30,14 @@ router.get('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/TaxSubCategory] List:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/tax-subcategories/stats ─── */
 router.get('/stats', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetTaxSubcategoryStats()
         response = result.status
@@ -45,14 +45,14 @@ router.get('/stats', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/TaxSubCategory] Stats:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/tax-subcategories/:taxsub_id ─── */
 router.get('/:taxsub_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetTaxSubcategoryDetails(req.params.taxsub_id)
         response = result.status
@@ -60,14 +60,14 @@ router.get('/:taxsub_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Tax subcategory not found.' }
     } catch (e) {
         console.error('[AdminController/TaxSubCategory] View:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── POST /superadmin/tax-subcategories ─── */
 router.post('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const {
             tax_id, taxsub_code, taxsub_title, taxsub_description,
@@ -114,14 +114,14 @@ router.post('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/TaxSubCategory] Create:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/tax-subcategories/:taxsub_id ─── */
 router.put('/:taxsub_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { taxsub_id } = req.params
         const allowed = [
@@ -165,14 +165,14 @@ router.put('/:taxsub_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Tax subcategory not found.' }
     } catch (e) {
         console.error('[AdminController/TaxSubCategory] Update:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/tax-subcategories/:taxsub_id/status ─── */
 router.put('/:taxsub_id/status', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { status } = req.body
         const VALID = ['Active', 'Inactive', 'Deleted', 'Others']
@@ -187,14 +187,14 @@ router.put('/:taxsub_id/status', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Tax subcategory not found.' }
     } catch (e) {
         console.error('[AdminController/TaxSubCategory] UpdateStatus:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── DELETE /superadmin/tax-subcategories/:taxsub_id ─── */
 router.delete('/:taxsub_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminDeleteTaxSubcategory(req.params.taxsub_id)
         response = result.status
@@ -202,7 +202,7 @@ router.delete('/:taxsub_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Tax subcategory not found.' }
     } catch (e) {
         console.error('[AdminController/TaxSubCategory] Delete:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

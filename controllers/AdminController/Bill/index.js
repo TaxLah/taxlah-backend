@@ -32,7 +32,7 @@ const VALID_BILL_TYPES = ['Subscription', 'Renewal', 'TaxReliefReport', 'Storage
    Query: page, limit, search, status, bill_type, year, month, account_id
 ──────────────────────────────────────────────────────────────── */
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetBillsList(req.query)
         response = result.status
@@ -40,7 +40,7 @@ router.get('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Bill] List:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -49,7 +49,7 @@ router.get('/', superauth(), async (req, res) => {
    GET /superadmin/bills/:id
 ──────────────────────────────────────────────────────────────── */
 router.get('/:id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { id } = req.params
         if (!id || isNaN(id)) {
@@ -62,7 +62,7 @@ router.get('/:id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Bill not found.' }
     } catch (e) {
         console.error('[AdminController/Bill] Details:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -74,7 +74,7 @@ router.get('/:id', superauth(), async (req, res) => {
          billing_period_start, billing_period_end, sst_rate, notes
 ──────────────────────────────────────────────────────────────── */
 router.post('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const {
             account_id, subscription_id = null,
@@ -123,7 +123,7 @@ router.post('/', superauth(), async (req, res) => {
             : { ...INTERNAL_SERVER_ERROR_API_RESPONSE, message: result.error }
     } catch (e) {
         console.error('[AdminController/Bill] Create:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -133,7 +133,7 @@ router.post('/', superauth(), async (req, res) => {
    Editable fields: due_date, bill_description, notes
 ──────────────────────────────────────────────────────────────── */
 router.put('/:id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { id } = req.params
         if (!id || isNaN(id)) {
@@ -164,7 +164,7 @@ router.put('/:id', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Bill] Update:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -174,7 +174,7 @@ router.put('/:id', superauth(), async (req, res) => {
    Body: { status: "Paid" | "Cancelled" | "Overdue" | "Refunded" }
 ──────────────────────────────────────────────────────────────── */
 router.patch('/:id/status', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { id } = req.params
         const { status } = req.body
@@ -201,7 +201,7 @@ router.patch('/:id/status', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Bill] UpdateStatus:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -212,7 +212,7 @@ router.patch('/:id/status', superauth(), async (req, res) => {
    with the checkout_url embedded.
 ──────────────────────────────────────────────────────────────── */
 router.post('/:id/send-reminder', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { id } = req.params
         if (!id || isNaN(id)) {
@@ -260,7 +260,7 @@ router.post('/:id/send-reminder', superauth(), async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, message: 'Reminder sent successfully.' }
     } catch (e) {
         console.error('[AdminController/Bill] SendReminder:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

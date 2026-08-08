@@ -33,11 +33,11 @@ const ExpensesModel = require('../../../models/AppModel/Expenses');
  * }
  */
 router.put('/:id', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -49,13 +49,13 @@ router.put('/:id', async (req, res) => {
 
         // Validation
         if (!expenses_id || isNaN(expenses_id)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Invalid expense ID';
             return res.status(response.status_code).json(response);
         }
 
         if (!tax_id || isNaN(tax_id)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Tax category ID is required';
             return res.status(response.status_code).json(response);
         }
@@ -76,7 +76,7 @@ router.put('/:id', async (req, res) => {
         );
 
         if (!result.status) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = result.message || 'Failed to override category';
             return res.status(response.status_code).json(response);
         }
@@ -108,7 +108,7 @@ router.put('/:id', async (req, res) => {
 
     } catch (error) {
         console.error('[OverrideTaxCategory] Error:', error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = 'An error occurred while overriding category';
         response.data = { error: error.message };
         return res.status(response.status_code).json(response);

@@ -52,11 +52,11 @@ const NotificationService = require('../../../services/NotificationService');
  * }
  */
 router.post('/', upload.single('receipt_file'), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -80,19 +80,19 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
 
         // Validation
         if (CHECK_EMPTY(expenses_date)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Expense date is required';
             return res.status(response.status_code).json(response);
         }
 
         if (CHECK_EMPTY(expenses_merchant_name)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Merchant name is required';
             return res.status(response.status_code).json(response);
         }
 
         if (CHECK_EMPTY(expenses_total_amount) || isNaN(expenses_total_amount) || expenses_total_amount <= 0) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Valid expense amount is required';
             return res.status(response.status_code).json(response);
         }
@@ -100,7 +100,7 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
         // Validate date format
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
         if (!dateRegex.test(expenses_date)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Invalid date format. Use YYYY-MM-DD';
             return res.status(response.status_code).json(response);
         }
@@ -190,7 +190,7 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
         const result = await ExpensesModel.createExpenseEnhanced(expenseData);
 
         if (!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.message || 'Failed to create expense';
             response.data = null;
             return res.status(response.status_code).json(response);
@@ -240,7 +240,7 @@ router.post('/', upload.single('receipt_file'), async (req, res) => {
 
     } catch (error) {
         console.error('[CreateExpense] Error:', error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = 'An error occurred while creating expense';
         response.data = { error: error.message };
         return res.status(response.status_code).json(response);

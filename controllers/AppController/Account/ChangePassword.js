@@ -40,11 +40,11 @@ const { UserNotificationCreate } = require('../../../models/AppModel/Notificatio
  * }
  */
 router.put('/', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -62,40 +62,40 @@ router.put('/', async (req, res) => {
 
         // Validation
         if (CHECK_EMPTY(current_password)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Current password is required';
             return res.status(response.status_code).json(response);
         }
 
         if (CHECK_EMPTY(new_password)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'New password is required';
             return res.status(response.status_code).json(response);
         }
 
         if (CHECK_EMPTY(confirm_password)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Password confirmation is required';
             return res.status(response.status_code).json(response);
         }
 
         // Check if new password matches confirmation
         if (new_password !== confirm_password) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'New password and confirmation do not match';
             return res.status(response.status_code).json(response);
         }
 
         // Validate new password strength (minimum 8 characters)
         if (new_password.length < 8) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'New password must be at least 8 characters long';
             return res.status(response.status_code).json(response);
         }
 
         // Check if new password is same as current password
         if (current_password === new_password) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'New password must be different from current password';
             return res.status(response.status_code).json(response);
         }
@@ -104,7 +104,7 @@ router.put('/', async (req, res) => {
         const authData = await AuthLogin(user.uid);
         
         if (!authData.status || !authData.data) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = 'Failed to retrieve user authentication data';
             return res.status(response.status_code).json(response);
         }
@@ -113,7 +113,7 @@ router.put('/', async (req, res) => {
         const isCurrentPasswordValid = await bcrypt.compare(current_password, authData.data.auth_password);
 
         if (!isCurrentPasswordValid) {
-            response = FORBIDDEN_API_RESPONSE;
+            response = { ...FORBIDDEN_API_RESPONSE };
             response.message = 'Current password is incorrect';
             return res.status(response.status_code).json(response);
         }
@@ -130,7 +130,7 @@ router.put('/', async (req, res) => {
         const updateResult = await AuthUpdateAccessAccount(updateData);
 
         if (!updateResult.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = 'Failed to update password';
             return res.status(response.status_code).json(response);
         }
@@ -165,7 +165,7 @@ router.put('/', async (req, res) => {
         });
 
         // Success response
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = 'Password changed successfully';
         response.data = {
             profile: profile,
@@ -182,7 +182,7 @@ router.put('/', async (req, res) => {
 
     } catch (error) {
         console.error('[ChangePassword] Error:', error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = 'An error occurred while changing password';
         response.data = { error: error.message };
         return res.status(response.status_code).json(response);

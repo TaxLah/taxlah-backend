@@ -31,7 +31,7 @@ const checkSubscription = async (req, res, next) => {
         const user = req.user;
         
         if (CHECK_EMPTY(user)) {
-            const response = UNAUTHORIZED_API_RESPONSE;
+            const response = { ...UNAUTHORIZED_API_RESPONSE };
             response.message = ERROR_UNAUTHENTICATED;
             return res.status(response.status_code).json(response);
         }
@@ -40,13 +40,13 @@ const checkSubscription = async (req, res, next) => {
         const accessResult = await checkSubscriptionAccess(user.account_id);
         
         if (!accessResult.success) {
-            const response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            const response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = "Failed to verify subscription status.";
             return res.status(response.status_code).json(response);
         }
 
         if (!accessResult.has_access) {
-            const response = FORBIDDEN_API_RESPONSE;
+            const response = { ...FORBIDDEN_API_RESPONSE };
             response.message = "Active subscription required. Please subscribe to access this feature.";
             response.data = {
                 subscription_status: accessResult.subscription_status,
@@ -66,7 +66,7 @@ const checkSubscription = async (req, res, next) => {
         next();
     } catch (error) {
         console.error("Subscription check error:", error);
-        const response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        const response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while checking subscription.";
         return res.status(response.status_code).json(response);
     }
@@ -81,7 +81,7 @@ const checkUploadLimit = async (req, res, next) => {
         const user = req.user;
         
         if (CHECK_EMPTY(user)) {
-            const response = UNAUTHORIZED_API_RESPONSE;
+            const response = { ...UNAUTHORIZED_API_RESPONSE };
             response.message = ERROR_UNAUTHENTICATED;
             return res.status(response.status_code).json(response);
         }
@@ -90,13 +90,13 @@ const checkUploadLimit = async (req, res, next) => {
         const uploadCheck = await canUploadReceipt(user.account_id);
         
         if (!uploadCheck.success) {
-            const response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            const response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = "Failed to check upload limits.";
             return res.status(response.status_code).json(response);
         }
 
         if (!uploadCheck.can_upload) {
-            const response = FORBIDDEN_API_RESPONSE;
+            const response = { ...FORBIDDEN_API_RESPONSE };
             response.message = uploadCheck.message;
             response.data = {
                 can_upload: false,
@@ -117,7 +117,7 @@ const checkUploadLimit = async (req, res, next) => {
         next();
     } catch (error) {
         console.error("Upload limit check error:", error);
-        const response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        const response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while checking upload limits.";
         return res.status(response.status_code).json(response);
     }
@@ -129,14 +129,14 @@ const checkUploadLimit = async (req, res, next) => {
  * Requires authentication and active subscription
  */
 router.post("/", auth(), checkSubscription, checkUploadLimit, upload.array('files', 10), verifyUploadedFiles, async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const files = req.files;
         const user = req.user;
 
         if (!files || files.length === 0) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Error. No files uploaded.";
             return res.status(response.status_code).json(response);
         }
@@ -156,7 +156,7 @@ router.post("/", auth(), checkSubscription, checkUploadLimit, upload.array('file
             };
         });
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = `${files.length} file(s) uploaded successfully.`;
         response.data = {
             files: uploadedFiles,
@@ -172,7 +172,7 @@ router.post("/", auth(), checkSubscription, checkUploadLimit, upload.array('file
 
     } catch (error) {
         console.log("Error File Upload: ", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = error.message || "Error. An error occurred while uploading files.";
         res.status(response.status_code).json(response);
     }
@@ -184,14 +184,14 @@ router.post("/", auth(), checkSubscription, checkUploadLimit, upload.array('file
  * Requires authentication and active subscription
  */
 router.post("/single", auth(), checkSubscription, checkUploadLimit, upload.single('file'), verifyUploadedFiles, async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const file = req.file;
         const user = req.user;
 
         if (!file) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Error. No file uploaded.";
             return res.status(response.status_code).json(response);
         }
@@ -200,7 +200,7 @@ router.post("/single", auth(), checkSubscription, checkUploadLimit, upload.singl
 
         const fileUrl = getFileUrl(file.path);
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "File uploaded successfully.";
         response.data = {
             filename: file.filename,
@@ -226,7 +226,7 @@ router.post("/single", auth(), checkSubscription, checkUploadLimit, upload.singl
 
     } catch (error) {
         console.log("Error Single File Upload: ", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = error.message || "Error. An error occurred while uploading file.";
         res.status(response.status_code).json(response);
     }
@@ -240,7 +240,7 @@ router.post("/single", auth(), checkSubscription, checkUploadLimit, upload.singl
  */
 // router.post("/receipt", auth(), checkSubscription, checkUploadLimit, upload.single('file'), verifyUploadedFiles, async (req, res) => {
 router.post("/receipt", auth(), checkUploadLimit, upload.single('file'), verifyUploadedFiles, async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const file = req.file;
@@ -248,7 +248,7 @@ router.post("/receipt", auth(), checkUploadLimit, upload.single('file'), verifyU
         const taxYear = parseInt(req.body.year) || new Date().getFullYear();
 
         if (!file) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Error. No file uploaded.";
             return res.status(response.status_code).json(response);
         }
@@ -284,7 +284,7 @@ router.post("/receipt", auth(), checkUploadLimit, upload.single('file'), verifyU
         }
 
         // Step 4: Build response
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Receipt processed successfully.";
         response.data = {
             file: fileInfo,
@@ -335,7 +335,7 @@ router.post("/receipt", auth(), checkUploadLimit, upload.single('file'), verifyU
 
     } catch (error) {
         console.log("Error Receipt Upload: ", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = error.message || "Error. An error occurred while processing receipt.";
         res.status(response.status_code).json(response);
     }
@@ -349,14 +349,14 @@ router.post("/receipt", auth(), checkUploadLimit, upload.single('file'), verifyU
  * Note: This doesn't count against upload limits since no Azure OCR is used
  */
 router.post("/categorize", auth(), checkSubscription, async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const receiptData = req.body.receipt_data;
         const taxYear = parseInt(req.body.year) || new Date().getFullYear();
 
         if (!receiptData) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Error. Receipt data is required.";
             return res.status(response.status_code).json(response);
         }
@@ -364,7 +364,7 @@ router.post("/categorize", auth(), checkSubscription, async (req, res) => {
         // Auto-categorize
         const categorization = await categorizeReceiptFull(receiptData, taxYear);
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = categorization.success 
             ? "Receipt categorized successfully." 
             : "Unable to auto-categorize. Please select manually.";
@@ -377,7 +377,7 @@ router.post("/categorize", auth(), checkSubscription, async (req, res) => {
 
     } catch (error) {
         console.log("Error Categorize Receipt: ", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = error.message || "Error. An error occurred while categorizing receipt.";
         res.status(response.status_code).json(response);
     }
@@ -389,12 +389,12 @@ router.post("/categorize", auth(), checkSubscription, async (req, res) => {
  * Shows daily/monthly limits, free receipts remaining, etc.
  */
 router.get("/usage", auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     const user = req.user;
 
     try {
         if (CHECK_EMPTY(user)) {
-            response = UNAUTHORIZED_API_RESPONSE;
+            response = { ...UNAUTHORIZED_API_RESPONSE };
             response.message = ERROR_UNAUTHENTICATED;
             return res.status(response.status_code).json(response);
         }
@@ -403,12 +403,12 @@ router.get("/usage", auth(), async (req, res) => {
         const usageResult = await getUsageStatistics(user.account_id);
 
         if (!usageResult.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = "Failed to retrieve usage statistics.";
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Usage statistics retrieved successfully.";
         response.data = usageResult.data;
 
@@ -416,7 +416,7 @@ router.get("/usage", auth(), async (req, res) => {
 
     } catch (error) {
         console.log("Error Get Usage Statistics: ", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = error.message || "Error. An error occurred while retrieving usage statistics.";
         res.status(response.status_code).json(response);
     }

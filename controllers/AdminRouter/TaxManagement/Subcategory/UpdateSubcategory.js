@@ -16,14 +16,14 @@ const { AdminUpdateTaxSubcategory } = require('../../../../models/AdminModel/Tax
  * Body: { tax_id, taxsub_title, taxsub_description, taxsub_max_claim, taxsub_tags, taxsub_content }
  */
 router.put("/:taxsub_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const taxsub_id = req.params.taxsub_id
         const params = req.body
 
         if(CHECK_EMPTY(taxsub_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Tax subcategory ID is required."
             return res.status(response.status_code).json(response)
         }
@@ -47,7 +47,7 @@ router.put("/:taxsub_id", async(req, res) => {
 
         if(params.taxsub_max_claim !== undefined) {
             if(isNaN(params.taxsub_max_claim) || params.taxsub_max_claim < 0) {
-                response = BAD_REQUEST_API_RESPONSE
+                response = { ...BAD_REQUEST_API_RESPONSE }
                 response.message = "Error. Tax max claim must be a valid non-negative number."
                 return res.status(response.status_code).json(response)
             }
@@ -62,7 +62,7 @@ router.put("/:taxsub_id", async(req, res) => {
                     }
                     updateData.taxsub_tags = typeof params.taxsub_tags === 'string' ? params.taxsub_tags : JSON.stringify(params.taxsub_tags)
                 } catch(e) {
-                    response = BAD_REQUEST_API_RESPONSE
+                    response = { ...BAD_REQUEST_API_RESPONSE }
                     response.message = "Error. Tax tags must be valid JSON."
                     return res.status(response.status_code).json(response)
                 }
@@ -79,7 +79,7 @@ router.put("/:taxsub_id", async(req, res) => {
                     }
                     updateData.taxsub_content = typeof params.taxsub_content === 'string' ? params.taxsub_content : JSON.stringify(params.taxsub_content)
                 } catch(e) {
-                    response = BAD_REQUEST_API_RESPONSE
+                    response = { ...BAD_REQUEST_API_RESPONSE }
                     response.message = "Error. Tax content must be valid JSON."
                     return res.status(response.status_code).json(response)
                 }
@@ -90,7 +90,7 @@ router.put("/:taxsub_id", async(req, res) => {
 
         // Check if there's anything to update
         if(Object.keys(updateData).length === 0) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. No valid fields to update."
             return res.status(response.status_code).json(response)
         }
@@ -98,12 +98,12 @@ router.put("/:taxsub_id", async(req, res) => {
         const result = await AdminUpdateTaxSubcategory(taxsub_id, updateData)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to update tax subcategory."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Tax subcategory updated successfully."
         response.data = { taxsub_id: parseInt(taxsub_id), updated_fields: Object.keys(updateData) }
 
@@ -111,7 +111,7 @@ router.put("/:taxsub_id", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Update Tax Subcategory: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while updating tax subcategory."
         res.status(response.status_code).json(response)
     }

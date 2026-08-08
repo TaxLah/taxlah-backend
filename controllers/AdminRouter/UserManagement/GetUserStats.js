@@ -12,7 +12,7 @@ const { AdminGetUserStats } = require('../../../models/AdminModel/UserManagement
  * Get user statistics (total, active, pending, suspended, new users, etc.)
  */
 router.get("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         console.log("Admin Get User Stats Request")
@@ -20,12 +20,12 @@ router.get("/", async(req, res) => {
         const result = await AdminGetUserStats()
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to retrieve user statistics."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "User statistics retrieved successfully."
         response.data = result.data
 
@@ -33,7 +33,7 @@ router.get("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Get User Stats: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving user statistics."
         res.status(response.status_code).json(response)
     }

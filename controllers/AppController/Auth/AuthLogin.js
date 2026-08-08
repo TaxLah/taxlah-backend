@@ -16,7 +16,7 @@ function generateOtp() {
 }
 
 router.post("/", async(req , res) => {
-    let response        = DEFAULT_API_RESPONSE
+    let response        = { ...DEFAULT_API_RESPONSE }
     let auth_username   = null
     let auth_password   = null
 
@@ -29,12 +29,12 @@ router.post("/", async(req , res) => {
         auth_password = params.auth_password || null
 
         if(CHECK_EMPTY(auth_username)) {
-            response            = BAD_REQUEST_API_RESPONSE
+            response            = { ...BAD_REQUEST_API_RESPONSE }
             response.message    = "Error. Parameter account username is undefined or empty."
             response.data       = { status: "Unknown" }
             return res.status(response.status_code).json(response)
         } else if(CHECK_EMPTY(auth_password)) {
-            response            = BAD_REQUEST_API_RESPONSE
+            response            = { ...BAD_REQUEST_API_RESPONSE }
             response.message    = "Error. Parameter account password is undefined or empty."
             response.data       = { status: "Unknown" }
             return res.status(response.status_code).json(response)
@@ -49,7 +49,7 @@ router.post("/", async(req , res) => {
 
             if(check_username.status === false && check_email.status === false) {
                 
-                response            = FORBIDDEN_API_RESPONSE
+                response            = { ...FORBIDDEN_API_RESPONSE }
                 response.status_code = 403
                 response.message    = "Error. Account with username is not exist or invalid account username."
                 response.data       = { status: "Unknown" }
@@ -84,7 +84,7 @@ router.post("/", async(req , res) => {
                         })
                     }
 
-                    response            = FORBIDDEN_API_RESPONSE
+                    response            = { ...FORBIDDEN_API_RESPONSE }
                     response.status_code = 403
                     response.message    = "Account is under verification. Please make sure you have verified your email account."
                     response.data       = { status: "Pending", email: account_email }
@@ -94,7 +94,7 @@ router.post("/", async(req , res) => {
                     let { is_verified } = checkApproval.data
                     
                     if(is_verified == 'Pending') {
-                        response                = FORBIDDEN_API_RESPONSE
+                        response                = { ...FORBIDDEN_API_RESPONSE }
                         response.status_code    = 403
                         response.message        = "Account is under verification. Please make sure you have verified your email account."
                         response.data           = { status: "Pending", email: account_email }
@@ -107,7 +107,7 @@ router.post("/", async(req , res) => {
                 console.log("Log Function Auth Login : ", login)
 
                 if(!login.status) {
-                    response            = FORBIDDEN_API_RESPONSE
+                    response            = { ...FORBIDDEN_API_RESPONSE }
                     response.status_code = 403
                     response.message    = "Error! Accout with account username is not exist or suspended. Please contact support for more information."
                     response.data       = { status: "Unknown" }
@@ -118,7 +118,7 @@ router.post("/", async(req , res) => {
                     let compare = await bcrypt.compare(auth_password, user_password)
 
                     if(!compare) {
-                        response            = UNAUTHORIZED_API_RESPONSE
+                        response            = { ...UNAUTHORIZED_API_RESPONSE }
                         response.status_code = 401
                         response.message    = "Error. Account username or password is incorrect. Please try again."
                         response.data       = { status: "Unknown" }
@@ -153,7 +153,7 @@ router.post("/", async(req , res) => {
                         addAutoClaimReliefs(login.data.account_id, currentYear)
                         .catch(err => console.error('[AuthLogin] Tax init error:', err.message));
 
-                        response                = SUCCESS_API_RESPONSE
+                        response                = { ...SUCCESS_API_RESPONSE }
                         response.status_code    = 200
                         response.message        = "Login Successful."
                         response.data = {
@@ -171,7 +171,7 @@ router.post("/", async(req , res) => {
         
     } catch (e) {
         console.log("err : ", e)
-        response            = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response            = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message    = ERROR_TECHNICAL_ERROR
         response.data       = null
     }

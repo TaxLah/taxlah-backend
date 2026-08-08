@@ -35,7 +35,7 @@ const {
  *   limit   — default 10, max 50
  */
 router.get('/', auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const accountId = req.user.account_id
         const result    = await AppGetTransactionsList(accountId, req.query)
@@ -62,7 +62,7 @@ router.get('/', auth(), async (req, res) => {
  * Get a single transaction detail by txn_ref (e.g. TXN-202501-00271).
  */
 router.get('/:ref', auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const accountId = req.user.account_id
         const txnRef    = req.params.ref

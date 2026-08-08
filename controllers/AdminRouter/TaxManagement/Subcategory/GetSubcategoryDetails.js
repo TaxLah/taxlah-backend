@@ -15,13 +15,13 @@ const { AdminGetTaxSubcategoryDetails } = require('../../../../models/AdminModel
  * Get detailed tax subcategory information
  */
 router.get("/:taxsub_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const taxsub_id = req.params.taxsub_id
 
         if(CHECK_EMPTY(taxsub_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Tax subcategory ID is required."
             return res.status(response.status_code).json(response)
         }
@@ -31,12 +31,12 @@ router.get("/:taxsub_id", async(req, res) => {
         const result = await AdminGetTaxSubcategoryDetails(taxsub_id)
 
         if(!result.status) {
-            response = NOT_FOUND_API_RESPONSE
+            response = { ...NOT_FOUND_API_RESPONSE }
             response.message = "Error. Tax subcategory not found."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Tax subcategory details retrieved successfully."
         response.data = result.data
 
@@ -44,7 +44,7 @@ router.get("/:taxsub_id", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Get Tax Subcategory Details: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving tax subcategory details."
         res.status(response.status_code).json(response)
     }

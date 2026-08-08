@@ -10,7 +10,7 @@ const {
 const router = express.Router()
 
 router.get("/", async(req , res) => {
-    let response    = DEFAULT_API_RESPONSE
+    let response    = { ...DEFAULT_API_RESPONSE }
     let user        = req.user
 
     // page/limit end up interpolated into LIMIT/OFFSET downstream — coerce them here.
@@ -25,16 +25,16 @@ router.get("/", async(req , res) => {
         
         let list = await UserNotificationGetList({ account_id, offset, limit })
         if(list.status) {
-            response            = SUCCESS_API_RESPONSE
+            response            = { ...SUCCESS_API_RESPONSE }
             response.message    = "Success"
             response.data       = list.data
         } else {
-            response            = FORBIDDEN_API_RESPONSE
+            response            = { ...FORBIDDEN_API_RESPONSE }
             response.message    = ERROR_TECHNICAL_ERROR
             response.data       = list.data
         }
     } catch (e) {
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.data = null  
     } 
 
@@ -47,7 +47,7 @@ router.get("/", async(req , res) => {
  * Declared before "/:id" so "read-all" is never captured as an id.
  */
 router.put("/read-all", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const result = await UserNotificationMarkAllRead(req.user.account_id)
@@ -73,7 +73,7 @@ router.put("/read-all", async (req, res) => {
  * system sent is still on record after a user tidies up.
  */
 router.delete("/", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const result = await UserNotificationArchiveAll(req.user.account_id)
@@ -94,7 +94,7 @@ router.delete("/", async (req, res) => {
 
 /** DELETE /notification/:id — removes one, scoped to the caller's own account. */
 router.delete("/:id", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const result = await UserNotificationArchive(req.user.account_id, req.params.id)
@@ -116,7 +116,7 @@ router.delete("/:id", async (req, res) => {
 })
 
 router.get("/:id", async(req , res) => {
-    let response    = DEFAULT_API_RESPONSE
+    let response    = { ...DEFAULT_API_RESPONSE }
     let user        = req.user
     let id          = req.params.id
 
@@ -132,16 +132,16 @@ router.get("/:id", async(req , res) => {
             return res.status(response.status_code).json(response)
         }
         if(list.status) {
-            response            = SUCCESS_API_RESPONSE
+            response            = { ...SUCCESS_API_RESPONSE }
             response.message    = "Success"
             response.data       = list.data
         } else {
-            response            = FORBIDDEN_API_RESPONSE
+            response            = { ...FORBIDDEN_API_RESPONSE }
             response.message    = ERROR_TECHNICAL_ERROR
             response.data       = list.data
         }
     } catch (e) {
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.data = null  
     } 
 

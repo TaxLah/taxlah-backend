@@ -20,26 +20,26 @@ const { UserNotificationCreate } = require('../../../models/AppModel/Notificatio
  * Body: { new_password }
  */
 router.patch("/:account_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const account_id = req.params.account_id
         const { new_password } = req.body
 
         if(CHECK_EMPTY(account_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Account ID is required."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(new_password)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. New password is required."
             return res.status(response.status_code).json(response)
         }
 
         if(!isStrongPassword(new_password)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Password must be at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char."
             return res.status(response.status_code).json(response)
         }
@@ -50,14 +50,14 @@ router.patch("/:account_id", async(req, res) => {
         const userDetails = await AdminGetUserDetails(account_id)
 
         if(!userDetails.status) {
-            response = NOT_FOUND_API_RESPONSE
+            response = { ...NOT_FOUND_API_RESPONSE }
             response.message = "Error. User not found."
             return res.status(response.status_code).json(response)
         }
 
         // Check if user has auth access
         if(!userDetails.data.auth_id) {
-            response = NOT_FOUND_API_RESPONSE
+            response = { ...NOT_FOUND_API_RESPONSE }
             response.message = "Error. User authentication record not found."
             return res.status(response.status_code).json(response)
         }
@@ -74,7 +74,7 @@ router.patch("/:account_id", async(req, res) => {
         const result = await AuthUpdateAccessAccount(updateData)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to reset user password."
             return res.status(response.status_code).json(response)
         }
@@ -91,7 +91,7 @@ router.patch("/:account_id", async(req, res) => {
 
         await UserNotificationCreate(notification)
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "User password reset successfully."
         response.data = {
             account_id: parseInt(account_id),
@@ -103,7 +103,7 @@ router.patch("/:account_id", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Reset User Password: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while resetting user password."
         res.status(response.status_code).json(response)
     }

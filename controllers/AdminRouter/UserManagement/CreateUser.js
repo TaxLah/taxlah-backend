@@ -22,7 +22,7 @@ const { UserNotificationCreate } = require('../../../models/AppModel/Notificatio
  * Body: { account_username, account_password, account_name, account_fullname, account_email, account_phone, account_role }
  */
 router.post("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const params = req.body
@@ -38,49 +38,49 @@ router.post("/", async(req, res) => {
 
         // Validation
         if(CHECK_EMPTY(auth_username)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Username is required."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(auth_password)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Password is required."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(account_name)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Account name is required."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(account_fullname)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Full name is required."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(account_email)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Email is required."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(account_phone)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Phone number is required."
             return res.status(response.status_code).json(response)
         }
 
         if(!isStrongPassword(auth_password)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Password must be at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char."
             return res.status(response.status_code).json(response)
         }
 
         if(!isValidEmail(account_email)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Invalid email format."
             return res.status(response.status_code).json(response)
         }
@@ -88,7 +88,7 @@ router.post("/", async(req, res) => {
         // Validate role
         const validRoles = ['Individual', 'Business']
         if(!validRoles.includes(auth_role)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = `Error. Invalid role. Valid values: ${validRoles.join(', ')}`
             return res.status(response.status_code).json(response)
         }
@@ -98,13 +98,13 @@ router.post("/", async(req, res) => {
         const check_existing_email = await AuthCheckExistingEmail(account_email)
 
         if(check_existing_username.status) {
-            response = FORBIDDEN_API_RESPONSE
+            response = { ...FORBIDDEN_API_RESPONSE }
             response.message = "Error. Username already exists."
             return res.status(response.status_code).json(response)
         }
 
         if(check_existing_email.status) {
-            response = FORBIDDEN_API_RESPONSE
+            response = { ...FORBIDDEN_API_RESPONSE }
             response.message = "Error. Email already exists."
             return res.status(response.status_code).json(response)
         }
@@ -122,7 +122,7 @@ router.post("/", async(req, res) => {
         console.log("Admin Create Account Profile: ", profile)
 
         if(!profile.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to create user account."
             return res.status(response.status_code).json(response)
         }
@@ -146,7 +146,7 @@ router.post("/", async(req, res) => {
         console.log("Admin Create Auth Access: ", auth_access)
 
         if(!auth_access.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to create authentication access."
             return res.status(response.status_code).json(response)
         }
@@ -163,7 +163,7 @@ router.post("/", async(req, res) => {
 
         await UserNotificationCreate(notification)
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "User account created successfully."
         response.data = {
             account_id: account_id,
@@ -177,7 +177,7 @@ router.post("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Create User: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while creating user account."
         res.status(response.status_code).json(response)
     }

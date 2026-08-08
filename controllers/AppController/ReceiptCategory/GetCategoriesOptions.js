@@ -12,7 +12,7 @@ const { GetReceiptCategoriesOptions } = require('../../../models/AppModel/Receip
  * Get receipt categories as select options (value/label format)
  */
 router.get("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         console.log("Get Receipt Categories Options Request")
@@ -20,7 +20,7 @@ router.get("/", async(req, res) => {
         const result = await GetReceiptCategoriesOptions()
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to retrieve receipt categories."
             return res.status(response.status_code).json(response)
         }
@@ -31,7 +31,7 @@ router.get("/", async(req, res) => {
             label: category.rc_name
         }))
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Receipt category options retrieved successfully."
         response.data = options
 
@@ -39,7 +39,7 @@ router.get("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Get Receipt Categories Options: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving receipt category options."
         res.status(response.status_code).json(response)
     }

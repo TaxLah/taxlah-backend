@@ -30,18 +30,18 @@ const classifyRateLimiter = rateLimit({
 })
 
 router.get("/", async(req , res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         let tax_category = await TaxCategoryList()
         if(tax_category.status) {
-            response = SUCCESS_API_RESPONSE
+            response = { ...SUCCESS_API_RESPONSE }
             response.data = tax_category.data
         } else {
-            response = FORBIDDEN_API_RESPONSE
+            response = { ...FORBIDDEN_API_RESPONSE }
             response.data = []
         }
     } catch (e) {
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.data = null
     } finally {
         return res.status(response.status_code).json(response)
@@ -49,32 +49,32 @@ router.get("/", async(req , res) => {
 })
 
 router.post("/", auth(), classifyRateLimiter, async(req , res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         
         let { merchant, date, total_amount, items = [] } = req.body
         console.log("Log Body : ", req.body)
 
         if(CHECK_EMPTY(merchant)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Field merchant is empty."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(date)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Field date is empty."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(total_amount)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Field total_amount is empty."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(items)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Field items is empty."
             return res.status(response.status_code).json(response)
         }
@@ -82,13 +82,13 @@ router.post("/", auth(), classifyRateLimiter, async(req , res) => {
         let check_tax = await classifyTaxEligibility(req.body)
         console.log("Log Check Tax Identification : ", check_tax)
 
-        response            = SUCCESS_API_RESPONSE
+        response            = { ...SUCCESS_API_RESPONSE }
         response.message    = "Tax identification has finish process."
         response.data = check_tax
 
     } catch (e) {
         console.log("[ERROR-API-IDENTIFY-TAX-CATEGORY] : ", e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
 
     return res.status(response.status_code).json(response)

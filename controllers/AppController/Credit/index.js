@@ -29,11 +29,11 @@ const ChipPaymentService    = require('../../../services/ChipPaymentService');
  * Get user's credit balance and summary
  */
 router.get("/balance", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -42,19 +42,19 @@ router.get("/balance", async (req, res) => {
         const result = await CreditService.getCreditBalance(user.account_id);
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Credit balance retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Credit Balance:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving credit balance.";
         res.status(response.status_code).json(response);
     }
@@ -65,11 +65,11 @@ router.get("/balance", async (req, res) => {
  * Check if user has enough credits
  */
 router.get("/check/:amount", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -78,21 +78,21 @@ router.get("/check/:amount", async (req, res) => {
         const amount = parseInt(req.params.amount);
 
         if (isNaN(amount) || amount <= 0) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Invalid credit amount.";
             return res.status(response.status_code).json(response);
         }
 
         const result = await CreditService.hasEnoughCredits(user.account_id, amount);
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = result.hasEnough ? "Sufficient credits available." : "Insufficient credits.";
         response.data = result;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Check Credits:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while checking credits.";
         res.status(response.status_code).json(response);
     }
@@ -103,11 +103,11 @@ router.get("/check/:amount", async (req, res) => {
  * Get user's credit batches (with expiry info)
  */
 router.get("/batches", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -116,19 +116,19 @@ router.get("/batches", async (req, res) => {
         const result = await CreditService.getCreditBatches(user.account_id);
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Credit batches retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Credit Batches:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving credit batches.";
         res.status(response.status_code).json(response);
     }
@@ -139,11 +139,11 @@ router.get("/batches", async (req, res) => {
  * Get user's credit transaction history
  */
 router.get("/history", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -156,19 +156,19 @@ router.get("/history", async (req, res) => {
         const result = await CreditService.getTransactionHistory(user.account_id, { limit, offset, type });
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Transaction history retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Transaction History:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving transaction history.";
         res.status(response.status_code).json(response);
     }
@@ -183,25 +183,25 @@ router.get("/history", async (req, res) => {
  * Get available credit packages
  */
 router.get("/packages", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const result = await CreditService.getCreditPackages(true);
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Credit packages retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Credit Packages:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving credit packages.";
         res.status(response.status_code).json(response);
     }
@@ -212,13 +212,13 @@ router.get("/packages", async (req, res) => {
  * Get specific package details
  */
 router.get("/packages/:id", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const packageId = parseInt(req.params.id);
 
         if (isNaN(packageId)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Invalid package ID.";
             return res.status(response.status_code).json(response);
         }
@@ -226,19 +226,19 @@ router.get("/packages/:id", async (req, res) => {
         const result = await CreditService.getPackageById(packageId);
 
         if (!result.success) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Package details retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Package:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving package details.";
         res.status(response.status_code).json(response);
     }
@@ -249,25 +249,25 @@ router.get("/packages/:id", async (req, res) => {
  * Get credit usage rates
  */
 router.get("/rates", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
 
     try {
         const result = await CreditService.getAllUsageRates();
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Usage rates retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Usage Rates:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving usage rates.";
         res.status(response.status_code).json(response);
     }
@@ -283,11 +283,11 @@ router.get("/rates", async (req, res) => {
  * Body: { package_id, success_url, failure_url }
  */
 router.post("/purchase", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -296,7 +296,7 @@ router.post("/purchase", async (req, res) => {
         const { package_id, success_url, failure_url } = req.body;
 
         if (!package_id) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Package ID is required.";
             return res.status(response.status_code).json(response);
         }
@@ -316,19 +316,19 @@ router.post("/purchase", async (req, res) => {
         });
 
         if (!result.success) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Payment order created successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Create Purchase Order:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while creating purchase order.";
         res.status(response.status_code).json(response);
     }
@@ -339,11 +339,11 @@ router.post("/purchase", async (req, res) => {
  * Get user's order history
  */
 router.get("/orders", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -356,19 +356,19 @@ router.get("/orders", async (req, res) => {
         const result = await PaymentOrderService.getUserOrders(user.account_id, { limit, offset, status });
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Orders retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Orders:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving orders.";
         res.status(response.status_code).json(response);
     }
@@ -379,11 +379,11 @@ router.get("/orders", async (req, res) => {
  * Get specific order details
  */
 router.get("/orders/:uuid", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -394,26 +394,26 @@ router.get("/orders/:uuid", async (req, res) => {
         const result = await PaymentOrderService.getOrderByUuid(orderUuid);
 
         if (!result.success) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
         // Verify ownership
         if (result.data.account_id !== user.account_id) {
-            response = UNAUTHORIZED_API_RESPONSE;
+            response = { ...UNAUTHORIZED_API_RESPONSE };
             response.message = "Access denied.";
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Order retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Get Order:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while retrieving order.";
         res.status(response.status_code).json(response);
     }
@@ -424,11 +424,11 @@ router.get("/orders/:uuid", async (req, res) => {
  * Check order payment status
  */
 router.get("/orders/:uuid/status", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -439,7 +439,7 @@ router.get("/orders/:uuid/status", async (req, res) => {
         // First verify ownership
         const order = await PaymentOrderService.getOrderByUuid(orderUuid);
         if (!order.success || order.data.account_id !== user.account_id) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = "Order not found.";
             return res.status(response.status_code).json(response);
         }
@@ -447,19 +447,19 @@ router.get("/orders/:uuid/status", async (req, res) => {
         const result = await PaymentOrderService.checkOrderStatus(orderUuid);
 
         if (!result.success) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Order status retrieved successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Check Order Status:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while checking order status.";
         res.status(response.status_code).json(response);
     }
@@ -470,11 +470,11 @@ router.get("/orders/:uuid/status", async (req, res) => {
  * Cancel a pending order
  */
 router.post("/orders/:uuid/cancel", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -485,18 +485,18 @@ router.post("/orders/:uuid/cancel", async (req, res) => {
         const result = await PaymentOrderService.cancelOrder(orderUuid, user.account_id);
 
         if (!result.success) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = result.error;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = result.message;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Cancel Order:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while cancelling order.";
         res.status(response.status_code).json(response);
     }
@@ -512,11 +512,11 @@ router.post("/orders/:uuid/cancel", async (req, res) => {
  * Body: { rate_code, reference_type, reference_id }
  */
 router.post("/use", async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -525,7 +525,7 @@ router.post("/use", async (req, res) => {
         const { rate_code, reference_type, reference_id } = req.body;
 
         if (!rate_code) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = "Rate code is required.";
             return res.status(response.status_code).json(response);
         }
@@ -538,20 +538,20 @@ router.post("/use", async (req, res) => {
         );
 
         if (!result.success) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = result.error;
             response.data = result.data;
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = "Credits used successfully.";
         response.data = result.data;
 
         res.status(response.status_code).json(response);
     } catch (error) {
         console.error("Error Use Credits:", error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = "An error occurred while using credits.";
         res.status(response.status_code).json(response);
     }

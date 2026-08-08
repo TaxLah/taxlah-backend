@@ -25,11 +25,11 @@ const ExpensesModel = require('../../../models/AppModel/Expenses');
  * Get all items for a specific expense
  */
 router.get('/:id/items', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -39,7 +39,7 @@ router.get('/:id/items', async (req, res) => {
         const expenses_id = parseInt(req.params.id);
 
         if (!expenses_id || isNaN(expenses_id)) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = 'Invalid expense ID';
             return res.status(response.status_code).json(response);
         }
@@ -50,7 +50,7 @@ router.get('/:id/items', async (req, res) => {
         const expenseCheck = await ExpensesModel.getExpenseById(account_id, expenses_id);
         
         if (!expenseCheck.status) {
-            response = NOT_FOUND_API_RESPONSE;
+            response = { ...NOT_FOUND_API_RESPONSE };
             response.message = 'Expense not found or does not belong to you';
             return res.status(response.status_code).json(response);
         }
@@ -59,7 +59,7 @@ router.get('/:id/items', async (req, res) => {
         const result = await ExpensesModel.getExpenseItems(expenses_id);
 
         if (!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = result.message || 'Failed to retrieve expense items';
             return res.status(response.status_code).json(response);
         }
@@ -83,7 +83,7 @@ router.get('/:id/items', async (req, res) => {
 
     } catch (error) {
         console.error('[GetExpenseItems] Error:', error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = 'An error occurred while retrieving expense items';
         response.data = { error: error.message };
         return res.status(response.status_code).json(response);

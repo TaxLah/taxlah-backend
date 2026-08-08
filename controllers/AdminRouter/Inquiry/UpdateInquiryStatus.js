@@ -17,11 +17,11 @@ const { UpdateInquiryStatus } = require('../../../models/AppModel/Inquiry')
  * Body: { status }
  */
 router.put("/:inquiry_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let user = req.user || null
 
     if(CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE
+        response = { ...UNAUTHORIZED_API_RESPONSE }
         response.message = ERROR_UNAUTHENTICATED
         return res.status(response.status_code).json(response)
     }
@@ -35,7 +35,7 @@ router.put("/:inquiry_id", async(req, res) => {
         // Validation
         const validStatuses = ['Active', 'Pending', 'In-Progress', 'Completed', 'Rejected', 'Deleted', 'Others']
         if(!status || !validStatuses.includes(status)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = `Error. Invalid status. Valid values are: ${validStatuses.join(', ')}`
             return res.status(response.status_code).json(response)
         }
@@ -43,7 +43,7 @@ router.put("/:inquiry_id", async(req, res) => {
         const result = await UpdateInquiryStatus(inquiry_id, status)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to update inquiry status."
             return res.status(response.status_code).json(response)
         }
@@ -55,7 +55,7 @@ router.put("/:inquiry_id", async(req, res) => {
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Inquiry status updated successfully."
         response.data = result.data
 
@@ -63,7 +63,7 @@ router.put("/:inquiry_id", async(req, res) => {
 
     } catch (e) {
         console.log("Error Update Inquiry Status: ", e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. " + e.message
         return res.status(response.status_code).json(response)
     }

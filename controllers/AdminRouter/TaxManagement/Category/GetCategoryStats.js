@@ -12,7 +12,7 @@ const { AdminGetTaxCategoryStats } = require('../../../../models/AdminModel/TaxC
  * Get tax category statistics
  */
 router.get("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         console.log("Admin Get Tax Category Stats Request")
@@ -20,12 +20,12 @@ router.get("/", async(req, res) => {
         const result = await AdminGetTaxCategoryStats()
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to retrieve tax category statistics."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Tax category statistics retrieved successfully."
         response.data = result.data
 
@@ -33,7 +33,7 @@ router.get("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Get Tax Category Stats: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while retrieving tax category statistics."
         res.status(response.status_code).json(response)
     }

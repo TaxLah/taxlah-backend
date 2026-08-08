@@ -36,7 +36,7 @@ const { ADMIN_SECRET } = process.env
    Body: { username, password }
 ──────────────────────────────────────────────── */
 router.post('/login', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { username, password } = req.body
 
@@ -107,7 +107,7 @@ router.post('/login', async (req, res) => {
         }
     } catch (e) {
         console.error('[AdminController/Auth] Login:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -116,7 +116,7 @@ router.post('/login', async (req, res) => {
    GET /superadmin/auth/me  (requires token)
 ──────────────────────────────────────────────── */
 router.get('/me', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { aauth_id, admin_id } = req.payload
 
@@ -140,7 +140,7 @@ router.get('/me', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[AdminController/Auth] GetMe:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -169,7 +169,7 @@ router.post('/logout', (req, res) => {
    Generates a 6-digit OTP and stores in admin_password_reset
 ──────────────────────────────────────────────── */
 router.post('/forgot-password', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { email } = req.body
 
@@ -216,7 +216,7 @@ router.post('/forgot-password', async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, message: 'If the email exists, an OTP has been sent.' }
     } catch (e) {
         console.error('[AdminController/Auth] ForgotPassword:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -226,7 +226,7 @@ router.post('/forgot-password', async (req, res) => {
    Body: { otp, new_password }
 ──────────────────────────────────────────────── */
 router.post('/reset-password', async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { otp, new_password } = req.body
 
@@ -257,7 +257,7 @@ router.post('/reset-password', async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, message: 'Password reset successful.' }
     } catch (e) {
         console.error('[AdminController/Auth] ResetPassword:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -267,7 +267,7 @@ router.post('/reset-password', async (req, res) => {
    Body: { current_password, new_password }
 ──────────────────────────────────────────────── */
 router.put('/change-password', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { aauth_id } = req.payload
         const { current_password, new_password } = req.body
@@ -299,7 +299,7 @@ router.put('/change-password', superauth(), async (req, res) => {
         response = { ...SUCCESS_API_RESPONSE, message: 'Password changed successfully.' }
     } catch (e) {
         console.error('[AdminController/Auth] ChangePassword:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

@@ -18,7 +18,7 @@ const NotificationService = require('../../../services/NotificationService')
 
 /* ─── GET /superadmin/transactions ─── */
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetTransactionsList(req.query)
         response = result.status
@@ -26,14 +26,14 @@ router.get('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Transaction] List:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── GET /superadmin/transactions/:payment_id ─── */
 router.get('/:payment_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetTransactionDetails(req.params.payment_id)
         response = result.status
@@ -41,14 +41,14 @@ router.get('/:payment_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Transaction not found.' }
     } catch (e) {
         console.error('[AdminController/Transaction] View:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── POST /superadmin/transactions ─── Create manual bill/transaction for user ─── */
 router.post('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const {
             account_id, subscription_id, amount, currency = 'MYR',
@@ -78,14 +78,14 @@ router.post('/', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/Transaction] Create:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── PUT /superadmin/transactions/:payment_id/status ─── */
 router.put('/:payment_id/status', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { payment_status, notes } = req.body
         const VALID = ['Pending','Processing','Paid','Failed','Refunded','Cancelled']
@@ -101,14 +101,14 @@ router.put('/:payment_id/status', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Transaction not found.' }
     } catch (e) {
         console.error('[AdminController/Transaction] UpdateStatus:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── DELETE /superadmin/transactions/:payment_id ─── */
 router.delete('/:payment_id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminDeleteTransaction(req.params.payment_id)
         response = result.status
@@ -116,14 +116,14 @@ router.delete('/:payment_id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Transaction not found.' }
     } catch (e) {
         console.error('[AdminController/Transaction] Delete:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
 
 /* ─── POST /superadmin/transactions/notify ─── Send notification to user(s) ─── */
 router.post('/notify', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { title, body, account_ids = [], broadcast = false } = req.body
 
@@ -149,7 +149,7 @@ router.post('/notify', superauth(), async (req, res) => {
         }
     } catch (e) {
         console.error('[AdminController/Transaction] Notify:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

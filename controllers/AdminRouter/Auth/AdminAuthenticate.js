@@ -17,13 +17,13 @@ const { ADMIN_SECRET } = process.env
  * Headers: { Authorization: "Bearer <token>" }
  */
 router.post("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const authHeader = req.headers.authorization
         
         if(!authHeader || !authHeader.startsWith('Bearer ')) {
-            response = UNAUTHORIZED_API_RESPONSE
+            response = { ...UNAUTHORIZED_API_RESPONSE }
             response.message = "Error. Authorization token is required."
             return res.status(response.status_code).json(response)
         }
@@ -35,14 +35,14 @@ router.post("/", async(req, res) => {
         try {
             decoded = jwt.verify(token, ADMIN_SECRET)
         } catch (error) {
-            response = UNAUTHORIZED_API_RESPONSE
+            response = { ...UNAUTHORIZED_API_RESPONSE }
             response.message = "Error. Invalid or expired token."
             return res.status(response.status_code).json(response)
         }
 
         // Check if it's an admin token
         if(decoded.type !== 'admin') {
-            response = UNAUTHORIZED_API_RESPONSE
+            response = { ...UNAUTHORIZED_API_RESPONSE }
             response.message = "Error. Invalid token type. Admin access required."
             return res.status(response.status_code).json(response)
         }
@@ -51,19 +51,19 @@ router.post("/", async(req, res) => {
         const adminAuth = await AdminAuthGetAccess(decoded.aauth_id)
 
         if(!adminAuth.status) {
-            response = UNAUTHORIZED_API_RESPONSE
+            response = { ...UNAUTHORIZED_API_RESPONSE }
             response.message = "Error. Admin account not found."
             return res.status(response.status_code).json(response)
         }
 
         // Check if admin is still active
         if(adminAuth.data.aauth_status !== 'Active') {
-            response = UNAUTHORIZED_API_RESPONSE
+            response = { ...UNAUTHORIZED_API_RESPONSE }
             response.message = `Error. Admin account is ${adminAuth.data.aauth_status.toLowerCase()}.`
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Authentication successful."
         response.data = {
             admin: {
@@ -80,7 +80,7 @@ router.post("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Authenticate: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred during authentication."
         res.status(response.status_code).json(response)
     }

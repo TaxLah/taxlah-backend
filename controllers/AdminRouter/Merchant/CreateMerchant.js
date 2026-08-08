@@ -16,7 +16,7 @@ const { AdminCreateMerchant } = require('../../../models/AdminModel/Merchant')
  * Body: { merchant_name, merchant_category, merchant_image }
  */
 router.post("/create", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const {
@@ -27,19 +27,19 @@ router.post("/create", async(req, res) => {
 
         // Validate required fields
         if (CHECK_EMPTY(merchant_name)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Merchant name is required."
             return res.status(response.status_code).json(response)
         }
 
         if (CHECK_EMPTY(merchant_category)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Merchant category is required."
             return res.status(response.status_code).json(response)
         }
 
         if (CHECK_EMPTY(merchant_image)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Merchant image URL is required."
             return res.status(response.status_code).json(response)
         }
@@ -53,12 +53,12 @@ router.post("/create", async(req, res) => {
         const result = await AdminCreateMerchant(merchantData)
 
         if (!result.status) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = result.message || 'Error creating merchant'
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = 'Merchant created successfully'
         response.data = result.data
 
@@ -66,7 +66,7 @@ router.post("/create", async(req, res) => {
 
     } catch (error) {
         console.log("Error at AdminCreateMerchant: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = error.message || 'Internal server error'
         return res.status(response.status_code).json(response)
     }

@@ -36,11 +36,11 @@ const { upsertTaxClaim, createLimitNotification } = require("../../../models/App
  * Query params: type (optional), status (optional)
  */
 router.get("/", async (req, res) => {
-	let response = DEFAULT_API_RESPONSE;
+	let response = { ...DEFAULT_API_RESPONSE };
 	let user = req.user || null;
 
 	if (CHECK_EMPTY(user)) {
-		response = UNAUTHORIZED_API_RESPONSE;
+		response = { ...UNAUTHORIZED_API_RESPONSE };
 		response.message = ERROR_UNAUTHENTICATED;
 		return res.status(response.status_code).json(response);
 	}
@@ -54,18 +54,18 @@ router.get("/", async (req, res) => {
 		const result = await getDependantsList(user.account_id, params);
 
 		if (result.status) {
-			response = SUCCESS_API_RESPONSE;
+			response = { ...SUCCESS_API_RESPONSE };
 			response.message = "Dependants retrieved successfully.";
 			response.data = result.data;
 		} else {
-			response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+			response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 			response.message = result.error || "Failed to retrieve dependants.";
 		}
 
 		res.status(response.status_code).json(response);
 	} catch (error) {
 		console.error("Error Get Dependants List:", error);
-		response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+		response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 		response.message = "An error occurred while retrieving dependants.";
 		res.status(response.status_code).json(response);
 	}
@@ -76,11 +76,11 @@ router.get("/", async (req, res) => {
  * Get dependant statistics for the user
  */
 router.get("/stats", async (req, res) => {
-	let response = DEFAULT_API_RESPONSE;
+	let response = { ...DEFAULT_API_RESPONSE };
 	let user = req.user || null;
 
 	if (CHECK_EMPTY(user)) {
-		response = UNAUTHORIZED_API_RESPONSE;
+		response = { ...UNAUTHORIZED_API_RESPONSE };
 		response.message = ERROR_UNAUTHENTICATED;
 		return res.status(response.status_code).json(response);
 	}
@@ -89,18 +89,18 @@ router.get("/stats", async (req, res) => {
 		const result = await getDependantStats(user.account_id);
 
 		if (result.status) {
-			response = SUCCESS_API_RESPONSE;
+			response = { ...SUCCESS_API_RESPONSE };
 			response.message = "Dependant statistics retrieved successfully.";
 			response.data = result.data;
 		} else {
-			response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+			response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 			response.message = result.error || "Failed to retrieve statistics.";
 		}
 
 		res.status(response.status_code).json(response);
 	} catch (error) {
 		console.error("Error Get Dependant Stats:", error);
-		response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+		response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 		response.message = "An error occurred while retrieving statistics.";
 		res.status(response.status_code).json(response);
 	}
@@ -111,11 +111,11 @@ router.get("/stats", async (req, res) => {
  * Calculate child relief eligibility based on dependants
  */
 router.get("/child-relief", async (req, res) => {
-	let response = DEFAULT_API_RESPONSE;
+	let response = { ...DEFAULT_API_RESPONSE };
 	let user = req.user || null;
 
 	if (CHECK_EMPTY(user)) {
-		response = UNAUTHORIZED_API_RESPONSE;
+		response = { ...UNAUTHORIZED_API_RESPONSE };
 		response.message = ERROR_UNAUTHENTICATED;
 		return res.status(response.status_code).json(response);
 	}
@@ -128,12 +128,12 @@ router.get("/child-relief", async (req, res) => {
 		);
 
 		if (result.status) {
-			response = SUCCESS_API_RESPONSE;
+			response = { ...SUCCESS_API_RESPONSE };
 			response.message =
 				"Child relief eligibility calculated successfully.";
 			response.data = result.data;
 		} else {
-			response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+			response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 			response.message =
 				result.error || "Failed to calculate child relief.";
 		}
@@ -141,7 +141,7 @@ router.get("/child-relief", async (req, res) => {
 		res.status(response.status_code).json(response);
 	} catch (error) {
 		console.error("Error Calculate Child Relief:", error);
-		response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+		response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 		response.message = "An error occurred while calculating child relief.";
 		res.status(response.status_code).json(response);
 	}
@@ -152,11 +152,11 @@ router.get("/child-relief", async (req, res) => {
  * Get single dependant details
  */
 router.get("/:id", async (req, res) => {
-	let response = DEFAULT_API_RESPONSE;
+	let response = { ...DEFAULT_API_RESPONSE };
 	let user = req.user || null;
 
 	if (CHECK_EMPTY(user)) {
-		response = UNAUTHORIZED_API_RESPONSE;
+		response = { ...UNAUTHORIZED_API_RESPONSE };
 		response.message = ERROR_UNAUTHENTICATED;
 		return res.status(response.status_code).json(response);
 	}
@@ -165,7 +165,7 @@ router.get("/:id", async (req, res) => {
 		const dependantId = parseInt(req.params.id);
 
 		if (isNaN(dependantId)) {
-			response = BAD_REQUEST_API_RESPONSE;
+			response = { ...BAD_REQUEST_API_RESPONSE };
 			response.message = "Invalid dependant ID.";
 			return res.status(response.status_code).json(response);
 		}
@@ -173,18 +173,18 @@ router.get("/:id", async (req, res) => {
 		const result = await getDependantDetails(dependantId, user.account_id);
 
 		if (result.status) {
-			response = SUCCESS_API_RESPONSE;
+			response = { ...SUCCESS_API_RESPONSE };
 			response.message = "Dependant details retrieved successfully.";
 			response.data = result.data;
 		} else {
-			response = NOT_FOUND_API_RESPONSE;
+			response = { ...NOT_FOUND_API_RESPONSE };
 			response.message = result.message || "Dependant not found.";
 		}
 
 		res.status(response.status_code).json(response);
 	} catch (error) {
 		console.error("Error Get Dependant Details:", error);
-		response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+		response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 		response.message =
 			"An error occurred while retrieving dependant details.";
 		res.status(response.status_code).json(response);
@@ -197,11 +197,11 @@ router.get("/:id", async (req, res) => {
  * Body: { dependant_name, dependant_fullname, dependant_type, dependant_dob, ... }
  */
 router.post("/", async (req, res) => {
-	let response = DEFAULT_API_RESPONSE;
+	let response = { ...DEFAULT_API_RESPONSE };
 	let user = req.user || null;
 
 	if (CHECK_EMPTY(user)) {
-		response = UNAUTHORIZED_API_RESPONSE;
+		response = { ...UNAUTHORIZED_API_RESPONSE };
 		response.message = ERROR_UNAUTHENTICATED;
 		return res.status(response.status_code).json(response);
 	}
@@ -212,13 +212,13 @@ router.post("/", async (req, res) => {
 
 		// Validation
 		if (CHECK_EMPTY(params.dependant_name)) {
-			response = BAD_REQUEST_API_RESPONSE;
+			response = { ...BAD_REQUEST_API_RESPONSE };
 			response.message = "Dependant name is required.";
 			return res.status(response.status_code).json(response);
 		}
 
 		if (CHECK_EMPTY(params.dependant_type)) {
-			response = BAD_REQUEST_API_RESPONSE;
+			response = { ...BAD_REQUEST_API_RESPONSE };
 			response.message = "Dependant type is required.";
 			return res.status(response.status_code).json(response);
 		}
@@ -233,7 +233,7 @@ router.post("/", async (req, res) => {
 		];
 
 		if (!validTypes.includes(params.dependant_type)) {
-			response = BAD_REQUEST_API_RESPONSE;
+			response = { ...BAD_REQUEST_API_RESPONSE };
 			response.message = `Invalid dependant type. Must be one of: ${validTypes.join(
 				", "
 			)}`;
@@ -268,7 +268,7 @@ router.post("/", async (req, res) => {
 		]
 
 		if(params.dependant_type === "Child" && params.dependant_is_studying === "Yes" && !validEduLevelTypes.includes(params.dependant_edu_level)) {
-			response = BAD_REQUEST_API_RESPONSE;
+			response = { ...BAD_REQUEST_API_RESPONSE };
 			response.message = `Invalid dependant education level. Must be one of: ${validEduLevelTypes.join(", ")}`;
 			return res.status(response.status_code).json(response);
 		}
@@ -279,7 +279,7 @@ router.post("/", async (req, res) => {
 				type: "Spouse",
 			});
 			if (existing.status && existing.data.length > 0) {
-				response = BAD_REQUEST_API_RESPONSE;
+				response = { ...BAD_REQUEST_API_RESPONSE };
 				response.message = "You can only have one spouse registered.";
 				return res.status(response.status_code).json(response);
 			}
@@ -395,21 +395,21 @@ router.post("/", async (req, res) => {
 			}
 
 
-			response = SUCCESS_API_RESPONSE;
+			response = { ...SUCCESS_API_RESPONSE };
 			response.message = "Dependant created successfully.";
 			response.data = {
 				dependant_id: result.data,
 				...dependantData,
 			};
 		} else {
-			response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+			response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 			response.message = result.error || "Failed to create dependant.";
 		}
 
 		res.status(response.status_code).json(response);
 	} catch (error) {
 		console.error("Error Create Dependant:", error);
-		response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+		response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 		response.message = "An error occurred while creating dependant.";
 		res.status(response.status_code).json(response);
 	}
@@ -420,11 +420,11 @@ router.post("/", async (req, res) => {
  * Update dependant
  */
 router.put("/:id", async (req, res) => {
-	let response = DEFAULT_API_RESPONSE;
+	let response = { ...DEFAULT_API_RESPONSE };
 	let user = req.user || null;
 
 	if (CHECK_EMPTY(user)) {
-		response = UNAUTHORIZED_API_RESPONSE;
+		response = { ...UNAUTHORIZED_API_RESPONSE };
 		response.message = ERROR_UNAUTHENTICATED;
 		return res.status(response.status_code).json(response);
 	}
@@ -434,7 +434,7 @@ router.put("/:id", async (req, res) => {
 		const params 		= req.body;
 
 		if (isNaN(dependantId)) {
-			response = BAD_REQUEST_API_RESPONSE;
+			response = { ...BAD_REQUEST_API_RESPONSE };
 			response.message = "Invalid dependant ID.";
 			return res.status(response.status_code).json(response);
 		}
@@ -442,7 +442,7 @@ router.put("/:id", async (req, res) => {
 		// Check if dependant exists and belongs to user
 		const existing = await getDependantDetails(dependantId, user.account_id);
 		if (!existing.status) {
-			response = NOT_FOUND_API_RESPONSE;
+			response = { ...NOT_FOUND_API_RESPONSE };
 			response.message = "Dependant not found.";
 			return res.status(response.status_code).json(response);
 		}
@@ -453,7 +453,7 @@ router.put("/:id", async (req, res) => {
 		if (params.dependant_name !== undefined) {
 			const name = sanitize(params.dependant_name);
 			if (!name || name.trim() === '') {
-				response = BAD_REQUEST_API_RESPONSE;
+				response = { ...BAD_REQUEST_API_RESPONSE };
 				response.message = "Dependant name cannot be empty.";
 				return res.status(response.status_code).json(response);
 			}
@@ -463,7 +463,7 @@ router.put("/:id", async (req, res) => {
 		if (params.dependant_fullname !== undefined) {
 			const fullname = sanitize(params.dependant_fullname);
 			if (!fullname || fullname.trim() === '') {
-				response = BAD_REQUEST_API_RESPONSE;
+				response = { ...BAD_REQUEST_API_RESPONSE };
 				response.message = "Dependant full name cannot be empty.";
 				return res.status(response.status_code).json(response);
 			}
@@ -478,7 +478,7 @@ router.put("/:id", async (req, res) => {
 		
 		if (params.dependant_ic !== undefined) {
 			if (!params.dependant_ic || params.dependant_ic.trim() === '') {
-				response = BAD_REQUEST_API_RESPONSE;
+				response = { ...BAD_REQUEST_API_RESPONSE };
 				response.message = "Dependant IC/ID cannot be empty.";
 				return res.status(response.status_code).json(response);
 			}
@@ -487,7 +487,7 @@ router.put("/:id", async (req, res) => {
 		
 		if (params.dependant_gender !== undefined) {
 			if (!params.dependant_gender || params.dependant_gender.trim() === '') {
-				response = BAD_REQUEST_API_RESPONSE;
+				response = { ...BAD_REQUEST_API_RESPONSE };
 				response.message = "Dependant gender cannot be empty.";
 				return res.status(response.status_code).json(response);
 			}
@@ -499,13 +499,13 @@ router.put("/:id", async (req, res) => {
 		
 		if (params.dependant_type !== undefined) {
 			if (!params.dependant_type || params.dependant_type.trim() === '') {
-				response = BAD_REQUEST_API_RESPONSE;
+				response = { ...BAD_REQUEST_API_RESPONSE };
 				response.message = "Dependant type cannot be empty.";
 				return res.status(response.status_code).json(response);
 			}
 			const validTypes = ["Spouse", "Child", "Sibling", "Parent", "Relative", "Other"];
 			if (!validTypes.includes(params.dependant_type)) {
-				response = BAD_REQUEST_API_RESPONSE;
+				response = { ...BAD_REQUEST_API_RESPONSE };
 				response.message = `Invalid dependant type. Must be one of: ${validTypes.join(", ")}`;
 				return res.status(response.status_code).json(response);
 			}
@@ -530,7 +530,7 @@ router.put("/:id", async (req, res) => {
 			updateData.dependant_institution_country = params.dependant_edu_country;
 
 		if (Object.keys(updateData).length === 0) {
-			response 			= BAD_REQUEST_API_RESPONSE;
+			response 			= { ...BAD_REQUEST_API_RESPONSE };
 			response.message 	= "No valid fields to update.";
 			return res.status(response.status_code).json(response);
 		}
@@ -540,18 +540,18 @@ router.put("/:id", async (req, res) => {
 		const result = await updateDependant(dependantId, user.account_id, updateData);
 
 		if (result.status) {
-			response = SUCCESS_API_RESPONSE;
+			response = { ...SUCCESS_API_RESPONSE };
 			response.message = "Dependant updated successfully.";
 			response.data = { dependant_id: dependantId, ...updateData };
 		} else {
-			response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+			response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 			response.message = result.error || "Failed to update dependant.";
 		}
 
 		res.status(response.status_code).json(response);
 	} catch (error) {
 		console.error("Error Update Dependant:", error);
-		response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+		response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 		response.message = "An error occurred while updating dependant.";
 		res.status(response.status_code).json(response);
 	}
@@ -562,11 +562,11 @@ router.put("/:id", async (req, res) => {
  * Delete dependant (soft delete)
  */
 router.delete("/:id", async (req, res) => {
-	let response = DEFAULT_API_RESPONSE;
+	let response = { ...DEFAULT_API_RESPONSE };
 	let user = req.user || null;
 
 	if (CHECK_EMPTY(user)) {
-		response = UNAUTHORIZED_API_RESPONSE;
+		response = { ...UNAUTHORIZED_API_RESPONSE };
 		response.message = ERROR_UNAUTHENTICATED;
 		return res.status(response.status_code).json(response);
 	}
@@ -575,7 +575,7 @@ router.delete("/:id", async (req, res) => {
 		const dependantId = parseInt(req.params.id);
 
 		if (isNaN(dependantId)) {
-			response = BAD_REQUEST_API_RESPONSE;
+			response = { ...BAD_REQUEST_API_RESPONSE };
 			response.message = "Invalid dependant ID.";
 			return res.status(response.status_code).json(response);
 		}
@@ -586,7 +586,7 @@ router.delete("/:id", async (req, res) => {
 			user.account_id
 		);
 		if (!existing.status) {
-			response = NOT_FOUND_API_RESPONSE;
+			response = { ...NOT_FOUND_API_RESPONSE };
 			response.message = "Dependant not found.";
 			return res.status(response.status_code).json(response);
 		}
@@ -594,18 +594,18 @@ router.delete("/:id", async (req, res) => {
 		const result = await deleteDependant(dependantId, user.account_id);
 
 		if (result.status) {
-			response = SUCCESS_API_RESPONSE;
+			response = { ...SUCCESS_API_RESPONSE };
 			response.message = "Dependant deleted successfully.";
 			response.data = { dependant_id: dependantId };
 		} else {
-			response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+			response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 			response.message = result.error || "Failed to delete dependant.";
 		}
 
 		res.status(response.status_code).json(response);
 	} catch (error) {
 		console.error("Error Delete Dependant:", error);
-		response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+		response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
 		response.message = "An error occurred while deleting dependant.";
 		res.status(response.status_code).json(response);
 	}

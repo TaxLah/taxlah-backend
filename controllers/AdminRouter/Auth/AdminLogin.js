@@ -21,7 +21,7 @@ const { ADMIN_SECRET } = process.env
  * Body: { username, password }
  */
 router.post("/", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const params = req.body
@@ -32,13 +32,13 @@ router.post("/", async(req, res) => {
 
         // Validation
         if(CHECK_EMPTY(username)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Username or email is required."
             return res.status(response.status_code).json(response)
         }
 
         if(CHECK_EMPTY(password)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Password is required."
             return res.status(response.status_code).json(response)
         }
@@ -47,7 +47,7 @@ router.post("/", async(req, res) => {
         const adminAuth = await AdminAuthGetByIdentifier(sanitize(username))
 
         if(!adminAuth.status) {
-            response = UNAUTHORIZED_API_RESPONSE
+            response = { ...UNAUTHORIZED_API_RESPONSE }
             response.message = "Error. Invalid username/email or password."
             return res.status(response.status_code).json(response)
         }
@@ -56,14 +56,14 @@ router.post("/", async(req, res) => {
         const isPasswordValid = await bcrypt.compare(password, adminAuth.data.aauth_password)
 
         if(!isPasswordValid) {
-            response = UNAUTHORIZED_API_RESPONSE
+            response = { ...UNAUTHORIZED_API_RESPONSE }
             response.message = "Error. Invalid username/email or password."
             return res.status(response.status_code).json(response)
         }
 
         // Check if admin is active
         if(adminAuth.data.aauth_status !== 'Active') {
-            response = UNAUTHORIZED_API_RESPONSE
+            response = { ...UNAUTHORIZED_API_RESPONSE }
             response.message = `Error. Admin account is ${adminAuth.data.aauth_status.toLowerCase()}. Please contact super admin.`
             return res.status(response.status_code).json(response)
         }
@@ -80,7 +80,7 @@ router.post("/", async(req, res) => {
 
         const token = jwt.sign(tokenPayload, ADMIN_SECRET, { expiresIn: '24h' })
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Login successful."
         response.data = {
             token: token,
@@ -98,7 +98,7 @@ router.post("/", async(req, res) => {
 
     } catch (error) {
         console.log("Error Admin Login: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred during login."
         res.status(response.status_code).json(response)
     }

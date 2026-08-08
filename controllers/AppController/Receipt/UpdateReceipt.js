@@ -18,11 +18,11 @@ const { UpdateReceipt } = require('../../../models/AppModel/Receipt')
  * Body: { rc_id, receipt_name, receipt_description, receipt_amount, receipt_image_url }
  */
 router.put("/:receipt_id", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     let user = req.user || null
 
     if(CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE
+        response = { ...UNAUTHORIZED_API_RESPONSE }
         response.message = ERROR_UNAUTHENTICATED
         return res.status(response.status_code).json(response)
     }
@@ -33,7 +33,7 @@ router.put("/:receipt_id", async(req, res) => {
         const account_id = user.account_id
 
         if(CHECK_EMPTY(receipt_id)) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. Receipt ID is required."
             return res.status(response.status_code).json(response)
         }
@@ -57,7 +57,7 @@ router.put("/:receipt_id", async(req, res) => {
 
         if(params.receipt_amount !== undefined) {
             if(isNaN(params.receipt_amount) || params.receipt_amount < 0) {
-                response = BAD_REQUEST_API_RESPONSE
+                response = { ...BAD_REQUEST_API_RESPONSE }
                 response.message = "Error. Receipt amount must be a valid non-negative number."
                 return res.status(response.status_code).json(response)
             }
@@ -72,7 +72,7 @@ router.put("/:receipt_id", async(req, res) => {
                     }
                     updateData.receipt_items = typeof params.receipt_items === 'string' ? params.receipt_items : JSON.stringify(params.receipt_items)
                 } catch(e) {
-                    response = BAD_REQUEST_API_RESPONSE
+                    response = { ...BAD_REQUEST_API_RESPONSE }
                     response.message = "Error. Receipt items must be valid JSON."
                     return res.status(response.status_code).json(response)
                 }
@@ -87,7 +87,7 @@ router.put("/:receipt_id", async(req, res) => {
 
         // Check if there's anything to update
         if(Object.keys(updateData).length === 0) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. No valid fields to update."
             return res.status(response.status_code).json(response)
         }
@@ -95,12 +95,12 @@ router.put("/:receipt_id", async(req, res) => {
         const result = await UpdateReceipt(receipt_id, account_id, updateData)
 
         if(!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = "Error. Failed to update receipt."
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "Receipt updated successfully."
         response.data = {
             receipt_id: parseInt(receipt_id),
@@ -111,7 +111,7 @@ router.put("/:receipt_id", async(req, res) => {
 
     } catch (error) {
         console.log("Error Update Receipt: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = "Error. An error occurred while updating receipt."
         res.status(response.status_code).json(response)
     }

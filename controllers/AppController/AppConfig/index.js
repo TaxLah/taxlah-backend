@@ -34,7 +34,7 @@ const DEFAULT_AD_LIMIT = 5
  * matters because this runs on every dashboard focus.
  */
 router.get('/', auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         // Only an explicit "Live" ends the beta. Anything else — a typo, a stray space,
         // a value written before APP_MODE was constrained — keeps the banner up rather
@@ -96,7 +96,7 @@ router.get('/', auth(), async (req, res) => {
  * Every live advert, for the "See all" screen.
  */
 router.get('/advertisements', auth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const advertisements = await Advertisement.listLive()
 

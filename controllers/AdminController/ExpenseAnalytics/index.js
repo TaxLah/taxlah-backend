@@ -25,7 +25,7 @@ const {
    ─ 7 header KPI cards + budget overview
 ──────────────────────────────────────────────────────────────── */
 router.get('/summary', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { year } = req.query
         const result = await AdminExpenseAnalyticsSummary(year)
@@ -34,7 +34,7 @@ router.get('/summary', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/ExpenseAnalytics] Summary:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -45,7 +45,7 @@ router.get('/summary', superauth(), async (req, res) => {
    ─ + highest/lowest/avg stats below chart
 ──────────────────────────────────────────────────────────────── */
 router.get('/monthly-trend', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { year } = req.query
         const result = await AdminExpenseAnalyticsMonthlyTrend(year)
@@ -54,7 +54,7 @@ router.get('/monthly-trend', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/ExpenseAnalytics] MonthlyTrend:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -64,7 +64,7 @@ router.get('/monthly-trend', superauth(), async (req, res) => {
    ─ Expense category breakdown with trend vs previous year
 ──────────────────────────────────────────────────────────────── */
 router.get('/categories', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { year } = req.query
         const result = await AdminExpenseAnalyticsCategories(year)
@@ -73,7 +73,7 @@ router.get('/categories', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/ExpenseAnalytics] Categories:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -83,7 +83,7 @@ router.get('/categories', superauth(), async (req, res) => {
    ─ Ranked list of users by total expenses for the year
 ──────────────────────────────────────────────────────────────── */
 router.get('/top-users', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { year, limit = 10 } = req.query
 
@@ -98,7 +98,7 @@ router.get('/top-users', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/ExpenseAnalytics] TopUsers:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -108,7 +108,7 @@ router.get('/top-users', superauth(), async (req, res) => {
    ─ Ranked list of merchants by total expense amount for the year
 ──────────────────────────────────────────────────────────────── */
 router.get('/top-merchants', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { year, limit = 10 } = req.query
 
@@ -123,7 +123,7 @@ router.get('/top-merchants', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/ExpenseAnalytics] TopMerchants:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -133,7 +133,7 @@ router.get('/top-merchants', superauth(), async (req, res) => {
    ─ Latest expense transactions for the year
 ──────────────────────────────────────────────────────────────── */
 router.get('/recent-transactions', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { year, limit = 20 } = req.query
 
@@ -148,7 +148,7 @@ router.get('/recent-transactions', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/ExpenseAnalytics] RecentTransactions:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -158,7 +158,7 @@ router.get('/recent-transactions', superauth(), async (req, res) => {
    ─ Expense totals grouped by day-of-week (Mon–Sun)
 ──────────────────────────────────────────────────────────────── */
 router.get('/weekly-distribution', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { year } = req.query
         const result = await AdminExpenseAnalyticsWeeklyDistribution(year)
@@ -167,7 +167,7 @@ router.get('/weekly-distribution', superauth(), async (req, res) => {
             : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/ExpenseAnalytics] WeeklyDistribution:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })

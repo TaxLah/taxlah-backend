@@ -18,13 +18,13 @@ const {
  *  - allowed_types (optional: comma-separated mime types)
  */
 router.post("/", upload.array('files', 10), verifyUploadedFiles, async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const files = req.files
 
         if(!files || files.length === 0) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. No files uploaded."
             return res.status(response.status_code).json(response)
         }
@@ -45,7 +45,7 @@ router.post("/", upload.array('files', 10), verifyUploadedFiles, async(req, res)
             }
         })
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = `${files.length} file(s) uploaded successfully.`
         response.data = {
             files: uploadedFiles,
@@ -56,7 +56,7 @@ router.post("/", upload.array('files', 10), verifyUploadedFiles, async(req, res)
 
     } catch (error) {
         console.log("Error File Upload: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = error.message || "Error. An error occurred while uploading files."
         res.status(response.status_code).json(response)
     }
@@ -71,13 +71,13 @@ router.post("/", upload.array('files', 10), verifyUploadedFiles, async(req, res)
  *  - allowed_types (optional: comma-separated mime types)
  */
 router.post("/single", upload.single('file'), verifyUploadedFiles, async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         const file = req.file
 
         if(!file) {
-            response = BAD_REQUEST_API_RESPONSE
+            response = { ...BAD_REQUEST_API_RESPONSE }
             response.message = "Error. No file uploaded."
             return res.status(response.status_code).json(response)
         }
@@ -86,7 +86,7 @@ router.post("/single", upload.single('file'), verifyUploadedFiles, async(req, re
 
         const fileUrl = getFileUrl(file.path)
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = "File uploaded successfully."
         response.data = {
             filename: file.filename,
@@ -105,7 +105,7 @@ router.post("/single", upload.single('file'), verifyUploadedFiles, async(req, re
 
     } catch (error) {
         console.log("Error Single File Upload: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = error.message || "Error. An error occurred while uploading file."
         res.status(response.status_code).json(response)
     }

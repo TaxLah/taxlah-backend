@@ -16,7 +16,7 @@ const { AdminGetMerchantsList } = require('../../../models/AdminModel/Merchant')
  * Query: { page, limit, search, category, status, sortBy, sortOrder }
  */
 router.get("/list", async(req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
 
     try {
         // Extract query parameters
@@ -38,12 +38,12 @@ router.get("/list", async(req, res) => {
         const result = await AdminGetMerchantsList(params)
 
         if (!result.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
             response.message = result.message || 'Error fetching merchants list'
             return res.status(response.status_code).json(response)
         }
 
-        response = SUCCESS_API_RESPONSE
+        response = { ...SUCCESS_API_RESPONSE }
         response.message = 'Merchants list retrieved successfully'
         response.data = result.data
 
@@ -51,7 +51,7 @@ router.get("/list", async(req, res) => {
 
     } catch (error) {
         console.log("Error at AdminGetMerchantsList: ", error)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
         response.message = error.message || 'Internal server error'
         return res.status(response.status_code).json(response)
     }

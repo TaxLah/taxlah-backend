@@ -35,11 +35,11 @@ const { UserNotificationCreate } = require('../../../models/AppModel/Notificatio
  * - profile_picture: File (image only - jpeg, jpg, png, gif, webp)
  */
 router.put('/', upload.single('profile_picture'), verifyUploadedFiles, async (req, res) => {
-    let response = DEFAULT_API_RESPONSE;
+    let response = { ...DEFAULT_API_RESPONSE };
     let user = req.user || null;
 
     if (CHECK_EMPTY(user)) {
-        response = UNAUTHORIZED_API_RESPONSE;
+        response = { ...UNAUTHORIZED_API_RESPONSE };
         response.message = ERROR_UNAUTHENTICATED;
         return res.status(response.status_code).json(response);
     }
@@ -47,7 +47,7 @@ router.put('/', upload.single('profile_picture'), verifyUploadedFiles, async (re
     try {
         // Check if file was uploaded
         if (!req.file) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Profile picture file is required';
             return res.status(response.status_code).json(response);
         }
@@ -55,7 +55,7 @@ router.put('/', upload.single('profile_picture'), verifyUploadedFiles, async (re
         // Validate file type is image
         const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
         if (!allowedImageTypes.includes(req.file.mimetype)) {
-            response = BAD_REQUEST_API_RESPONSE;
+            response = { ...BAD_REQUEST_API_RESPONSE };
             response.message = 'Invalid file type. Only images are allowed (JPEG, PNG, GIF, WEBP, HEIC)';
             return res.status(response.status_code).json(response);
         }
@@ -81,7 +81,7 @@ router.put('/', upload.single('profile_picture'), verifyUploadedFiles, async (re
         const updateResult = await AccountUpdate(updateData);
 
         if (!updateResult.status) {
-            response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+            response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
             response.message = 'Failed to update profile picture';
             return res.status(response.status_code).json(response);
         }
@@ -116,7 +116,7 @@ router.put('/', upload.single('profile_picture'), verifyUploadedFiles, async (re
         });
 
         // Success response
-        response = SUCCESS_API_RESPONSE;
+        response = { ...SUCCESS_API_RESPONSE };
         response.message = 'Profile picture updated successfully';
         response.data = {
             profile: profile,
@@ -134,7 +134,7 @@ router.put('/', upload.single('profile_picture'), verifyUploadedFiles, async (re
 
     } catch (error) {
         console.error('[UpdateProfilePicture] Error:', error);
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE;
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE };
         response.message = 'An error occurred while updating profile picture';
         response.data = { error: error.message };
         return res.status(response.status_code).json(response);

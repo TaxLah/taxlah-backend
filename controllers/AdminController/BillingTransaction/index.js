@@ -22,13 +22,13 @@ const {
           payment_method, year, month, account_id, bill_id
 ──────────────────────────────────────────────────────────────── */
 router.get('/', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const result = await AdminGetBillingTransactionsList(req.query)
         response = result.status ? { ...SUCCESS_API_RESPONSE, ...result.data } : INTERNAL_SERVER_ERROR_API_RESPONSE
     } catch (e) {
         console.error('[AdminController/BillingTransaction] List:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
@@ -38,7 +38,7 @@ router.get('/', superauth(), async (req, res) => {
    Returns full record including chip_payload and chip_callback JSON
 ──────────────────────────────────────────────────────────────── */
 router.get('/:id', superauth(), async (req, res) => {
-    let response = DEFAULT_API_RESPONSE
+    let response = { ...DEFAULT_API_RESPONSE }
     try {
         const { id } = req.params
         if (!id || isNaN(id)) {
@@ -51,7 +51,7 @@ router.get('/:id', superauth(), async (req, res) => {
             : { ...NOT_FOUND_API_RESPONSE, message: 'Transaction not found.' }
     } catch (e) {
         console.error('[AdminController/BillingTransaction] Details:', e)
-        response = INTERNAL_SERVER_ERROR_API_RESPONSE
+        response = { ...INTERNAL_SERVER_ERROR_API_RESPONSE }
     }
     return res.status(response.status_code).json(response)
 })
