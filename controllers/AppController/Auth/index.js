@@ -60,6 +60,7 @@ const identityLimiter = rateLimit({
 // requires a valid token, so it is not a credential-guessing surface.
 router.use("/onboard",          ipFloodLimiter, identityLimiter, Onboarding)
 router.use("/signin",           ipFloodLimiter, identityLimiter, SignIn)
+router.use("/social",           ipFloodLimiter, require("./AuthSocialLogin"))
 router.use("/authenticate",     Authenticate)
 router.use("/verify-account",   ipFloodLimiter, identityLimiter, require("./AuthCompleteRegister"))
 router.use("/",                 ipFloodLimiter, identityLimiter, ForgotPassword)  // POST /forgot-password  &  POST /reset-password
