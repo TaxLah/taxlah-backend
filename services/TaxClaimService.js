@@ -56,12 +56,38 @@ async function recomputeClaim(account_id, tax_id, tax_year) {
 
     try {
         const taxRow = await db.raw(
-            `SELECT tax_max_claim FROM tax_category WHERE tax_id = ? LIMIT 1`,
+            `SELECT tax_max_claim, tax_requires_receipt, tax_is_auto_claim
+               FROM tax_category WHERE tax_id = ? LIMIT 1`,
             [tax_id]
         );
         if (!taxRow.length) {
             return { status: false, message: `tax_id ${tax_id} does not exist` };
         }
+
+        /**
+         * Reliefs that are not earned by receipts are left alone.
+         *
+         * Individual relief, spouse and child relief are statutory or declared by
+         * the user — addAutoClaimReliefs() writes them and no expense ever backs
+         * them. Deriving them from account_expenses therefore computes 0 and wipes
+         * a legitimate entitlement: on production that is RM1.77m across 216
+         * accounts, RM9,000 of individual relief at a time.
+         *
+         * The guard lives here rather than in any one caller because every path
+         * that touches an expense recomputes its category — so a user editing or
+         * deleting an expense that happens to sit in one of these categories would
+         * otherwise destroy their own relief.
+         */
+        const derivedFromReceipts =
+            taxRow[0].tax_requires_receipt === 'Yes' && taxRow[0].tax_is_auto_claim === 'No';
+        if (!derivedFromReceipts) {
+            return {
+                status: true,
+                skipped: true,
+                message: `tax_id ${tax_id} is not receipt-derived; claim left untouched`,
+            };
+        }
+
         const maxClaim = parseFloat(taxRow[0].tax_max_claim) || 0;
 
         const sumArgs = [maxClaim, account_id, tax_id, tax_year];

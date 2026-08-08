@@ -58,17 +58,33 @@ const WRITE = process.argv.includes('--write');
         }
     }
 
-    // ── 2. Recompute every (account, year, category) pair ──
+    // ── 2. Recompute the pairs that expenses actually back ──
+    //
+    // Only (account, year, category) combinations that hold at least one expense.
+    // A claim with no expense behind it was not derived from receipts and must not
+    // be recomputed from them:
+    //
+    //   - addAutoClaimReliefs() writes individual relief, a statutory RM9,000 that
+    //     no receipt will ever justify;
+    //   - the dependant flow (controllers/AppController/Dependant) writes spouse and
+    //     child relief straight at tax_max_claim when someone declares a dependant.
+    //
+    // Recomputing those from account_expenses yields 0 and erases the entitlement —
+    // RM1.77m across 216 production accounts when this ran unrestricted. The
+    // tax_requires_receipt flag alone does not separate them either: CHILD_HIGHER_ED
+    // is flagged as requiring a receipt, yet the dependant flow populates it.
+    //
+    // So the rule is evidential rather than declarative: recompute what receipts
+    // demonstrably feed, and leave everything else to the report in step 2b.
     const pairs = await db.raw(
-        `SELECT DISTINCT account_id, expenses_year AS tax_year, expenses_tax_category AS tax_id
-           FROM account_expenses
-          WHERE expenses_tax_category IS NOT NULL
-          UNION
-         SELECT DISTINCT account_id, tax_year, tax_id
-           FROM account_tax_claim
-          WHERE status = 'Active'`
+        `SELECT DISTINCT ae.account_id, ae.expenses_year AS tax_year,
+                ae.expenses_tax_category AS tax_id
+           FROM account_expenses ae
+           JOIN tax_category tc ON tc.tax_id = ae.expenses_tax_category
+          WHERE ae.expenses_tax_category IS NOT NULL
+            AND tc.tax_requires_receipt = 'Yes' AND tc.tax_is_auto_claim = 'No'`
     );
-    console.log(`(account, year, category) pairs to check: ${pairs.length}`);
+    console.log(`expense-backed (account, year, category) pairs to check: ${pairs.length}`);
 
     let drift = 0;
     for (const p of pairs) {
@@ -105,6 +121,33 @@ const WRITE = process.argv.includes('--write');
     }
     console.log(`pairs with drift: ${drift}`);
 
+    // ── 2b. Claims with nothing behind them — reported, never touched ──
+    //
+    // Either a legitimate declared relief (dependant, auto-claim) or a claim whose
+    // expenses were all removed. Nothing in the data distinguishes the two, and
+    // zeroing a real entitlement is far worse than leaving a stale figure, so these
+    // are listed for a human to judge rather than repaired.
+    const unbacked = await db.raw(
+        `SELECT atc.account_id, atc.tax_year, tc.tax_code, atc.claimed_amount
+           FROM account_tax_claim atc
+           JOIN tax_category tc ON tc.tax_id = atc.tax_id
+          WHERE atc.status = 'Active' AND atc.claimed_amount > 0
+            AND NOT EXISTS (
+                SELECT 1 FROM account_expenses ae
+                 WHERE ae.account_id = atc.account_id
+                   AND ae.expenses_tax_category = atc.tax_id
+                   AND ae.expenses_year = atc.tax_year)
+          ORDER BY atc.claimed_amount DESC`
+    );
+    const unbackedTotal = unbacked.reduce((sum, r) => sum + parseFloat(r.claimed_amount), 0);
+    console.log(
+        `\nclaims with no expense behind them: ${unbacked.length} (RM${unbackedTotal.toFixed(2)}) — reported only, never modified`
+    );
+    for (const u of unbacked.slice(0, 15)) {
+        console.log(`  account ${u.account_id} ${u.tax_year} ${u.tax_code}: RM${u.claimed_amount}`);
+    }
+    if (unbacked.length > 15) console.log(`  … and ${unbacked.length - 15} more`);
+
     // ── 3. claim_id pointers referencing another account's claim ──
     const crossed = await db.raw(
         `SELECT ae.expenses_id, ae.account_id AS expense_account, atc.account_id AS claim_account
@@ -131,14 +174,19 @@ const WRITE = process.argv.includes('--write');
     }
 
     // ── 4. After-state ──
+    // Scoped to the same receipt-derived categories this script maintains, so the
+    // figure reflects work it is responsible for rather than counting statutory
+    // reliefs it deliberately never touches.
     const after = await db.raw(
         `SELECT COUNT(*) AS mismatched
            FROM account_expenses ae
+           JOIN tax_category tc ON tc.tax_id = ae.expenses_tax_category
            LEFT JOIN account_tax_claim atc
              ON atc.account_id = ae.account_id AND atc.tax_year = ae.expenses_year
             AND atc.tax_id = ae.expenses_tax_category AND atc.status = 'Active'
           WHERE ae.expenses_tax_eligible = 'Yes' AND ae.status = 'Active'
             AND ae.expenses_tax_category IS NOT NULL
+            AND tc.tax_requires_receipt = 'Yes' AND tc.tax_is_auto_claim = 'No'
             AND atc.claim_id IS NULL`
     );
     console.log(`\neligible expenses with no active claim after ${WRITE ? 'repair' : 'dry run'}: ${after[0].mismatched}`);
