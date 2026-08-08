@@ -35,6 +35,12 @@ router.get("/", async(req, res) => {
             search: req.query.search,
             rc_id: req.query.rc_id,
             status: req.query.status,
+            // Extended super-filter params. Each is validated by format in the model
+            // and bound as a parameter — nothing here is interpolated.
+            date_from: req.query.date_from,
+            date_to: req.query.date_to,
+            amount_min: req.query.amount_min,
+            amount_max: req.query.amount_max,
             sortBy: req.query.sortBy,
             sortOrder: req.query.sortOrder
         }
