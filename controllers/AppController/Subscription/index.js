@@ -824,9 +824,20 @@ router.get("/payments", auth(), async (req, res) => {
     }
 
     try {
-        const limit = parseInt(req.query.limit) || 10;
+        // Every one of these is validated in the service against an explicit whitelist;
+        // nothing from the query string is interpolated into SQL.
+        const options = {
+            limit:     parseInt(req.query.limit) || 10,
+            page:      parseInt(req.query.page) || 1,
+            search:    req.query.search,
+            statuses:  String(req.query.status || '').split(',').map(s => s.trim()).filter(Boolean),
+            dateFrom:  /^\d{4}-\d{2}-\d{2}$/.test(req.query.date_from || '') ? req.query.date_from : null,
+            dateTo:    /^\d{4}-\d{2}-\d{2}$/.test(req.query.date_to || '') ? req.query.date_to : null,
+            sortBy:    req.query.sort_by,
+            sortOrder: req.query.sort_order,
+        };
 
-        const result = await SubscriptionPaymentService.getPaymentHistory(user.account_id, limit);
+        const result = await SubscriptionPaymentService.getPaymentHistory(user.account_id, options);
 
         if (!result.success) {
             response = INTERNAL_SERVER_ERROR_API_RESPONSE;
@@ -834,9 +845,19 @@ router.get("/payments", auth(), async (req, res) => {
             return res.status(response.status_code).json(response);
         }
 
-        response = SUCCESS_API_RESPONSE;
-        response.message = "Payment history retrieved successfully.";
-        response.data = result.data;
+        // The app paginates on total/totalPages. They were never sent, so the list showed
+        // "0 transactions" and every page button was dead — and `page` was ignored here,
+        // so page 2 would have returned page 1 anyway.
+        response = {
+            ...SUCCESS_API_RESPONSE,
+            message: "Payment history retrieved successfully.",
+            data: result.data,
+            total: result.total,
+            totalPages: result.totalPages,
+            page: result.page,
+            limit: result.limit,
+            summary: result.summary,
+        };
 
         res.status(response.status_code).json(response);
     } catch (error) {

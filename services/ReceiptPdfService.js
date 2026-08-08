@@ -19,14 +19,18 @@ const RECEIPT_ROOT = path.join(__dirname, '../asset/receipt');
 /**
  * The brand mark, embedded in the header.
  *
- * Kept under services/ rather than asset/, because the deploy's rsync excludes asset/
- * and assets/ — a logo placed there would never reach a server, and the receipt would
- * silently fall back to the wordmark in production while looking right locally.
+ * The directory name matters. Both .gitignore and the deploy's rsync exclude the bare
+ * patterns `asset`, `assets` and `file`, and neither anchors them to the project root —
+ * so a logo under services/assets/ is ignored by git and stripped by rsync, and the
+ * receipt would quietly fall back to the wordmark on every server while looking correct
+ * locally. That is precisely how the Firebase credential went missing for months.
+ * `brand/` matches none of those patterns; a dry run of the deploy's own exclude list
+ * confirms it ships.
  *
  * Resized to 240px: the 1024px original is 312KB, which would dwarf the 2.5KB document
  * it is being stamped on.
  */
-const LOGO_PATH = path.join(__dirname, 'assets/taxlah-logo.jpg');
+const LOGO_PATH = path.join(__dirname, 'brand/taxlah-logo.jpg');
 
 // Brand palette, matching the app. #17739B carries white text at 5.30:1.
 const BRAND = '#17739B';

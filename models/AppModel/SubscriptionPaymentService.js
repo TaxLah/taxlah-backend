@@ -17,6 +17,7 @@ const {
     BillingUpdateTransactionStatus,
     BillingGetBillByChipPurchaseId,
 }                                   = require('./BillingService');
+const { getSstRate }                = require('../../services/TaxRateService');
 
 /**
  * Create subscription payment record
@@ -150,18 +151,118 @@ async function getPaymentByRef(paymentRef) {
 }
 
 /**
- * Get user's payment history
- * @param {number} accountId - Account ID
- * @param {number} limit - Number of records
- * @returns {Object} - Payment history
+ * Sortable columns, as an explicit map from the name the client sends to the SQL it may
+ * order by.
+ *
+ * A whitelist rather than validation-by-regex: anything not named here cannot reach the
+ * query at all, so no input string is ever interpolated into ORDER BY. `amount` orders
+ * by the select alias, which is the bill total — the figure the row actually displays,
+ * not the tax-exclusive price behind it.
  */
-async function getPaymentHistory(accountId, limit = 10) {
+const SORTABLE_PAYMENT_COLUMNS = {
+    date:    'sp.created_date',
+    amount:  'amount',
+    status:  'sp.payment_status',
+    package: 'pkg.package_name',
+};
+
+/** Statuses the client may filter on. Anything else is dropped rather than queried. */
+const FILTERABLE_PAYMENT_STATUSES = ['Paid', 'Pending', 'Failed', 'Cancelled', 'Refunded'];
+
+/**
+ * Builds the shared WHERE clause for a payment history query.
+ *
+ * Extracted so the page query, the count and the summary cannot disagree about what
+ * "matching" means — a summary that totals a different set from the rows beneath it is
+ * worse than no summary.
+ */
+function buildPaymentFilters(accountId, filters = {}) {
+    const where  = ['sp.account_id = ?'];
+    const params = [accountId];
+
+    const search = String(filters.search || '').trim();
+    if (search) {
+        // Escape the LIKE wildcards: a customer pasting a reference containing % should
+        // search for that character, not match everything.
+        const term = `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+        where.push(`(
+            sp.payment_ref LIKE ? ESCAPE '\\\\'
+            OR b.invoice_no LIKE ? ESCAPE '\\\\'
+            OR b.bill_no LIKE ? ESCAPE '\\\\'
+            OR pkg.package_name LIKE ? ESCAPE '\\\\'
+            OR s.subscription_ref LIKE ? ESCAPE '\\\\'
+        )`);
+        params.push(term, term, term, term, term);
+    }
+
+    const statuses = (Array.isArray(filters.statuses) ? filters.statuses : [])
+        .filter((s) => FILTERABLE_PAYMENT_STATUSES.includes(s));
+    if (statuses.length) {
+        where.push(`sp.payment_status IN (${statuses.map(() => '?').join(', ')})`);
+        params.push(...statuses);
+    }
+
+    // Date bounds are compared against the column directly rather than wrapped in
+    // DATE()/YEAR(), so an index on created_date stays usable as this table grows.
+    if (filters.dateFrom) {
+        where.push('sp.created_date >= ?');
+        params.push(`${filters.dateFrom} 00:00:00`);
+    }
+    if (filters.dateTo) {
+        where.push('sp.created_date <= ?');
+        params.push(`${filters.dateTo} 23:59:59`);
+    }
+
+    return { clause: where.join(' AND '), params };
+}
+
+/**
+ * Get a page of the user's payment history, with search, status and date filtering,
+ * sorting, and a summary of everything that matched.
+ *
+ * The listed amount is the bill total — what the card was actually charged. It used to
+ * be `sp.amount * 1.06`, which hardcoded the tax rate in a third place and, worse,
+ * disagreed with the receipt for any payment whose bill was not exactly 6%. Payments
+ * that predate billing records have no bill row, so those fall back to the configured
+ * rate rather than a literal.
+ *
+ * The summary is deliberately computed over the whole filtered set, not the page. A
+ * total that only counts the ten rows in front of you answers a question nobody asked.
+ *
+ * @param {number} accountId
+ * @param {Object} options - { limit, page, search, statuses, dateFrom, dateTo, sortBy, sortOrder }
+ * @returns {Object} - { data, total, totalPages, page, limit, summary }
+ */
+async function getPaymentHistory(accountId, options = {}) {
     try {
+        // LIMIT/OFFSET cannot be bound parameters, so they are coerced before interpolation.
+        const safeLimit = Math.min(Math.max(parseInt(options.limit, 10) || 10, 1), 100);
+        const safePage  = Math.max(parseInt(options.page, 10) || 1, 1);
+        const offset    = (safePage - 1) * safeLimit;
+
+        const orderColumn = SORTABLE_PAYMENT_COLUMNS[options.sortBy] || SORTABLE_PAYMENT_COLUMNS.date;
+        const orderDir    = String(options.sortOrder).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+        const sstRate = await getSstRate();
+        const { clause, params } = buildPaymentFilters(accountId, options);
+
+        const joins = `
+            FROM subscription_payment sp
+            LEFT JOIN account_subscription s ON sp.subscription_id = s.subscription_id
+            LEFT JOIN subscription_package pkg ON s.sub_package_id = pkg.sub_package_id
+            LEFT JOIN bill b ON b.chip_purchase_id = sp.gateway_transaction_id
+                            AND b.account_id = sp.account_id
+            WHERE ${clause}
+        `;
+
         const sql = `
-            SELECT 
+            SELECT
                 sp.payment_id,
                 sp.payment_ref,
-                COALESCE(sp.amount * 1.06, 0) as amount,
+                COALESCE(b.total_amount, sp.amount * (1 + ?), 0) as amount,
+                b.subtotal,
+                b.sst_amount,
+                b.invoice_no,
                 sp.currency,
                 sp.period_start,
                 sp.period_end,
@@ -172,19 +273,49 @@ async function getPaymentHistory(accountId, limit = 10) {
                 s.subscription_ref,
                 s.billing_period,
                 pkg.package_name
-            FROM subscription_payment sp
-            LEFT JOIN account_subscription s ON sp.subscription_id = s.subscription_id
-            LEFT JOIN subscription_package pkg ON s.sub_package_id = pkg.sub_package_id
-            WHERE sp.account_id = ?
-            ORDER BY sp.created_date DESC
-            LIMIT ${limit}
+            ${joins}
+            ORDER BY ${orderColumn} ${orderDir}, sp.payment_id DESC
+            LIMIT ${safeLimit} OFFSET ${offset}
         `;
-        
-        const payments = await db.raw(sql, [accountId]);
+
+        const payments = await db.raw(sql, [sstRate, ...params]);
+
+        // One pass for the count and the money, over the same filtered set.
+        const summarySql = `
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN sp.payment_status = 'Paid' THEN 1 ELSE 0 END) AS paid_count,
+                SUM(CASE WHEN sp.payment_status = 'Pending' THEN 1 ELSE 0 END) AS pending_count,
+                SUM(CASE WHEN sp.payment_status IN ('Failed','Cancelled') THEN 1 ELSE 0 END) AS failed_count,
+                COALESCE(SUM(
+                    CASE WHEN sp.payment_status = 'Paid'
+                         THEN COALESCE(b.total_amount, sp.amount * (1 + ?), 0)
+                         ELSE 0 END
+                ), 0) AS paid_amount,
+                MIN(sp.created_date) AS first_payment_date
+            ${joins}
+        `;
+
+        const summaryRows = await db.raw(summarySql, [sstRate, ...params]);
+        const row = summaryRows?.[0] || {};
+        const total = Number(row.total) || 0;
 
         return {
             success: true,
-            data: payments
+            data: payments,
+            total,
+            totalPages: Math.max(Math.ceil(total / safeLimit), 1),
+            page: safePage,
+            limit: safeLimit,
+            summary: {
+                total,
+                paid_count: Number(row.paid_count) || 0,
+                pending_count: Number(row.pending_count) || 0,
+                failed_count: Number(row.failed_count) || 0,
+                paid_amount: Number(row.paid_amount) || 0,
+                currency: payments?.[0]?.currency || 'MYR',
+                first_payment_date: row.first_payment_date || null,
+            },
         };
     } catch (error) {
         console.error('[SubscriptionPaymentService] getPaymentHistory error:', error);
@@ -1124,5 +1255,9 @@ module.exports = {
     processSuccessfulPayment,
     processFailedPayment,
     getUpcomingRenewals,
-    createRenewalPayment
+    createRenewalPayment,
+    // Exported so the controller validates against the same lists the query enforces,
+    // and so a test can assert an unlisted sort key never reaches SQL.
+    SORTABLE_PAYMENT_COLUMNS,
+    FILTERABLE_PAYMENT_STATUSES
 };
