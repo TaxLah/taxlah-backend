@@ -662,7 +662,11 @@ const getAllExpenses = async (account_id, filters = {}) => {
                 ts.taxsub_title,
                 ts.taxsub_max_claim,
                 ad.dependant_name,
-                ae.created_date
+                ae.created_date,
+                -- The app ages Queued/Processing off this to tell a live analysis
+                -- from one whose job was lost, so the list can offer a retry
+                -- instead of showing a spinner that never resolves.
+                ae.last_modified
             FROM account_expenses ae
             LEFT JOIN tax_category tc ON ae.expenses_tax_category = tc.tax_id
             LEFT JOIN tax_subcategory ts ON ae.expenses_tax_subcategory = ts.taxsub_id
