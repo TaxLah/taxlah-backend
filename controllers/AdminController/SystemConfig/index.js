@@ -75,6 +75,15 @@ function presentRow(row) {
         // Non-secret values are returned as-is; secrets only ever as a hint.
         value,
         masked,
+        /**
+         * The permitted values, when the key is an enum.
+         *
+         * Sent so the portal can offer a choice instead of a text box. The server has
+         * always rejected anything outside this list, but the admin had no way to know
+         * what the list was — which is how "Beta Testing" came to be typed into APP_MODE,
+         * failing validation-by-eye and reading as Live to the app.
+         */
+        options: ENUM_KEYS[row.config_key] || null,
         last_modified: row.last_modified
     }
 }
@@ -386,9 +395,19 @@ router.post('/:group/test', superauth(), async (req, res) => {
         const started = Date.now()
         let result
 
+        // Dispatched by name rather than falling through to OpenAI. `app` was added to
+        // GROUPS later and landed in the else branch, so testing it ran an OpenAI call
+        // against config that holds no OpenAI key — reporting a credential failure for
+        // a group that has no credentials.
         if (group === 'chip') result = await testChip(cfg)
         else if (group === 'gmail') result = await testGmail(cfg, req.body?.test_recipient)
-        else result = await testOpenAI(cfg)
+        else if (group === 'openai') result = await testOpenAI(cfg)
+        else {
+            result = {
+                ok: true,
+                message: 'These settings are read by the app directly — there is no service to test.'
+            }
+        }
 
         // Record that a test happened, but never what was tested with.
         await db.raw(
