@@ -167,7 +167,7 @@ router.put('/:id', upload.single('receipt_file'), verifyUploadedFiles, async (re
         // expense repoints to it; the old row is archived, never deleted, so the
         // original upload stays on record.
         if (req.file) {
-            const receipt_file_url = getFileUrl(req.file.path);
+            const receipt_file_url = getFileUrl(req.file.path, req);
             let receipt_hash = null, receipt_phash = null;
             try {
                 receipt_hash  = computeFileHash(req.file.path);

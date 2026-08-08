@@ -156,7 +156,7 @@ router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req,
         console.log("Processing uploading file...")
         if (uploadedFile) {
             // File uploaded directly — store it
-            receipt_file_url = getFileUrl(uploadedFile.path);
+            receipt_file_url = getFileUrl(uploadedFile.path, req);
             receipt_metadata = {
                 original_name: uploadedFile.originalname,
                 mimetype: uploadedFile.mimetype,

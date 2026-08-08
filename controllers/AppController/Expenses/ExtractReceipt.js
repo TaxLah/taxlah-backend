@@ -104,7 +104,7 @@ router.post('/', upload.single('receipt_file'), verifyUploadedFiles, async (req,
         await recordReceiptUpload(account_id, false);
 
         // --- Build stored file URL (to pass to create expense later) ---
-        const file_url = getFileUrl(uploadedFile.path);
+        const file_url = getFileUrl(uploadedFile.path, req);
 
         response = {
             status_code: 200,

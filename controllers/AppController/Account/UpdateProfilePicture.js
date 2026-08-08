@@ -63,7 +63,7 @@ router.put('/', upload.single('profile_picture'), verifyUploadedFiles, async (re
         const account_id = user.account_id;
         
         // Get file URL
-        const profileImageUrl = getFileUrl(req.file.path);
+        const profileImageUrl = getFileUrl(req.file.path, req);
 
         console.log('[UpdateProfilePicture] Uploading:', {
             account_id,

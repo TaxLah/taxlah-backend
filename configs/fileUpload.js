@@ -147,23 +147,40 @@ const upload = multer({
     }
 })
 
-// Helper function to get file URL based on environment
-function getFileUrl(filePath) {
-    // Remove base directory from path to get relative path
+/**
+ * Builds the public URL for a stored file.
+ *
+ * @param {string} filePath - absolute path of the file under BASE_UPLOAD_DIR
+ * @param {object} [req]    - the incoming request, when available
+ *
+ * Production and staging keep their fixed, known-correct domains. For
+ * development it derives the base from the request that uploaded the file, so a
+ * server run locally (e.g. http://192.168.0.248:3000) serves the image back at
+ * the same host the app is talking to. The previous hardcoded
+ * https://dev.taxlah.com meant a receipt uploaded to a local machine got a URL
+ * pointing at a server that never received the file — the image then rendered
+ * blank, which is exactly the "new expense photo doesn't show" report.
+ */
+function getFileUrl(filePath, req = null) {
     const relativePath = filePath.replace(BASE_UPLOAD_DIR, '').replace(/\\/g, '/')
-    
-    // Get base URL based on environment
+
     let baseUrl
     if (ENV === 'production') {
         baseUrl = 'https://taxlah.com'
     } else if (ENV === 'staging') {
         baseUrl = 'https://staging.taxlah.com'
-    } else if (ENV === 'development') {
-        baseUrl = 'https://dev.taxlah.com' // development
     } else {
-        baseUrl = 'http://localhost:3000' // local
+        // development / local — follow the request host so the file is served
+        // from wherever it was actually stored. X-Forwarded-* is honoured for the
+        // real dev.taxlah.com deployment behind nginx.
+        if (req) {
+            const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http'
+            const host = req.headers['x-forwarded-host'] || req.get('host')
+            if (host) baseUrl = `${proto}://${host}`
+        }
+        if (!baseUrl) baseUrl = 'https://dev.taxlah.com'
     }
-    
+
     return `${baseUrl}/asset${relativePath}`
 }
 
